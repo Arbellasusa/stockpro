@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Inventario StockPro ──────────────────────────────────
+    match /stockpro_inventario/{itemId} {
+      // Cualquier usuario autenticado puede leer
+      allow read: if request.auth != null;
+      // Solo almaceneros, supervisores y admins pueden escribir
+      allow write: if request.auth != null
+        && get(/databases/$(database)/documents/stockpro_usuarios/$(request.auth.uid)).data.role
+           in ['almacenero', 'supervisor', 'admin'];
+    }
+
+    // ── Movimientos StockPro ─────────────────────────────────
+    match /stockpro_movimientos/{movId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      // Solo admin puede eliminar movimientos
+      allow delete: if request.auth != null
+        && get(/databases/$(database)/documents/stockpro_usuarios/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ── Perfiles de usuario ──────────────────────────────────
+    match /stockpro_usuarios/{userId} {
+      // Cada usuario puede leer/escribir su propio perfil
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Admin puede leer todos los perfiles
+      allow read: if request.auth != null
+        && get(/databases/$(database)/documents/stockpro_usuarios/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ── Colecciones HK Pro existentes (sin cambios) ──────────
+    // Las colecciones de HK Pro Enterprise (incidencias, habitaciones,
+    // solicitudes, registro_diario, kardex, chat_*) NO son tocadas
+    // por StockPro — tienen sus propias reglas.
+  }
+}
