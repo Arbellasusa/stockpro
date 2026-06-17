@@ -33,6 +33,7 @@ window.addEventListener('DOMContentLoaded',()=>{
 });
 
 async function startApp(){
+  if(!window.firebase){S.offlineMode=true;loadLocal();showLoginScreen();return;}
   const result=initFirebase();
   if(!result.ok){ S.offlineMode=true; loadLocal(); showLoginScreen(); return; }
   S.fbReady=true;
@@ -65,7 +66,7 @@ function doLogin(){
   });
 }
 function doGoogleLogin(){
-  if(!S.fbReady){doLogin();return;}
+  if(!S.fbReady||!window.firebase){showLoginError('Firebase no disponible. Usa email/contraseña.');return;}
   getAuth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(err=>showLoginError(err.message));
 }
 function doLogout(){

@@ -35,6 +35,7 @@ let _app, _db, _auth;
 
 function initFirebase(config) {
   try {
+    if (!window.firebase) throw new Error('Firebase SDK not loaded');
     if (firebase.apps.length) {
       _app = firebase.apps[0];
     } else {
