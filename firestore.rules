@@ -25,7 +25,7 @@ service cloud.firestore {
     function isBootstrapAdminEmail() {
       return isAuth() && request.auth.token.email in [
         'roldanarbella97@gmail.com',
-        'roldanarbella79@myyahoo.com'
+        'roldanarbella79@myyahoo.com','arbellaroldan97@gmail.com'
       ];
     }
 
