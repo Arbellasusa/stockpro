@@ -53,7 +53,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 @keyframes splash-load{0%{width:0}100%{width:100%}}
 
 /* ── LOGIN ── */
-#login{position:fixed;inset:0;background:linear-gradient(145deg,var(--navy) 0%,#1a3a6b 100%);display:flex;align-items:center;justify-content:center;z-index:100;overflow-y:auto}
+#login{position:fixed;inset:0;background:linear-gradient(145deg,var(--navy) 0%,#1a3a6b 100%);display:none;align-items:center;justify-content:center;z-index:100;overflow-y:auto}
 .login-wrap{width:100%;max-width:400px;padding:24px 20px}
 .login-logo{text-align:center;color:#fff;margin-bottom:28px}
 .login-logo h2{font-size:28px;font-weight:700;margin:14px 0 4px}
@@ -414,9 +414,41 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 .diag-ok{color:#1FAD6E}.diag-err{color:#E5383B}.diag-warn{color:#F4A623}
 
 
-/* ── LOGIN DISPLAY FIX ─── */
-#login { display: flex; }
-#login.hidden-login { display: none !important; }
+
+/* ── DHS SUPPLIER MODULE ──────────────────────────────────── */
+.dhs-header{background:linear-gradient(135deg,#003087 0%,#0051A5 60%,#0073E6 100%);padding:14px 14px 10px;color:#fff}
+.dhs-logo-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.dhs-logo-badge{background:#fff;border-radius:8px;padding:4px 10px;display:flex;align-items:center;gap:6px}
+.dhs-logo-badge span{font-size:11px;font-weight:800;color:#003087;letter-spacing:-.3px}
+.dhs-subtitle{font-size:11px;color:rgba(255,255,255,.7)}
+.dhs-stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.dhs-stat{background:rgba(255,255,255,.1);border-radius:6px;padding:7px;text-align:center}
+.dhs-stat .v{font-size:18px;font-weight:800;color:#fff}
+.dhs-stat .l{font-size:9px;color:rgba(255,255,255,.65);text-transform:uppercase;letter-spacing:.04em;margin-top:1px}
+.dhs-cat-bar{display:flex;gap:6px;padding:10px 12px;overflow-x:auto;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+.dhs-cat-bar::-webkit-scrollbar{display:none}
+.dhs-chip{padding:5px 12px;border-radius:16px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:11px;font-weight:600;white-space:nowrap;flex-shrink:0;cursor:pointer;transition:all .15s}
+.dhs-chip.active{background:#003087;border-color:#003087;color:#fff}
+.dhs-product-card{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:var(--surface);border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.dhs-product-card:active{background:var(--surface2)}
+.dhs-prod-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.dhs-prod-body{flex:1;min-width:0}
+.dhs-prod-name{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+.dhs-prod-brand{font-size:11px;color:#003087;font-weight:600;margin-top:1px}
+.dhs-prod-meta{font-size:11px;color:var(--text3);margin-top:2px}
+.dhs-prod-right{text-align:right;flex-shrink:0}
+.dhs-prod-qty{font-size:17px;font-weight:800}
+.dhs-prod-cost{font-size:11px;color:var(--text3);margin-top:1px}
+.dhs-prod-sku{font-size:9px;font-family:monospace;color:var(--text3);margin-top:2px}
+.dhs-import-section{padding:14px;border-bottom:1px solid var(--border);background:var(--surface)}
+.dhs-import-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dhs-import-btn{display:flex;flex-direction:column;align-items:center;gap:5px;padding:12px;border:1.5px dashed var(--border2);border-radius:var(--r2);background:var(--surface2);cursor:pointer;font-size:12px;font-weight:600;color:var(--text2);transition:all .15s}
+.dhs-import-btn:active{border-color:#003087;background:#EEF4FF;color:#003087}
+.dhs-import-btn .icon{font-size:24px}
+.dhs-catalog-chip{display:inline-flex;align-items:center;gap:4px;background:#EEF4FF;border:1px solid #B3CFFF;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:600;color:#003087;margin-top:3px}
+.dhs-purchase-row{display:flex;align-items:center;gap:6px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}
+.dhs-purchase-row:last-child{border:none}
+.dhs-purch-ind{width:3px;height:30px;border-radius:3px;flex-shrink:0}
 
 </style>
 </head>
@@ -595,6 +627,12 @@ input,select,textarea{font-family:inherit;font-size:inherit}
       <li class="menu-item" data-p="export" onclick="navigate('export')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         <span data-i="export">Exportar</span>
+      </li>
+      <div class="menu-sep"></div>
+      <li class="menu-item" data-p="dhs" onclick="navigate('dhs')" style="border-left:3px solid #003087">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+        <span>DHS Supplier</span>
+        <span style="margin-left:auto;font-size:9px;background:#003087;color:#fff;padding:1px 5px;border-radius:4px">NEW</span>
       </li>
       <div class="menu-sep"></div>
       <li class="menu-item menu-danger" onclick="doLogout()">
@@ -776,6 +814,50 @@ input,select,textarea{font-family:inherit;font-size:inherit}
       </div>
     </div>
 
+
+    <!-- DHS SUPPLIER PAGE -->
+    <div class="page hidden" id="pg-dhs">
+      <div class="dhs-header">
+        <div class="dhs-logo-row">
+          <div class="dhs-logo-badge">
+            <span>DHS</span>
+          </div>
+          <div>
+            <div style="font-size:14px;font-weight:800">Diversified Hospitality Solutions</div>
+            <div class="dhs-subtitle">diversifiedhospitality.com · Proveedor principal</div>
+          </div>
+        </div>
+        <div class="dhs-stats-row" id="dhs-stats-row"></div>
+      </div>
+      <div class="dhs-import-section">
+        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Importar / Agregar productos</div>
+        <div class="dhs-import-grid">
+          <div class="dhs-import-btn" onclick="openDHSModal()">
+            <span class="icon">➕</span>
+            <span>Agregar manual</span>
+          </div>
+          <div class="dhs-import-btn" onclick="document.getElementById('dhs-csv-input').click()">
+            <span class="icon">📊</span>
+            <span>Importar CSV/Excel</span>
+          </div>
+          <div class="dhs-import-btn" onclick="document.getElementById('dhs-json-input').click()">
+            <span class="icon">🔧</span>
+            <span>Importar JSON</span>
+          </div>
+          <div class="dhs-import-btn" onclick="loadDHSCatalog()">
+            <span class="icon">📋</span>
+            <span>Catálogo DHS</span>
+          </div>
+        </div>
+        <input type="file" id="dhs-csv-input" accept=".csv,.xlsx,.xls" style="display:none" onchange="importDHSFile(this)">
+        <input type="file" id="dhs-json-input" accept=".json" style="display:none" onchange="importDHSJSON(this)">
+      </div>
+      <div class="dhs-cat-bar" id="dhs-cat-bar"></div>
+      <div id="dhs-product-list"></div>
+      <button class="fab" onclick="openDHSModal()" aria-label="Agregar producto DHS" style="background:#003087">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="24" height="24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+    </div>
   </div><!-- /main -->
 
   <!-- BOTTOM NAV -->
@@ -974,6 +1056,81 @@ input,select,textarea{font-family:inherit;font-size:inherit}
   </div>
 </div>
 
+
+<!-- DHS PRODUCT MODAL -->
+<div class="modal-bg" id="dhs-modal">
+  <div class="modal">
+    <div class="modal-hdr" style="background:#003087;border-radius:20px 20px 0 0">
+      <h3 id="dhs-modal-title" style="color:#fff;font-size:15px">Agregar producto DHS</h3>
+      <button class="modal-close" onclick="closeDHSModal()" style="background:rgba(255,255,255,.15);color:#fff">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="dhs-edit-id">
+      <div style="background:#EEF4FF;border:1px solid #B3CFFF;border-radius:8px;padding:8px 12px;font-size:11px;color:#003087;margin-bottom:4px">
+        <strong>Proveedor:</strong> Diversified Hospitality Solutions · diversifiedhospitality.com
+      </div>
+      <div class="frow2">
+        <div class="fgrp"><label>Product Code / SKU *</label><input type="text" id="dp-sku" placeholder="DHS-TPGT-SH-1oz"></div>
+        <div class="fgrp"><label>Brand / Collection</label><input type="text" id="dp-brand" placeholder="Terra Pure, Infusé..."></div>
+      </div>
+      <div class="fgrp"><label>Product Name *</label><input type="text" id="dp-name" placeholder="Ej: Shampoo Terra Pure Green Tea 1oz"></div>
+      <div class="frow2">
+        <div class="fgrp">
+          <label>Category *</label>
+          <select id="dp-cat">
+            <option value="Amenities">Amenities</option>
+            <option value="Amenity Kits">Amenity Kits</option>
+            <option value="Dispensers">Dispensers</option>
+            <option value="Gallons / Bulk">Gallons / Bulk Amenities</option>
+            <option value="Detergents">Detergents</option>
+            <option value="Accessories">Accessories</option>
+            <option value="Paper Accessories">Paper Accessories</option>
+            <option value="Boxed Accessories">Boxed Accessories</option>
+            <option value="Sachet Accessories">Sachet Accessories</option>
+            <option value="Luxury Wipes">Luxury Wipes</option>
+            <option value="Slippers">Slippers</option>
+            <option value="Neutral Soaps">Neutral Soaps</option>
+            <option value="EcoBars">EcoBars</option>
+            <option value="Guest Supplies">Guest Supplies</option>
+          </select>
+        </div>
+        <div class="fgrp">
+          <label>Unit Type</label>
+          <select id="dp-unit">
+            <option>Each (ea)</option>
+            <option>Case (cs)</option>
+            <option>Dozen (dz)</option>
+            <option>Gallon (gal)</option>
+            <option>Box</option>
+            <option>Bag</option>
+            <option>Pair</option>
+            <option>Set</option>
+            <option>Pack</option>
+          </select>
+        </div>
+      </div>
+      <div class="frow3">
+        <div class="fgrp"><label>Unit Cost ($)</label><input type="number" id="dp-cost" placeholder="0.00" step="0.01" min="0"></div>
+        <div class="fgrp"><label>Qty Purchased</label><input type="number" id="dp-purchased" placeholder="0" min="0"></div>
+        <div class="fgrp"><label>Minimum Stock</label><input type="number" id="dp-min" placeholder="10" min="0"></div>
+      </div>
+      <div class="frow2">
+        <div class="fgrp"><label>Initial Stock</label><input type="number" id="dp-initial" placeholder="0" min="0"></div>
+        <div class="fgrp"><label>Current Stock</label><input type="number" id="dp-qty" placeholder="0" min="0"></div>
+      </div>
+      <div class="fgrp"><label>Notes / Invoice Reference</label><textarea id="dp-notes" placeholder="Invoice #, PO number, special notes..."></textarea></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary" onclick="closeDHSModal()">Cancelar</button>
+      <button class="btn-primary" onclick="saveDHSProduct()" style="background:#003087">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+        Guardar producto DHS
+      </button>
+    </div>
+  </div>
+</div>
 <script>
 /* ════════════════════════════════════════════
    STOCKPRO v2 — JavaScript
@@ -1313,11 +1470,11 @@ window.addEventListener('error', (e) => {
   const login = document.getElementById('login');
   const app   = document.getElementById('app');
   if (login && app) {
-    const loginHidden = login.classList.contains('hidden-login') || login.style.display==='none';
+    const loginHidden = login.classList.contains('') || login.style.display==='none';
     const appHidden   = app.classList.contains('hidden');
     if (loginHidden && appHidden) {
       // Both hidden = blank screen → recover
-      login.classList.remove('hidden-login');
+      login.classList.remove('');
       login.style.display = 'flex';
     }
   }
@@ -1486,8 +1643,7 @@ function startClock(){
 }
 
 /* ── AUTH ── */
-function showLogin(){ document.getElementById('login').classList.remove('hidden'); }
-function hideLogin(){ document.getElementById('login').classList.add('hidden'); }
+// showLogin/hideLogin defined below
 
 /* ════════════════════════════════════════════════════
    RECOVERY MODE — First Admin + Diagnostics
@@ -1651,11 +1807,14 @@ async function runDiagnostics(){
 
 // showLogin & hideLogin helpers
 function showLogin(){
-  document.getElementById('login').classList.remove('hidden-login');
-  document.getElementById('app').classList.add('hidden');
+  const l = document.getElementById('login');
+  const a = document.getElementById('app');
+  if (l) l.style.display = 'flex';
+  if (a) a.classList.add('hidden');
 }
 function hideLogin(){
-  document.getElementById('login').classList.add('hidden-login');
+  const l = document.getElementById('login');
+  if (l) l.style.display = 'none';
 }
 
 
@@ -1667,8 +1826,9 @@ function doLogin(){
   if(!email||!pass){ showErr('Completa todos los campos'); return; }
   const btn = document.getElementById('l-btn'); btn.disabled=true; btn.textContent=t('loading');
   if (!S.fbReady){
-    S.user={uid:'demo',email,name:email.split('@')[0],initials:email[0].toUpperCase(),role:'warehouse_manager'};
-    hideLogin(); showApp(); btn.disabled=false; btn.textContent=t('signin'); return;
+    S.user={uid:'demo-'+Date.now(),email,name:email.split('@')[0],initials:email[0].toUpperCase(),role:'warehouse_manager'};
+    hideLogin(); showApp(); applyRoleUI();
+    btn.disabled=false; btn.textContent=t('signin'); return;
   }
   firebase.auth().signInWithEmailAndPassword(email, pass).catch(err => {
     const msgs={'auth/user-not-found':'Usuario no encontrado','auth/wrong-password':'Contraseña incorrecta','auth/invalid-email':'Email inválido','auth/too-many-requests':'Demasiados intentos'};
@@ -1714,6 +1874,7 @@ function showApp(){
   updateFbStats();
   applyRoleUI();
   saveDailySnapshot(); // Save initial daily snapshot
+  initDHS();
 }
 function showProfile(){ showAlert(S.user?.name+' · '+S.user?.email, 'info'); }
 
@@ -1766,7 +1927,7 @@ function navigate(page){
   const pg=document.getElementById('pg-'+page);
   if(pg) pg.classList.add('active');
   document.querySelectorAll('.nav-btn,.menu-item').forEach(b=>b.classList.toggle('active',b.dataset.p===page));
-  const titles={dashboard:t('dashboard'),inventory:t('inventory'),scanner:t('scanner'),delivery:t('delivery'),movements:t('movements'),history:t('history'),reports:t('reports'),export:t('export')};
+  const titles={dashboard:t('dashboard'),inventory:t('inventory'),scanner:t('scanner'),delivery:t('delivery'),movements:t('movements'),history:t('history'),reports:t('reports'),export:t('export'),dhs:'DHS — Diversified Hospitality'};
   document.getElementById('page-title').textContent=titles[page]||'StockPro';
   document.querySelector('.fab')&&(document.querySelector('.fab').style.display=page==='inventory'?'flex':'none');
   if(page!=='scanner') stopScanner();
@@ -1774,6 +1935,7 @@ function navigate(page){
   if(page==='history'){ renderCalendar(); saveDailySnapshot(); }
   if(page==='export') updateFbStats();
   if(page==='delivery') renderDeliveries();
+  if(page==='dhs'){ initDHS(); setTimeout(renderDHS,200); }
   toggleMenu(true);
 }
 function toggleMenu(f){
@@ -2837,8 +2999,24 @@ function generateReport(period, fromDate, toDate){
     </div>
   </div>`;
 
+  // Add DHS summary to report if products exist
+  const dhsProducts = (DHS?.products||[]).filter(p=>!p._deleted);
+  if(dhsProducts.length){
+    const dhsTotalVal = dhsProducts.reduce((s,p)=>s+(p.qty||0)*(p.cost||0),0);
+    const dhsOut = dhsProducts.filter(p=>!p.qty||p.qty<=0).length;
+    document.getElementById('rpt-preview').innerHTML += `
+    <div style="padding:14px;border-top:3px solid #003087">
+      <div style="font-size:11px;font-weight:800;color:#003087;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">📦 DHS — Diversified Hospitality Solutions</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px">
+        <div style="background:#EEF4FF;border-radius:6px;padding:8px;text-align:center"><div style="font-size:16px;font-weight:800;color:#003087">${dhsProducts.length}</div><div style="font-size:9px;color:#6B7280">DHS Products</div></div>
+        <div style="background:#EEF4FF;border-radius:6px;padding:8px;text-align:center"><div style="font-size:16px;font-weight:800;color:#003087">$${dhsTotalVal.toFixed(0)}</div><div style="font-size:9px;color:#6B7280">DHS Value</div></div>
+        <div style="background:${dhsOut>0?'#FDE8E8':'#EEF4FF'};border-radius:6px;padding:8px;text-align:center"><div style="font-size:16px;font-weight:800;color:${dhsOut>0?'#C1121F':'#003087'}">${dhsOut}</div><div style="font-size:9px;color:#6B7280">Out of Stock</div></div>
+      </div>
+    </div>`;
+  }
+
   S.currentRptData = {period, fromDate, toDate, periodLabel, periodLabelES, reportNum, now,
-    productData, totals, periodMovs, periodDels, health, cutoff};
+    productData, totals, periodMovs, periodDels, health, cutoff, dhsProducts};
   document.getElementById('rpt-modal').classList.add('open');
 }
 
@@ -3251,6 +3429,660 @@ document.addEventListener('keydown', e=>{ if(e.key==='Escape'){closeSearch();clo
 /* ── INITIAL LANG APPLY ── */
 applyLang();
 startClock();
+
+/* ════════════════════════════════════════════════════════════
+   STOCKPRO v2 — DHS SUPPLIER MODULE
+   Diversified Hospitality Solutions
+   diversifiedhospitality.com
+   ════════════════════════════════════════════════════════════ */
+
+/* ── DHS DATA CONSTANTS ─────────────────────────────────────── */
+const DHS_SUPPLIER = {
+  name:    'Diversified Hospitality Solutions',
+  code:    'DHS',
+  website: 'https://www.diversifiedhospitality.com',
+  email:   'info@diversifiedhospitality.com',
+  location:'USA',
+};
+
+const DHS_CATEGORIES = [
+  'All','Amenities','Amenity Kits','Dispensers','Gallons / Bulk',
+  'Detergents','Accessories','Paper Accessories','Boxed Accessories',
+  'Sachet Accessories','Luxury Wipes','Slippers','Neutral Soaps',
+  'EcoBars','Guest Supplies'
+];
+
+const DHS_CAT_EMOJI = {
+  'Amenities':'🧴','Amenity Kits':'🎁','Dispensers':'🔧',
+  'Gallons / Bulk':'🛢️','Detergents':'🧼','Accessories':'📎',
+  'Paper Accessories':'🧻','Boxed Accessories':'📦','Sachet Accessories':'🪅',
+  'Luxury Wipes':'🫧','Slippers':'🥿','Neutral Soaps':'🍵',
+  'EcoBars':'♻️','Guest Supplies':'🏨','All':'📋'
+};
+
+const DHS_CAT_COLOR = {
+  'Amenities':'#0051A5','Amenity Kits':'#6B21A8','Dispensers':'#1FAD6E',
+  'Gallons / Bulk':'#C2410C','Detergents':'#0891B2','Accessories':'#374151',
+  'Paper Accessories':'#B45309','Boxed Accessories':'#5B21B6',
+  'Sachet Accessories':'#BE185D','Luxury Wipes':'#065F46',
+  'Slippers':'#9D174D','Neutral Soaps':'#1E40AF',
+  'EcoBars':'#166534','Guest Supplies':'#003087'
+};
+
+// Pre-loaded DHS catalog — based on actual product lines from diversifiedhospitality.com
+const DHS_CATALOG_PRELOAD = [
+  // ── Amenities — Terra Pure Green Tea ──────────────────────────────────
+  {sku:'DHS-TPGT-SH-1',  brand:'Terra Pure® Green Tea', name:'Shampoo 1oz Bottle',       cat:'Amenities',        unit:'Each (ea)',  cost:0.28, minQty:500},
+  {sku:'DHS-TPGT-CD-1',  brand:'Terra Pure® Green Tea', name:'Conditioner 1oz Bottle',    cat:'Amenities',        unit:'Each (ea)',  cost:0.28, minQty:500},
+  {sku:'DHS-TPGT-BW-1',  brand:'Terra Pure® Green Tea', name:'Body Wash 1oz Bottle',      cat:'Amenities',        unit:'Each (ea)',  cost:0.28, minQty:500},
+  {sku:'DHS-TPGT-BL-1',  brand:'Terra Pure® Green Tea', name:'Body Lotion 1oz Bottle',    cat:'Amenities',        unit:'Each (ea)',  cost:0.28, minQty:500},
+  // ── Amenities — Infusé White Tea & Coconut ────────────────────────────
+  {sku:'DHS-INFW-SH-1',  brand:'Infusé® White Tea & Coconut', name:'Shampoo 1oz Bottle',  cat:'Amenities',        unit:'Each (ea)',  cost:0.32, minQty:300},
+  {sku:'DHS-INFW-CD-1',  brand:'Infusé® White Tea & Coconut', name:'Conditioner 1oz',     cat:'Amenities',        unit:'Each (ea)',  cost:0.32, minQty:300},
+  {sku:'DHS-INFW-BW-1',  brand:'Infusé® White Tea & Coconut', name:'Body Wash 1oz',       cat:'Amenities',        unit:'Each (ea)',  cost:0.32, minQty:300},
+  // ── Amenities — H2O Therapy ───────────────────────────────────────────
+  {sku:'DHS-H2O-SH-1',   brand:'H2O Therapy®',          name:'Shampoo 1oz',               cat:'Amenities',        unit:'Each (ea)',  cost:0.26, minQty:500},
+  {sku:'DHS-H2O-CD-1',   brand:'H2O Therapy®',          name:'Conditioner 1oz',           cat:'Amenities',        unit:'Each (ea)',  cost:0.26, minQty:500},
+  {sku:'DHS-H2O-BW-1',   brand:'H2O Therapy®',          name:'Body Wash 1oz',             cat:'Amenities',        unit:'Each (ea)',  cost:0.26, minQty:500},
+  {sku:'DHS-H2O-BL-1',   brand:'H2O Therapy®',          name:'Body Lotion 1oz',           cat:'Amenities',        unit:'Each (ea)',  cost:0.26, minQty:500},
+  // ── Amenities — Eco Botanics ──────────────────────────────────────────
+  {sku:'DHS-ECOB-SH-1',  brand:'Eco Botanics®',         name:'Shampoo 1oz',               cat:'Amenities',        unit:'Each (ea)',  cost:0.24, minQty:500},
+  {sku:'DHS-ECOB-CD-1',  brand:'Eco Botanics®',         name:'Conditioner 1oz',           cat:'Amenities',        unit:'Each (ea)',  cost:0.24, minQty:500},
+  {sku:'DHS-ECOB-BW-1',  brand:'Eco Botanics®',         name:'Body Wash 1oz',             cat:'Amenities',        unit:'Each (ea)',  cost:0.24, minQty:500},
+  // ── Amenities — Panama Jack ───────────────────────────────────────────
+  {sku:'DHS-PJ-WIS-SH',  brand:'Panama Jack® Wisteria', name:'Shampoo 1oz',               cat:'Amenities',        unit:'Each (ea)',  cost:0.38, minQty:200},
+  {sku:'DHS-PJ-WIS-CD',  brand:'Panama Jack® Wisteria', name:'Conditioner 1oz',           cat:'Amenities',        unit:'Each (ea)',  cost:0.38, minQty:200},
+  {sku:'DHS-PJ-OCS-SH',  brand:'Panama Jack® Orange Creamsicle', name:'Shampoo 1oz',      cat:'Amenities',        unit:'Each (ea)',  cost:0.38, minQty:200},
+  // ── Amenity Kits ──────────────────────────────────────────────────────
+  {sku:'DHS-KIT-TPGT-4', brand:'Terra Pure® Green Tea', name:'4-piece Ecobox Amenity Kit', cat:'Amenity Kits',    unit:'Case (cs)',  cost:1.15, minQty:50},
+  {sku:'DHS-KIT-INFW-4', brand:'Infusé® White Tea',     name:'4-piece Ecobox Amenity Kit', cat:'Amenity Kits',    unit:'Case (cs)',  cost:1.30, minQty:50},
+  {sku:'DHS-KIT-PJ-4',   brand:'Panama Jack® Wisteria', name:'4-piece Amenity Kit',        cat:'Amenity Kits',    unit:'Case (cs)',  cost:1.55, minQty:25},
+  {sku:'DHS-KIT-MKR-4',  brand:'Makari Le Bosquet',     name:'4-piece Luxury Amenity Kit', cat:'Amenity Kits',    unit:'Case (cs)',  cost:1.85, minQty:25},
+  {sku:'DHS-KIT-CTL-4',  brand:'Cutler',                name:'4-piece Premium Amenity Kit',cat:'Amenity Kits',    unit:'Case (cs)',  cost:1.60, minQty:25},
+  // ── Dispensers ────────────────────────────────────────────────────────
+  {sku:'DHS-DISP-AIR-TP', brand:'EcoLux® Air',          name:'Air Dispenser Terra Pure 11oz',cat:'Dispensers',    unit:'Each (ea)', cost:24.50, minQty:5},
+  {sku:'DHS-DISP-AIR-IN', brand:'EcoLux® Air',          name:'Air Dispenser Infusé WTC 11oz',cat:'Dispensers',   unit:'Each (ea)', cost:24.50, minQty:5},
+  {sku:'DHS-DISP-ALTA-340',brand:'Alta',                name:'Alta 340ml Wall Dispenser',    cat:'Dispensers',   unit:'Each (ea)', cost:18.75, minQty:5},
+  {sku:'DHS-DISP-ALTA-380',brand:'Alta',                name:'Alta 380ml Wall Dispenser',    cat:'Dispensers',   unit:'Each (ea)', cost:21.00, minQty:5},
+  {sku:'DHS-DISP-AQV-TP', brand:'Acquavera',            name:'Acquavera Dispenser Wild Citrus',cat:'Dispensers', unit:'Each (ea)', cost:19.50, minQty:5},
+  {sku:'DHS-DISP-TRUE-TP',brand:'True',                 name:'True Dispenser Terra Pure',    cat:'Dispensers',   unit:'Each (ea)', cost:22.00, minQty:5},
+  {sku:'DHS-DISP-BKT',    brand:'EcoLux®',              name:'EcoLux Bracket Kit',           cat:'Dispensers',   unit:'Each (ea)', cost:8.50,  minQty:10},
+  // ── Gallons / Bulk ────────────────────────────────────────────────────
+  {sku:'DHS-GAL-TPGT-SH', brand:'Terra Pure® Green Tea',name:'Shampoo Gallon (1 gal)',       cat:'Gallons / Bulk',unit:'Gallon (gal)',cost:32.00,minQty:4},
+  {sku:'DHS-GAL-TPGT-CD', brand:'Terra Pure® Green Tea',name:'Conditioner Gallon',           cat:'Gallons / Bulk',unit:'Gallon (gal)',cost:32.00,minQty:4},
+  {sku:'DHS-GAL-TPGT-BW', brand:'Terra Pure® Green Tea',name:'Body Wash Gallon',             cat:'Gallons / Bulk',unit:'Gallon (gal)',cost:30.00,minQty:4},
+  {sku:'DHS-GAL-H2O-SH',  brand:'H2O Therapy®',         name:'Shampoo Gallon',               cat:'Gallons / Bulk',unit:'Gallon (gal)',cost:28.00,minQty:4},
+  // ── Detergents ────────────────────────────────────────────────────────
+  {sku:'DHS-DET-TB-PKT',  brand:'Terra Breeze®',        name:'Laundry Detergent Packet',     cat:'Detergents',   unit:'Each (ea)', cost:0.18, minQty:200},
+  {sku:'DHS-DET-TB-BOX',  brand:'Terra Breeze®',        name:'Laundry Detergent Box Kit',    cat:'Detergents',   unit:'Box',        cost:1.45, minQty:50},
+  {sku:'DHS-DET-TB-GAL',  brand:'Terra Breeze®',        name:'Laundry Detergent Gallon',     cat:'Detergents',   unit:'Gallon (gal)',cost:26.00,minQty:2},
+  // ── Accessories — Paper ───────────────────────────────────────────────
+  {sku:'DHS-PAP-FT-SF',   brand:'DHS',                  name:'Facial Tissue Soft Fold 2-ply', cat:'Paper Accessories',unit:'Box',   cost:0.85, minQty:100},
+  {sku:'DHS-PAP-TP-4',    brand:'DHS',                  name:'Toilet Paper Roll 4-pack',      cat:'Paper Accessories',unit:'Pack',  cost:2.40, minQty:50},
+  {sku:'DHS-PAP-TW-SR',   brand:'DHS',                  name:'Towelettes Sanitizing Roll',    cat:'Paper Accessories',unit:'Each (ea)',cost:0.12,minQty:300},
+  // ── Accessories — Boxed ───────────────────────────────────────────────
+  {sku:'DHS-BOX-CP',      brand:'DHS',                  name:'Cotton Pads Box (50ct)',         cat:'Boxed Accessories',unit:'Box',  cost:1.20, minQty:50},
+  {sku:'DHS-BOX-CB',      brand:'DHS',                  name:'Cotton Balls Box (50ct)',        cat:'Boxed Accessories',unit:'Box',  cost:1.10, minQty:50},
+  {sku:'DHS-BOX-QT',      brand:'DHS',                  name:'Q-Tips Box (50ct)',              cat:'Boxed Accessories',unit:'Box',  cost:0.95, minQty:100},
+  {sku:'DHS-BOX-SC',      brand:'DHS',                  name:'Shower Cap Boxed',               cat:'Boxed Accessories',unit:'Each (ea)',cost:0.22,minQty:200},
+  {sku:'DHS-BOX-DN',      brand:'DHS',                  name:'Dental Kit Boxed',               cat:'Boxed Accessories',unit:'Each (ea)',cost:0.65,minQty:100},
+  {sku:'DHS-BOX-RZR',     brand:'DHS',                  name:'Razor Boxed',                    cat:'Boxed Accessories',unit:'Each (ea)',cost:0.55,minQty:100},
+  // ── Accessories — Sachet ──────────────────────────────────────────────
+  {sku:'DHS-SAC-SC',      brand:'DHS',                  name:'Shower Cap Sachet',              cat:'Sachet Accessories',unit:'Each (ea)',cost:0.18,minQty:300},
+  {sku:'DHS-SAC-SW-SH',   brand:'DHS',                  name:'Sewing Kit Sachet',              cat:'Sachet Accessories',unit:'Each (ea)',cost:0.42,minQty:200},
+  {sku:'DHS-SAC-SL',      brand:'DHS',                  name:'Shoeshine Cloth Sachet',         cat:'Sachet Accessories',unit:'Each (ea)',cost:0.38,minQty:200},
+  // ── Luxury Wipes ──────────────────────────────────────────────────────
+  {sku:'DHS-LW-FM',       brand:'DHS Luxury',           name:'Face & Makeup Remover Wipes',    cat:'Luxury Wipes',  unit:'Each (ea)',cost:0.55,minQty:100},
+  {sku:'DHS-LW-BB',       brand:'DHS Luxury',           name:'Body Buff Luxury Wipe',          cat:'Luxury Wipes',  unit:'Each (ea)',cost:0.65,minQty:100},
+  {sku:'DHS-LW-SF',       brand:'DHS Luxury',           name:'Softening Facial Wipe',          cat:'Luxury Wipes',  unit:'Each (ea)',cost:0.58,minQty:100},
+  // ── Slippers ──────────────────────────────────────────────────────────
+  {sku:'DHS-SLP-WFL-U',   brand:'DHS',                  name:'Waffle Slippers Universal',      cat:'Slippers',      unit:'Pair',    cost:1.85, minQty:50},
+  {sku:'DHS-SLP-VEL-U',   brand:'DHS',                  name:'Velour Slippers Universal',      cat:'Slippers',      unit:'Pair',    cost:2.20, minQty:50},
+  {sku:'DHS-SLP-SPA-U',   brand:'DHS',                  name:'Spa Slippers EVA sole',          cat:'Slippers',      unit:'Pair',    cost:1.65, minQty:50},
+  // ── Neutral Soaps ─────────────────────────────────────────────────────
+  {sku:'DHS-NSP-WHT-1',   brand:'DHS Neutral',          name:'White Soap Bar 1oz',             cat:'Neutral Soaps', unit:'Each (ea)',cost:0.14,minQty:500},
+  {sku:'DHS-NSP-WHT-1.5', brand:'DHS Neutral',          name:'White Soap Bar 1.5oz',           cat:'Neutral Soaps', unit:'Each (ea)',cost:0.18,minQty:500},
+  {sku:'DHS-NSP-WHT-2',   brand:'DHS Neutral',          name:'White Soap Bar 2oz',             cat:'Neutral Soaps', unit:'Each (ea)',cost:0.22,minQty:300},
+  {sku:'DHS-NSP-IVR-1',   brand:'DHS Neutral',          name:'Ivory Soap Bar 1oz',             cat:'Neutral Soaps', unit:'Each (ea)',cost:0.15,minQty:500},
+  // ── EcoBars ───────────────────────────────────────────────────────────
+  {sku:'DHS-ECOB-GRN-1',  brand:'EcoBar®',              name:'EcoBar Green Tea 1oz',           cat:'EcoBars',       unit:'Each (ea)',cost:0.32,minQty:300},
+  {sku:'DHS-ECOB-LVN-1',  brand:'EcoBar®',              name:'EcoBar Lavender 1oz',            cat:'EcoBars',       unit:'Each (ea)',cost:0.32,minQty:300},
+  {sku:'DHS-ECOB-CTR-1',  brand:'EcoBar®',              name:'EcoBar Citrus 1oz',              cat:'EcoBars',       unit:'Each (ea)',cost:0.32,minQty:300},
+  // ── Guest Supplies ────────────────────────────────────────────────────
+  {sku:'DHS-GST-KIT-DLX', brand:'DHS',                  name:'Guest Welcome Kit Deluxe',       cat:'Guest Supplies',unit:'Each (ea)',cost:3.50,minQty:25},
+  {sku:'DHS-GST-AMN-BAG', brand:'DHS',                  name:'Amenity Bag Resealable',         cat:'Guest Supplies',unit:'Each (ea)',cost:0.28,minQty:200},
+  {sku:'DHS-GST-LUGBAG',  brand:'DHS',                  name:'Laundry/Luggage Bag',            cat:'Guest Supplies',unit:'Each (ea)',cost:0.45,minQty:200},
+  {sku:'DHS-GST-ICEBAG',  brand:'DHS',                  name:'Ice Bucket Liner Bag',           cat:'Guest Supplies',unit:'Each (ea)',cost:0.12,minQty:500},
+];
+
+/* ── DHS STATE ──────────────────────────────────────────────── */
+const DHS = {
+  products:    [],
+  purchases:   [],
+  currentCat:  'All',
+  editingId:   null,
+};
+const DHS_COL = 'stockpro_dhs_products';
+const DHS_PUR = 'stockpro_dhs_purchases';
+
+/* ── INIT DHS ───────────────────────────────────────────────── */
+function initDHS(){
+  // Load from localStorage as cache
+  try {
+    const saved = localStorage.getItem('sp_dhs_products');
+    DHS.products = saved ? JSON.parse(saved) : [];
+    const savedP = localStorage.getItem('sp_dhs_purchases');
+    DHS.purchases = savedP ? JSON.parse(savedP) : [];
+  } catch(e) { DHS.products=[]; DHS.purchases=[]; }
+
+  // Subscribe to Firestore if available
+  if (S.fbReady) {
+    firebase.firestore().collection(DHS_COL)
+      .orderBy('name')
+      .onSnapshot(snap => {
+        DHS.products = snap.docs.map(d=>({id:d.id,...d.data()}));
+        localStorage.setItem('sp_dhs_products', JSON.stringify(DHS.products));
+        if (document.getElementById('pg-dhs')?.classList.contains('active')) renderDHS();
+      }, ()=>{});
+    firebase.firestore().collection(DHS_PUR)
+      .orderBy('date','desc').limit(100)
+      .onSnapshot(snap => {
+        DHS.purchases = snap.docs.map(d=>({id:d.id,...d.data()}));
+        localStorage.setItem('sp_dhs_purchases', JSON.stringify(DHS.purchases));
+      }, ()=>{});
+  }
+}
+
+/* ── RENDER DHS ─────────────────────────────────────────────── */
+function renderDHS(){
+  renderDHSStats();
+  renderDHSCatBar();
+  renderDHSProducts();
+}
+
+function renderDHSStats(){
+  const el = document.getElementById('dhs-stats-row'); if(!el) return;
+  const total    = DHS.products.length;
+  const totalVal = DHS.products.reduce((s,p)=>s+(p.qty||0)*(p.cost||0),0);
+  const outStock = DHS.products.filter(p=>!p.qty||p.qty<=0).length;
+  el.innerHTML = `
+    <div class="dhs-stat"><div class="v">${total}</div><div class="l">Products</div></div>
+    <div class="dhs-stat"><div class="v">$${totalVal.toFixed(0)}</div><div class="l">Value</div></div>
+    <div class="dhs-stat"><div class="v">${outStock}</div><div class="l">Out Stock</div></div>
+  `;
+}
+
+function renderDHSCatBar(){
+  const el = document.getElementById('dhs-cat-bar'); if(!el) return;
+  el.innerHTML = DHS_CATEGORIES.map(cat => {
+    const count = cat==='All' ? DHS.products.length : DHS.products.filter(p=>p.cat===cat).length;
+    return `<button class="dhs-chip${cat===DHS.currentCat?' active':''}" onclick="dhsFilterCat('${cat}')">
+      ${DHS_CAT_EMOJI[cat]||'📦'} ${cat} ${count>0?`<span style="opacity:.7">(${count})</span>`:''}
+    </button>`;
+  }).join('');
+}
+
+function renderDHSProducts(){
+  const el = document.getElementById('dhs-product-list'); if(!el) return;
+  let list = DHS.currentCat==='All' ? DHS.products : DHS.products.filter(p=>p.cat===DHS.currentCat);
+
+  if(!list.length){
+    el.innerHTML = `<div class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+      <p>Sin productos DHS</p>
+      <small>Agrega manualmente o carga el catálogo DHS</small>
+    </div>`;
+    return;
+  }
+
+  // Group by category
+  const groups = {};
+  list.forEach(p => {
+    if(!groups[p.cat]) groups[p.cat]=[];
+    groups[p.cat].push(p);
+  });
+
+  el.innerHTML = Object.entries(groups).map(([cat,prods])=>`
+    <div class="section-lbl" style="background:var(--surface2)">${DHS_CAT_EMOJI[cat]||'📦'} ${cat} <span style="opacity:.6">(${prods.length})</span></div>
+    ${prods.map(p=>{
+      const color = DHS_CAT_COLOR[p.cat]||'#003087';
+      const qty   = p.qty||0;
+      const min   = p.minQty||10;
+      const statusColor = qty<=0?'var(--red)':qty<min?'var(--yellow)':'var(--green)';
+      const inv   = (qty*(p.cost||0)).toFixed(2);
+      return `<div class="dhs-product-card" onclick="openDHSDetail('${p.id||p.sku}')">
+        <div class="dhs-prod-icon" style="background:${color}22">${DHS_CAT_EMOJI[p.cat]||'📦'}</div>
+        <div class="dhs-prod-body">
+          <div class="dhs-prod-name">${p.name}</div>
+          <div class="dhs-prod-brand">${p.brand||'DHS'}</div>
+          <div class="dhs-prod-meta">${p.unit||'Each'} · $${Number(p.cost||0).toFixed(2)}/unit · Inv: $${inv}</div>
+          <div class="dhs-prod-sku">${p.sku}</div>
+        </div>
+        <div class="dhs-prod-right">
+          <div class="dhs-prod-qty" style="color:${statusColor}">${qty}</div>
+          <div class="dhs-prod-cost" style="font-size:10px;color:var(--text3)">${p.unit||'ea'}</div>
+          ${qty<=0?`<span class="badge badge-out" style="font-size:9px">Out</span>`:qty<min?`<span class="badge badge-low" style="font-size:9px">Low</span>`:`<span class="badge badge-ok" style="font-size:9px">OK</span>`}
+        </div>
+      </div>`;
+    }).join('')}
+  `).join('');
+}
+
+function dhsFilterCat(cat){
+  DHS.currentCat = cat;
+  renderDHSCatBar();
+  renderDHSProducts();
+}
+
+/* ── DHS PRODUCT DETAIL ──────────────────────────────────────── */
+function openDHSDetail(id){
+  const p = DHS.products.find(x=>x.id===id||x.sku===id); if(!p) return;
+  const color = DHS_CAT_COLOR[p.cat]||'#003087';
+  const qty   = p.qty||0;
+  const min   = p.minQty||10;
+  const inv   = (qty*(p.cost||0)).toFixed(2);
+  const history = DHS.purchases.filter(pur=>pur.productId===id||pur.sku===p.sku).slice(0,10);
+
+  const overlay = document.createElement('div');
+  overlay.className='detail-overlay'; overlay.id='dhs-detail-overlay';
+  overlay.style.zIndex='260';
+  overlay.innerHTML=`
+    <div class="detail-sheet">
+      <div class="detail-topbar" style="background:${color}">
+        <button class="detail-back" onclick="closeDHSDetail()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          DHS
+        </button>
+        <h2 style="font-size:13px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</h2>
+        <button style="background:none;border:none;color:#fff" onclick="openDHSEditModal('${id}')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+      </div>
+      <div style="background:${color};padding:12px 14px 20px;display:flex;flex-direction:column;align-items:center;gap:6px">
+        <div style="font-size:36px">${DHS_CAT_EMOJI[p.cat]||'📦'}</div>
+        <div style="color:#fff;font-size:16px;font-weight:700;text-align:center">${p.name}</div>
+        <div style="color:rgba(255,255,255,.7);font-size:12px">${p.brand||'DHS'} · ${p.cat}</div>
+        <div style="background:rgba(255,255,255,.15);border-radius:6px;padding:3px 12px;font-size:11px;color:#fff;font-family:monospace">${p.sku}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:14px;transform:translateY(-8px)">
+        <div style="background:var(--surface);border-radius:10px;padding:12px;text-align:center;box-shadow:var(--shadow)">
+          <div style="font-size:22px;font-weight:800;color:${qty<=0?'var(--red)':qty<min?'var(--yellow)':'var(--green)'}">${qty}</div>
+          <div style="font-size:9px;color:var(--text3);text-transform:uppercase">Stock</div>
+        </div>
+        <div style="background:var(--surface);border-radius:10px;padding:12px;text-align:center;box-shadow:var(--shadow)">
+          <div style="font-size:18px;font-weight:800;color:${color}">$${Number(p.cost||0).toFixed(2)}</div>
+          <div style="font-size:9px;color:var(--text3);text-transform:uppercase">Unit Cost</div>
+        </div>
+        <div style="background:var(--surface);border-radius:10px;padding:12px;text-align:center;box-shadow:var(--shadow)">
+          <div style="font-size:18px;font-weight:800;color:var(--navy)">$${inv}</div>
+          <div style="font-size:9px;color:var(--text3);text-transform:uppercase">Inv. Value</div>
+        </div>
+      </div>
+      <div class="detail-fields" style="margin-top:-8px">
+        <div class="detail-field"><span class="detail-field-lbl">Supplier</span><span class="detail-field-val" style="color:#003087">Diversified Hospitality Solutions</span></div>
+        <div class="detail-field"><span class="detail-field-lbl">SKU / Code</span><span class="detail-field-val" style="font-family:monospace;font-size:12px">${p.sku}</span></div>
+        <div class="detail-field"><span class="detail-field-lbl">Brand</span><span class="detail-field-val">${p.brand||'—'}</span></div>
+        <div class="detail-field"><span class="detail-field-lbl">Category</span><span class="detail-field-val">${p.cat}</span></div>
+        <div class="detail-field"><span class="detail-field-lbl">Unit Type</span><span class="detail-field-val">${p.unit||'Each'}</span></div>
+        <div class="detail-field"><span class="detail-field-lbl">Minimum Stock</span><span class="detail-field-val">${min} units</span></div>
+        <div class="detail-field"><span class="detail-field-lbl">Qty Purchased</span><span class="detail-field-val">${p.purchased||0}</span></div>
+        <div class="detail-field"><span class="detail-field-lbl">Last Updated</span><span class="detail-field-val" style="font-size:11px">${p.updatedAt?new Date(p.updatedAt?.seconds?p.updatedAt.seconds*1000:p.updatedAt).toLocaleDateString():'—'}</span></div>
+        ${p.notes?`<div class="detail-field" style="flex-direction:column;gap:4px"><span class="detail-field-lbl">Notes</span><span style="font-size:12px;color:var(--text2)">${p.notes}</span></div>`:''}
+      </div>
+      ${history.length?`
+      <div style="padding:0 14px 4px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase">Purchase History</div>
+      <div style="padding:0 14px 14px">
+        ${history.map(h=>{
+          const hd=new Date(h.date?.seconds?h.date.seconds*1000:(h.date||Date.now()));
+          return`<div class="dhs-purchase-row">
+            <div class="dhs-purch-ind" style="background:var(--green)"></div>
+            <div style="flex:1"><div style="font-weight:600">${h.qty} ${h.unit||'ea'}</div><div style="color:var(--text3);font-size:10px">${hd.toLocaleDateString()} · ${h.responsible||'—'} ${h.invoice?'· #'+h.invoice:''}</div></div>
+            <div style="font-weight:700;color:var(--green)">$${((h.qty||0)*(h.cost||0)).toFixed(2)}</div>
+          </div>`;
+        }).join('')}
+      </div>`:''}
+      <div style="display:flex;gap:10px;padding:0 14px">
+        <button class="btn-primary" style="flex:1;background:#003087;font-size:13px" onclick="openDHSReceive('${id}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Receive Stock
+        </button>
+        <button class="btn-danger" style="font-size:13px" onclick="deleteDHSProduct('${id}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+          Delete
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(()=>overlay.style.background='rgba(0,0,0,.45)',10);
+}
+function closeDHSDetail(){const el=document.getElementById('dhs-detail-overlay');if(el)el.remove();}
+
+/* ── DHS RECEIVE STOCK (quick entry modal) ───────────────────── */
+function openDHSReceive(id){
+  const p = DHS.products.find(x=>x.id===id||x.sku===id); if(!p) return;
+  closeDHSDetail();
+  const overlay=document.createElement('div');
+  overlay.className='modal-bg open'; overlay.id='dhs-receive-overlay'; overlay.style.zIndex='310';
+  overlay.innerHTML=`
+    <div class="modal">
+      <div class="modal-hdr" style="background:#003087;border-radius:20px 20px 0 0">
+        <h3 style="color:#fff;font-size:14px">Receive: ${p.name}</h3>
+        <button class="modal-close" onclick="document.getElementById('dhs-receive-overlay').remove()" style="background:rgba(255,255,255,.15);color:#fff">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:#EEF4FF;border-radius:8px;padding:8px 12px;font-size:12px;color:#003087;margin-bottom:4px">
+          <strong>${p.sku}</strong> · ${p.brand||'DHS'} · Current stock: <strong>${p.qty||0} ${p.unit||'ea'}</strong>
+        </div>
+        <div class="frow2">
+          <div class="fgrp"><label>Quantity Received *</label><input type="number" id="rcv-qty" placeholder="0" min="1" style="border-color:#003087"></div>
+          <div class="fgrp"><label>Unit Cost ($)</label><input type="number" id="rcv-cost" value="${p.cost||0}" step="0.01" min="0"></div>
+        </div>
+        <div class="frow2">
+          <div class="fgrp"><label>Invoice #</label><input type="text" id="rcv-invoice" placeholder="INV-2026-001"></div>
+          <div class="fgrp"><label>Received By</label><input type="text" id="rcv-by" value="${S.user?.name||''}" placeholder="Name"></div>
+        </div>
+        <div class="fgrp"><label>Notes</label><input type="text" id="rcv-notes" placeholder="PO#, delivery note..."></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-secondary" onclick="document.getElementById('dhs-receive-overlay').remove()">Cancel</button>
+        <button class="btn-primary" onclick="saveDHSReceive('${id}')" style="background:#003087">
+          ✅ Confirm Receipt
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function saveDHSReceive(id){
+  const p   = DHS.products.find(x=>x.id===id||x.sku===id); if(!p) return;
+  const qty = parseInt(document.getElementById('rcv-qty')?.value)||0;
+  if(qty<=0){showAlert('Ingresa una cantidad válida','warn');return;}
+  const cost    = parseFloat(document.getElementById('rcv-cost')?.value)||p.cost||0;
+  const invoice = document.getElementById('rcv-invoice')?.value.trim();
+  const rcvBy   = document.getElementById('rcv-by')?.value.trim()||S.user?.name||'—';
+  const notes   = document.getElementById('rcv-notes')?.value.trim();
+
+  const newQty = (p.qty||0)+qty;
+  const purchase = {
+    productId:id, sku:p.sku, productName:p.name,
+    qty, cost, invoice, responsible:rcvBy, notes,
+    date: S.fbReady ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString(),
+    supplier:'DHS',
+  };
+
+  if(S.fbReady){
+    const db=firebase.firestore(), batch=db.batch();
+    batch.update(db.collection(DHS_COL).doc(id),{
+      qty:newQty, cost, purchased:(p.purchased||0)+qty,
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy:S.user?.uid,
+    });
+    batch.set(db.collection(DHS_PUR).doc(), purchase);
+    // Also log to main movements
+    batch.set(db.collection(COLS.MOV).doc(),{
+      productId:id, productName:p.name, type:'ENTRADA', qty, newQty,
+      responsible:rcvBy, reason:`DHS Purchase${invoice?' INV#'+invoice:''}`,
+      date:firebase.firestore.FieldValue.serverTimestamp(), createdBy:S.user?.uid,
+      supplier:'DHS',
+    });
+    await batch.commit();
+  } else {
+    p.qty=newQty; p.cost=cost; p.purchased=(p.purchased||0)+qty;
+    DHS.purchases.unshift({...purchase,date:new Date().toISOString()});
+    localStorage.setItem('sp_dhs_products',JSON.stringify(DHS.products));
+    localStorage.setItem('sp_dhs_purchases',JSON.stringify(DHS.purchases));
+    renderDHS();
+  }
+  document.getElementById('dhs-receive-overlay')?.remove();
+  showAlert(`✅ Received ${qty} ${p.unit||'ea'} of ${p.name}`,'success');
+  autoSnapshot();
+}
+
+/* ── OPEN/CLOSE ADD MODAL ─────────────────────────────────────── */
+function openDHSModal(){
+  DHS.editingId=null;
+  document.getElementById('dhs-modal-title').textContent='Agregar producto DHS';
+  document.getElementById('dhs-edit-id').value='';
+  ['dp-sku','dp-brand','dp-name','dp-cost','dp-purchased','dp-min','dp-initial','dp-qty','dp-notes'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('dp-cat').value='Amenities';
+  document.getElementById('dp-unit').value='Each (ea)';
+  document.getElementById('dhs-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('dp-name')?.focus(),200);
+}
+function openDHSEditModal(id){
+  const p=DHS.products.find(x=>x.id===id||x.sku===id); if(!p) return;
+  DHS.editingId=id;
+  closeDHSDetail();
+  document.getElementById('dhs-modal-title').textContent='Editar producto DHS';
+  document.getElementById('dhs-edit-id').value=id;
+  document.getElementById('dp-sku').value=p.sku||'';
+  document.getElementById('dp-brand').value=p.brand||'';
+  document.getElementById('dp-name').value=p.name||'';
+  document.getElementById('dp-cat').value=p.cat||'Amenities';
+  document.getElementById('dp-unit').value=p.unit||'Each (ea)';
+  document.getElementById('dp-cost').value=p.cost||'';
+  document.getElementById('dp-purchased').value=p.purchased||0;
+  document.getElementById('dp-min').value=p.minQty||10;
+  document.getElementById('dp-initial').value=p.initialStock||0;
+  document.getElementById('dp-qty').value=p.qty||0;
+  document.getElementById('dp-notes').value=p.notes||'';
+  document.getElementById('dhs-modal').classList.add('open');
+}
+function closeDHSModal(){document.getElementById('dhs-modal').classList.remove('open');}
+
+/* ── SAVE DHS PRODUCT ─────────────────────────────────────────── */
+async function saveDHSProduct(){
+  const name = SEC.sanitize(document.getElementById('dp-name').value);
+  if(!name){showAlert('Ingresa el nombre del producto','warn');return;}
+  const sku  = SEC.sanitize(document.getElementById('dp-sku').value)||'DHS-'+Date.now();
+
+  // Check duplicate SKU
+  const editId = document.getElementById('dhs-edit-id').value;
+  const dupCheck = DHS.products.find(p=>p.sku===sku&&p.id!==editId&&p.sku!==editId);
+  if(dupCheck){showAlert('⚠️ SKU duplicado: '+sku,'warn');return;}
+
+  const data = {
+    sku, name,
+    brand:        SEC.sanitize(document.getElementById('dp-brand').value),
+    cat:          document.getElementById('dp-cat').value,
+    unit:         document.getElementById('dp-unit').value,
+    cost:         SEC.safeNum(document.getElementById('dp-cost').value,0,99999),
+    purchased:    SEC.safeNum(document.getElementById('dp-purchased').value,0,999999),
+    minQty:       SEC.safeNum(document.getElementById('dp-min').value,0,99999),
+    initialStock: SEC.safeNum(document.getElementById('dp-initial').value,0,999999),
+    qty:          SEC.safeNum(document.getElementById('dp-qty').value,0,999999),
+    notes:        SEC.sanitize(document.getElementById('dp-notes').value),
+    supplier:     'DHS',
+    supplierName: 'Diversified Hospitality Solutions',
+    updatedAt:    S.fbReady ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString(),
+    updatedBy:    S.user?.uid||'offline',
+  };
+
+  try {
+    if(S.fbReady){
+      const db=firebase.firestore();
+      if(editId){
+        await db.collection(DHS_COL).doc(editId).update(data);
+      } else {
+        data.createdAt=firebase.firestore.FieldValue.serverTimestamp();
+        data.createdBy=S.user?.uid||'offline';
+        await db.collection(DHS_COL).add(data);
+      }
+    } else {
+      if(editId){const idx=DHS.products.findIndex(p=>p.id===editId||p.sku===editId);if(idx>=0)DHS.products[idx]={...DHS.products[idx],...data};}
+      else{data.id='dhs-'+Date.now();DHS.products.unshift(data);}
+      localStorage.setItem('sp_dhs_products',JSON.stringify(DHS.products));
+      renderDHS();
+    }
+    closeDHSModal();
+    showAlert(editId?'✅ Producto DHS actualizado':'✅ Producto DHS guardado','success');
+  } catch(e){
+    showAlert('Error guardando: '+e.message,'danger');
+  }
+}
+
+/* ── DELETE DHS PRODUCT ───────────────────────────────────────── */
+async function deleteDHSProduct(id){
+  if(!confirm('¿Eliminar este producto DHS?')) return;
+  if(S.fbReady){
+    await firebase.firestore().collection(DHS_COL).doc(id).update({
+      _deleted:true, _deletedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } else {
+    DHS.products=DHS.products.filter(p=>p.id!==id&&p.sku!==id);
+    localStorage.setItem('sp_dhs_products',JSON.stringify(DHS.products));
+    renderDHS();
+  }
+  closeDHSDetail();
+  showAlert('Producto DHS eliminado','info');
+}
+
+/* ── LOAD DHS CATALOG (pre-loaded products) ─────────────────────── */
+async function loadDHSCatalog(){
+  const confirmed = confirm(`Cargar catálogo DHS con ${DHS_CATALOG_PRELOAD.length} productos?\n\nSe agregarán solo productos nuevos (sin duplicar SKUs existentes).`);
+  if(!confirmed) return;
+
+  const existingSKUs = new Set(DHS.products.map(p=>p.sku));
+  const toAdd = DHS_CATALOG_PRELOAD.filter(p=>!existingSKUs.has(p.sku));
+  if(!toAdd.length){showAlert('Todos los productos ya están cargados','info');return;}
+
+  const now = S.fbReady ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString();
+
+  if(S.fbReady){
+    const db=firebase.firestore();
+    // Batch write in chunks of 450 (Firestore batch limit is 500)
+    const chunkSize=450;
+    for(let i=0;i<toAdd.length;i+=chunkSize){
+      const batch=db.batch();
+      toAdd.slice(i,i+chunkSize).forEach(p=>{
+        const ref=db.collection(DHS_COL).doc();
+        batch.set(ref,{
+          ...p, qty:0, purchased:0, initialStock:0,
+          supplier:'DHS', supplierName:'Diversified Hospitality Solutions',
+          createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+          createdBy:S.user?.uid||'catalog_import',
+        });
+      });
+      await batch.commit();
+    }
+  } else {
+    toAdd.forEach(p=>{ DHS.products.push({...p,id:'dhs-'+Date.now()+Math.random(),qty:0,purchased:0,initialStock:0,supplier:'DHS',supplierName:'Diversified Hospitality Solutions',createdAt:now}); });
+    localStorage.setItem('sp_dhs_products',JSON.stringify(DHS.products));
+    renderDHS();
+  }
+  showAlert(`✅ ${toAdd.length} productos DHS cargados del catálogo`,'success');
+}
+
+/* ── IMPORT CSV / EXCEL ────────────────────────────────────────── */
+function importDHSFile(input){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=async e=>{
+    const text=e.target.result;
+    const lines=text.split(/\r?\n/).filter(l=>l.trim());
+    if(lines.length<2){showAlert('Archivo vacío o inválido','warn');return;}
+    const headers=lines[0].split(',').map(h=>h.trim().toLowerCase().replace(/['"]/g,''));
+    const rows=lines.slice(1);
+    let added=0,skipped=0;
+    const existingSKUs=new Set(DHS.products.map(p=>p.sku));
+    const batch=S.fbReady?firebase.firestore().batch():null;
+    rows.forEach(row=>{
+      const vals=row.split(',').map(v=>v.trim().replace(/^["']|["']$/g,''));
+      const obj={};
+      headers.forEach((h,i)=>obj[h]=vals[i]||'');
+      const sku = obj.sku||obj['product code']||obj.code||('DHS-'+Date.now()+Math.random());
+      if(existingSKUs.has(sku)){skipped++;return;}
+      existingSKUs.add(sku);
+      const product={
+        sku, name:obj.name||obj['product name']||sku,
+        brand:obj.brand||obj.collection||'DHS',
+        cat:obj.category||obj.cat||'Amenities',
+        unit:obj.unit||obj['unit type']||'Each (ea)',
+        cost:parseFloat(obj.cost||obj['unit cost']||0)||0,
+        minQty:parseInt(obj.minimum||obj.min||obj.minqty||10)||10,
+        qty:parseInt(obj.qty||obj.quantity||obj.stock||0)||0,
+        purchased:parseInt(obj.purchased||0)||0,
+        notes:obj.notes||'',
+        supplier:'DHS', supplierName:'Diversified Hospitality Solutions',
+        createdAt:S.fbReady?firebase.firestore.FieldValue.serverTimestamp():new Date().toISOString(),
+        createdBy:S.user?.uid||'csv_import',
+      };
+      if(S.fbReady){ const ref=firebase.firestore().collection(DHS_COL).doc(); batch.set(ref,product); }
+      else { product.id='dhs-'+Date.now()+Math.random(); DHS.products.push(product); }
+      added++;
+    });
+    if(S.fbReady&&added>0) await batch.commit();
+    if(!S.fbReady) localStorage.setItem('sp_dhs_products',JSON.stringify(DHS.products));
+    renderDHS();
+    showAlert(`✅ Importados: ${added} productos | Omitidos (duplicados): ${skipped}`,'success');
+    input.value='';
+  };
+  reader.readAsText(file);
+}
+
+/* ── IMPORT JSON ───────────────────────────────────────────────── */
+function importDHSJSON(input){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=async e=>{
+    try{
+      let data=JSON.parse(e.target.result);
+      if(!Array.isArray(data)){
+        if(data.products) data=data.products;
+        else if(data.items) data=data.items;
+        else{showAlert('JSON inválido — debe ser un array de productos','warn');return;}
+      }
+      const existingSKUs=new Set(DHS.products.map(p=>p.sku));
+      let added=0,skipped=0;
+      const batch=S.fbReady?firebase.firestore().batch():null;
+      data.forEach(p=>{
+        if(!p.sku&&!p.name){return;}
+        const sku=p.sku||'DHS-'+Date.now()+Math.random();
+        if(existingSKUs.has(sku)){skipped++;return;}
+        existingSKUs.add(sku);
+        const product={
+          sku, name:SEC.sanitize(p.name||sku),
+          brand:SEC.sanitize(p.brand||p.collection||'DHS'),
+          cat:p.category||p.cat||'Amenities',
+          unit:p.unit||'Each (ea)', cost:parseFloat(p.cost||p.unitCost||0)||0,
+          minQty:parseInt(p.minQty||p.minimum||10)||10, qty:parseInt(p.qty||p.quantity||0)||0,
+          purchased:parseInt(p.purchased||0)||0, notes:SEC.sanitize(p.notes||''),
+          supplier:'DHS', supplierName:'Diversified Hospitality Solutions',
+          createdAt:S.fbReady?firebase.firestore.FieldValue.serverTimestamp():new Date().toISOString(),
+          createdBy:S.user?.uid||'json_import',
+        };
+        if(S.fbReady){const ref=firebase.firestore().collection(DHS_COL).doc();batch.set(ref,product);}
+        else{product.id='dhs-'+Date.now()+Math.random();DHS.products.push(product);}
+        added++;
+      });
+      if(S.fbReady&&added>0) await batch.commit();
+      if(!S.fbReady) localStorage.setItem('sp_dhs_products',JSON.stringify(DHS.products));
+      renderDHS();
+      showAlert(`✅ JSON importado: ${added} productos | Omitidos: ${skipped}`,'success');
+      input.value='';
+    }catch(err){showAlert('Error leyendo JSON: '+err.message,'danger');}
+  };
+  reader.readAsText(file);
+}
+
+/* ── DHS CSV TEMPLATE DOWNLOAD ─────────────────────────────────── */
+function downloadDHSTemplate(){
+  const headers=['SKU','Name','Brand/Collection','Category','Unit','Unit Cost','Minimum Stock','Initial Stock','Current Stock','Notes'];
+  const example=[
+    ['DHS-TPGT-SH-1','Shampoo Terra Pure Green Tea 1oz','Terra Pure® Green Tea','Amenities','Each (ea)','0.28','500','0','0',''],
+    ['DHS-DISP-AIR-TP','Air Dispenser Terra Pure 11oz','EcoLux® Air','Dispensers','Each (ea)','24.50','5','0','0',''],
+  ];
+  const csv=[headers.join(','),...example.map(r=>r.join(','))].join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download='DHS_Products_Template.csv'; a.click(); URL.revokeObjectURL(url);
+  showAlert('✅ Template CSV descargado','success');
+}
+
+/* ── NAVIGATE DHS ───────────────────────────────────────────────── */
+// Hooked into main navigate()
 
 // Set default dates on load
 window.addEventListener('DOMContentLoaded',()=>{
