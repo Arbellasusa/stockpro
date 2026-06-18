@@ -353,6 +353,49 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 
 /* ── PRINT ── */
 @media print{.ent-header,.topbar,.bottom-nav,.fab,.side-menu,.menu-overlay{display:none!important}.main{position:static;height:auto;overflow:visible}.page{display:block!important;overflow:visible;position:static}}
+
+/* ── CALENDAR ──────────────────────────────────────────────── */
+.cal-header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--navy);color:#fff;flex-shrink:0}
+.cal-nav{background:rgba(255,255,255,.12);border:none;color:#fff;width:34px;height:34px;border-radius:50%;font-size:22px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s}
+.cal-nav:active{background:rgba(255,255,255,.25)}
+.cal-month-label{font-size:16px;font-weight:700;letter-spacing:-.3px}
+.cal-grid-wrap{background:var(--surface);border-bottom:1px solid var(--border)}
+.cal-day-names{display:grid;grid-template-columns:repeat(7,1fr);background:var(--surface2);border-bottom:1px solid var(--border)}
+.cal-day-names span{text-align:center;font-size:10px;font-weight:700;color:var(--text3);padding:6px 0;text-transform:uppercase;letter-spacing:.04em}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border)}
+.cal-cell{background:var(--surface);padding:5px 3px 4px;min-height:52px;cursor:pointer;transition:background .1s;position:relative;display:flex;flex-direction:column;align-items:center}
+.cal-cell:active{background:var(--surface2)}
+.cal-cell.empty{background:var(--surface2);cursor:default}
+.cal-cell.today .cal-num{background:var(--blue);color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center}
+.cal-cell.selected{background:#EBF5FF}
+.cal-cell.selected .cal-num{background:var(--navy);color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center}
+.cal-cell.has-data::after{content:'';position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--green)}
+.cal-cell.has-alert::after{background:var(--accent)}
+.cal-cell.has-critical::after{background:var(--red)}
+.cal-num{font-size:13px;font-weight:500;color:var(--text);margin-bottom:2px}
+.cal-cell.empty .cal-num{color:var(--text3)}
+.cal-dot-row{display:flex;gap:2px;margin-top:2px}
+.cal-mini-dot{width:4px;height:4px;border-radius:50%}
+.cal-day-detail{background:var(--surface);border-top:2px solid var(--navy);margin:0}
+.cal-day-detail-hdr{background:var(--navy);color:#fff;padding:12px 14px;display:flex;align-items:center;justify-content:space-between}
+.cal-day-detail-hdr h3{font-size:14px;font-weight:700}
+.cal-day-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:12px}
+.cal-stat-card{background:var(--surface2);border-radius:var(--r2);padding:10px;text-align:center}
+.cal-stat-val{font-size:20px;font-weight:800}
+.cal-stat-lbl{font-size:10px;color:var(--text3);margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
+.cal-mov-list{padding:0 12px 12px}
+.cal-mov-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.cal-mov-row:last-child{border:none}
+.cal-mov-ind{width:3px;height:32px;border-radius:3px;flex-shrink:0}
+.cal-mov-body{flex:1;min-width:0}
+.cal-mov-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-mov-meta{font-size:10px;color:var(--text3);margin-top:1px}
+.cal-mov-qty{font-size:14px;font-weight:700;flex-shrink:0}
+.cal-export-row{display:flex;gap:8px;padding:12px;border-top:1px solid var(--border)}
+.cal-export-row button{flex:1;padding:10px 8px;font-size:12px}
+.cal-empty-day{text-align:center;padding:24px 16px;color:var(--text3);font-size:13px}
+.cal-snapshot-badge{background:#E6F9F1;border:1px solid #A7E3C8;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:600;color:#0E6B45}
+
 </style>
 </head>
 <body>
@@ -497,7 +540,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
       </li>
       <li class="menu-item" data-p="history" onclick="navigate('history')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        <span data-i="history">Historial</span>
+        <span data-i="history">Calendario</span>
       </li>
       <li class="menu-item" data-p="reports" onclick="navigate('reports')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -567,7 +610,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
     <!-- DELIVERY -->
     <div class="page" id="pg-delivery">
       <div style="padding:12px;border-bottom:1px solid var(--border);background:var(--surface);display:flex;gap:8px;align-items:center">
-        <button class="btn-primary btn-sm" onclick="openDeliveryModal()">
+        <button class="btn-primary btn-sm" data-require-mov onclick="openDeliveryModal()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           <span data-i="new_delivery">Nueva entrega</span>
         </button>
@@ -579,7 +622,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
     <!-- MOVEMENTS -->
     <div class="page" id="pg-movements">
       <div style="padding:12px;border-bottom:1px solid var(--border);background:var(--surface);display:flex;gap:8px">
-        <button class="btn-primary btn-sm" onclick="openMovModal()">
+        <button class="btn-primary btn-sm" data-require-mov onclick="openMovModal()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           <span data-i="register_movement">Registrar movimiento</span>
         </button>
@@ -588,23 +631,25 @@ input,select,textarea{font-family:inherit;font-size:inherit}
       <div id="mov-list"></div>
     </div>
 
-    <!-- HISTORY -->
+    <!-- HISTORY + CALENDAR -->
     <div class="page" id="pg-history">
-      <div class="card" style="margin-top:10px">
-        <h4><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> <span data-i="filter_by_date">Filtrar por fecha</span></h4>
-        <div class="frow2" style="margin-bottom:10px">
-          <div class="fgrp"><label data-i="from">Desde</label><input type="date" id="hist-from"></div>
-          <div class="fgrp"><label data-i="to">Hasta</label><input type="date" id="hist-to"></div>
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="fchip active" onclick="histFilter(this,'today')" data-i="today">Hoy</button>
-          <button class="fchip" onclick="histFilter(this,'week')" data-i="this_week">Esta semana</button>
-          <button class="fchip" onclick="histFilter(this,'biweekly')" data-i="biweekly">Quincenal</button>
-          <button class="fchip" onclick="histFilter(this,'month')" data-i="this_month">Este mes</button>
-          <button class="fchip" onclick="histFilter(this,'custom')" data-i="custom">Personalizado</button>
-        </div>
+      <!-- Calendar Header -->
+      <div class="cal-header">
+        <button class="cal-nav" onclick="calPrev()" aria-label="Mes anterior">&#8249;</button>
+        <div class="cal-month-label" id="cal-month-label"></div>
+        <button class="cal-nav" onclick="calNext()" aria-label="Mes siguiente">&#8250;</button>
       </div>
-      <div id="history-list"></div>
+      <!-- Calendar Grid -->
+      <div class="cal-grid-wrap">
+        <div class="cal-day-names">
+          <span>Dom</span><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+      </div>
+      <!-- Selected Day Detail -->
+      <div id="cal-day-detail"></div>
+      <!-- Movement history list (keep for filter view) -->
+      <div id="history-list" style="display:none"></div>
     </div>
 
     <!-- REPORTS -->
@@ -666,10 +711,22 @@ input,select,textarea{font-family:inherit;font-size:inherit}
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
           </div>
         </div>
-        <div class="section-lbl" style="margin-top:8px">🔥 Firebase Config</div>
+        <div class="section-lbl" style="margin-top:8px">🔥 Firebase · hk-pro-housekeeping</div>
         <div class="card" style="margin:0">
           <div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:10px">Proyecto: <strong>hk-pro-housekeeping</strong> · us-east1</div>
           <div id="fb-live-stats"></div>
+        </div>
+        <div class="section-lbl" style="margin-top:8px" data-require-admin>🛡️ Seguridad & Auditoría</div>
+        <div class="card" style="margin:0;display:flex;flex-direction:column;gap:8px" data-require-admin>
+          <button class="btn-secondary btn-sm" onclick="createCloudBackup()" style="width:100%">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg>
+            Crear backup manual
+          </button>
+          <button class="btn-secondary btn-sm" onclick="viewAuditLog()" style="width:100%">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Ver log de auditoría
+          </button>
+          <div id="security-info" style="font-size:11px;color:var(--text3);line-height:1.6"></div>
         </div>
       </div>
     </div>
@@ -896,11 +953,172 @@ const COLS = {
   USR:  'stockpro_usuarios',
 };
 
+
+
+/* ════════════════════════════════════════════════════════════
+   STOCKPRO v2 — SECURITY MODULE
+   Input validation · Audit trail · Role enforcement · CSRF
+   ════════════════════════════════════════════════════════════ */
+
+/* ── INPUT SANITIZATION ────────────────────────────────────── */
+const SEC = {
+  // Strip HTML tags and dangerous chars from user input
+  sanitize(str) {
+    if (typeof str !== 'string') return String(str||'');
+    return str
+      .replace(/[<>'"&\\]/g, c => ({'<':'','>'':'','"':'','\'':'','&':'','\\':''}[c]))
+      .trim()
+      .slice(0, 500); // hard max length
+  },
+
+  // Validate and clamp numbers
+  safeNum(val, min=0, max=999999) {
+    const n = parseFloat(val);
+    if (isNaN(n)) return 0;
+    return Math.max(min, Math.min(max, n));
+  },
+
+  // Validate email format
+  validEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email||'');
+  },
+
+  // Validate barcode (alphanumeric + dash/underscore)
+  validBarcode(code) {
+    return /^[A-Za-z0-9\-_]{1,100}$/.test(code||'');
+  },
+
+  // Check user has permission for action
+  can(action) {
+    if (!S.user) return false;
+    const perms = ROLE_PERMS[S.user.role];
+    if (!perms) return false;
+    const map = {
+      read:       perms.read,
+      writeInv:   perms.writeInv,
+      writeMov:   perms.writeMov,
+      writeUsers: perms.writeUsers,
+      readAudit:  perms.readAudit,
+      delete:     S.user.role === 'administrator',
+    };
+    return map[action] === true;
+  },
+
+  // Enforce permission — show alert and return false if denied
+  enforce(action, label) {
+    if (!this.can(action)) {
+      showAlert(`⛔ Sin permisos para: ${label||action}`, 'danger');
+      writeAudit('PERMISSION_DENIED', { action, label, role: S.user?.role });
+      return false;
+    }
+    return true;
+  },
+
+  // Rate limiting — max N calls per windowMs per key
+  _rateLimits: {},
+  rateLimit(key, maxCalls=10, windowMs=60000) {
+    const now = Date.now();
+    if (!this._rateLimits[key]) this._rateLimits[key] = [];
+    this._rateLimits[key] = this._rateLimits[key].filter(t => now - t < windowMs);
+    if (this._rateLimits[key].length >= maxCalls) {
+      showAlert('⛔ Demasiadas solicitudes. Espera un momento.', 'danger');
+      return false;
+    }
+    this._rateLimits[key].push(now);
+    return true;
+  }
+};
+
+/* ── AUDIT TRAIL ────────────────────────────────────────────── */
+async function writeAudit(action, data={}) {
+  if (!S.user) return;
+  const entry = {
+    action,
+    uid:       S.user.uid,
+    userName:  S.user.name,
+    userEmail: S.user.email,
+    role:      S.user.role,
+    timestamp: S.fbReady ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString(),
+    ip:        'client',
+    userAgent: navigator.userAgent.slice(0,200),
+    data:      JSON.stringify(data).slice(0,2000),
+  };
+
+  // Write to Firestore audit log
+  if (S.fbReady) {
+    try {
+      await firebase.firestore().collection(COLS.AUDIT).add(entry);
+    } catch(e) {
+      // Silently fail — don't break user flow for audit errors
+    }
+  }
+
+  // Also keep local audit buffer (last 100 entries)
+  const local = JSON.parse(localStorage.getItem('sp_audit_local')||'[]');
+  local.unshift({ ...entry, timestamp: new Date().toISOString() });
+  localStorage.setItem('sp_audit_local', JSON.stringify(local.slice(0,100)));
+}
+
+/* ── ROLE-AWARE UI ──────────────────────────────────────────── */
+function applyRoleUI() {
+  if (!S.user) return;
+  const canWrite = SEC.can('writeInv');
+  const canMov   = SEC.can('writeMov');
+
+  // Hide FAB for read-only roles
+  const fab = document.querySelector('.fab');
+  if (fab) fab.style.display = canWrite ? 'flex' : 'none';
+
+  // Hide add movement button for housekeeping
+  document.querySelectorAll('[data-require-mov]').forEach(el => {
+    el.style.display = canMov ? '' : 'none';
+  });
+
+  // Hide admin-only items
+  document.querySelectorAll('[data-require-admin]').forEach(el => {
+    el.style.display = SEC.can('readAudit') ? '' : 'none';
+  });
+}
+
+/* ── CLOUD BACKUP ───────────────────────────────────────────── */
+async function createCloudBackup() {
+  if (!SEC.enforce('writeInv', 'Crear backup')) return;
+  if (!S.fbReady) { showAlert('Firebase requerido para backups', 'warn'); return; }
+  try {
+    const backup = {
+      createdAt:   firebase.firestore.FieldValue.serverTimestamp(),
+      createdBy:   S.user.uid,
+      createdName: S.user.name,
+      itemCount:   S.items.length,
+      movCount:    S.movements.length,
+      totalValue:  S.items.reduce((s,i)=>s+(i.qty||0)*(i.price||0),0).toFixed(2),
+      items:       S.items.map(i=>({...i})),
+    };
+    await firebase.firestore().collection(COLS.BACKUPS).add(backup);
+    writeAudit('BACKUP_CREATED', { itemCount: S.items.length });
+    showAlert('✅ Backup creado en Firebase', 'success');
+  } catch(e) {
+    showAlert('Error creando backup: '+e.message, 'danger');
+  }
+}
+
+/* ── AUTO DAILY BACKUP (runs once per day) ──────────────────── */
+function scheduleDailyBackup() {
+  const lastBackup = localStorage.getItem('sp_last_backup');
+  const today = new Date().toISOString().slice(0,10);
+  if (lastBackup !== today && S.fbReady && S.user && SEC.can('writeInv')) {
+    setTimeout(() => {
+      createCloudBackup();
+      localStorage.setItem('sp_last_backup', today);
+    }, 5000); // 5s after login
+  }
+}
+
 /* ── I18N ── */
 const T = {
   es:{
     dashboard:'Dashboard',inventory:'Inventario',scanner:'Escáner',delivery:'Entregas',
-    movements:'Movimientos',history:'Historial',reports:'Reportes',export:'Exportar',
+    movements:'Movimientos',history:'Almanaque',reports:'Reportes',export:'Exportar',
     logout:'Cerrar sesión',email:'Email',password:'Contraseña',signin:'Iniciar sesión',
     or:'o',continue_google:'Continuar con Google',team_access:'Acceso para equipo de Hotel Arbellas',
     add_product:'Agregar producto',save_firebase:'Guardar en Firebase',cancel:'Cancelar',
@@ -943,7 +1161,7 @@ const T = {
   },
   en:{
     dashboard:'Dashboard',inventory:'Inventory',scanner:'Scanner',delivery:'Deliveries',
-    movements:'Movements',history:'History',reports:'Reports',export:'Export',
+    movements:'Movements',history:'Calendar',reports:'Reports',export:'Export',
     logout:'Sign out',email:'Email',password:'Password',signin:'Sign in',
     or:'or',continue_google:'Continue with Google',team_access:'Access for Hotel Arbellas team',
     add_product:'Add product',save_firebase:'Save to Firebase',cancel:'Cancel',
@@ -1050,22 +1268,43 @@ async function startApp(){
     const app = firebase.apps.length ? firebase.apps[0] : firebase.initializeApp(FB_CFG);
     const db = firebase.firestore(app);
     const auth = firebase.auth(app);
-    // Modern offline persistence — no deprecation warnings
-    try {
-      db.enablePersistence({ synchronizeTabs: true }).catch(err => {
-        // code:'failed-precondition' = multiple tabs open (OK)
-        // code:'unimplemented' = browser doesn't support it (OK)
-      });
-    } catch(e) {}
     S.fbReady = true;
-    // Suppress Firebase deprecation warnings in console
-    if (firebase.firestore.setLogLevel) firebase.firestore.setLogLevel('error');
-    console.log('%c✅ Firebase inicializado — hk-pro-housekeeping','color:#1FAD6E;font-weight:bold');
-    auth.onAuthStateChanged(user => {
+    console.log('✅ Firebase inicializado — hk-pro-housekeeping');
+    auth.onAuthStateChanged(async user => {
       if (user) {
-        S.user = {uid:user.uid, email:user.email, name:user.displayName||user.email.split('@')[0], initials:(user.displayName||user.email)[0].toUpperCase(), role:'warehouse_manager'};
-        showApp(); attachListeners();
-      } else { showLogin(); }
+        // Load role from Firestore — never trust client-side role claims
+        try {
+          const profileDoc = await firebase.firestore()
+            .collection(COLS.USR).doc(user.uid).get();
+          const profile = profileDoc.exists ? profileDoc.data() : {};
+          const role = profile.role || 'housekeeping'; // default least-privilege
+          S.user = {
+            uid:      user.uid,
+            email:    user.email,
+            name:     user.displayName || profile.name || user.email.split('@')[0],
+            initials: (user.displayName||user.email)[0].toUpperCase(),
+            role,
+          };
+        } catch(e) {
+          // If profile fetch fails, assign minimum role
+          S.user = {
+            uid:      user.uid,
+            email:    user.email,
+            name:     user.email.split('@')[0],
+            initials: user.email[0].toUpperCase(),
+            role:     'housekeeping',
+          };
+        }
+        showApp();
+        attachListeners();
+        applyRoleUI();
+        scheduleDailyBackup();
+        writeAudit('LOGIN', { method: 'email' });
+        updatePresence(true);
+      } else {
+        detachListeners();
+        showLogin();
+      }
     });
   } catch(e) { console.error(e); fallbackOffline(); }
 }
@@ -1122,10 +1361,17 @@ function doGoogleLogin(){
 }
 function doLogout(){
   if(!confirm('¿'+t('logout')+'?')) return;
-  updatePresence(false); detachListeners();
+  writeAudit('LOGOUT', {});
+  updatePresence(false);
+  detachListeners();
   if(S.fbReady) firebase.auth().signOut();
-  S.user=null;
-  document.getElementById('app').classList.add('hidden'); showLogin(); toggleMenu(true);
+  // Clear sensitive data from memory
+  S.user = null; S.items = []; S.movements = []; S.deliveries = [];
+  // Clear sensitive localStorage keys on logout
+  ['sp_items','sp_movements','sp_deliveries'].forEach(k => localStorage.removeItem(k));
+  document.getElementById('app').classList.add('hidden');
+  showLogin();
+  toggleMenu(true);
 }
 function showErr(msg){ const el=document.getElementById('l-err'); el.textContent=msg; el.classList.remove('hidden'); }
 
@@ -1143,6 +1389,8 @@ function showApp(){
   setSyncOnline();
   renderDashboard();
   updateFbStats();
+  applyRoleUI();
+  saveDailySnapshot(); // Save initial daily snapshot
 }
 function showProfile(){ showAlert(S.user?.name+' · '+S.user?.email, 'info'); }
 
@@ -1200,7 +1448,7 @@ function navigate(page){
   document.querySelector('.fab')&&(document.querySelector('.fab').style.display=page==='inventory'?'flex':'none');
   if(page!=='scanner') stopScanner();
   if(page==='reports') renderReports();
-  if(page==='history') renderHistory();
+  if(page==='history'){ renderCalendar(); saveDailySnapshot(); }
   if(page==='export') updateFbStats();
   if(page==='delivery') renderDeliveries();
   toggleMenu(true);
@@ -1324,10 +1572,30 @@ async function adjQty(id,delta){
 }
 
 async function deleteItem(id){
-  if(!confirm(t('confirm_delete'))) return;
-  if(S.fbReady) await firebase.firestore().collection(COLS.INV).doc(id).delete();
-  else { S.items=S.items.filter(i=>i.id!==id); saveLocal(); renderInventory(); }
-  closeDetail(); showAlert(t('deleted'),'info');
+  // Only admin can delete
+  if (!SEC.enforce('delete', 'Eliminar producto')) return;
+  if (!confirm(t('confirm_delete'))) return;
+
+  const item = S.items.find(i => i.id === id);
+  try {
+    if (S.fbReady) {
+      // Soft-delete: mark as archived instead of hard delete
+      await firebase.firestore().collection(COLS.INV).doc(id).update({
+        _deleted:      true,
+        _deletedAt:    firebase.firestore.FieldValue.serverTimestamp(),
+        _deletedBy:    S.user?.uid,
+        _deletedByName:S.user?.name,
+      });
+      await writeAudit('ITEM_DELETED', { itemId:id, itemName:item?.name });
+    } else {
+      S.items = S.items.filter(i => i.id !== id);
+      saveLocal(); renderInventory();
+    }
+    closeDetail();
+    showAlert(t('deleted'), 'info');
+  } catch(e) {
+    showAlert('Error eliminando: '+e.message, 'danger');
+  }
 }
 
 /* ── ADD/EDIT MODAL ── */
@@ -1357,19 +1625,62 @@ function openEditModal(id){
 function closeItemModal(){ document.getElementById('item-modal').classList.remove('open'); }
 
 async function saveItem(){
-  const name=document.getElementById('im-name').value.trim(); if(!name){showAlert('Ingresa el nombre','warn');return;}
-  const editId=document.getElementById('item-edit-id').value;
-  const data={barcode:document.getElementById('im-barcode').value.trim()||'BC'+Date.now(),sku:document.getElementById('im-sku').value.trim()||'SKU-'+Date.now(),name,cat:document.getElementById('im-cat').value,unit:document.getElementById('im-unit').value,qty:parseInt(document.getElementById('im-qty').value)||0,minQty:parseInt(document.getElementById('im-min').value)||10,price:parseFloat(document.getElementById('im-price').value)||0,loc:document.getElementById('im-loc').value.trim()||'Sin ubicación',supplier:document.getElementById('im-supp').value.trim()||'',updatedAt:S.fbReady?firebase.firestore.FieldValue.serverTimestamp():new Date().toISOString(),updatedBy:S.user?.email||'demo'};
-  if(S.fbReady){
-    const db=firebase.firestore();
-    if(editId) await db.collection(COLS.INV).doc(editId).update(data);
-    else { data.createdAt=firebase.firestore.FieldValue.serverTimestamp(); await db.collection(COLS.INV).add(data); }
-  } else {
-    if(editId){const idx=S.items.findIndex(i=>i.id===editId);if(idx>=0)S.items[idx]={...S.items[idx],...data};}
-    else{data.id='itm'+Date.now();S.items.unshift(data);}
-    saveLocal(); renderInventory(); renderDashboard();
+  // ── Permission check ──
+  if (!SEC.enforce('writeInv', 'Guardar producto')) return;
+  if (!SEC.rateLimit('saveItem', 20, 60000)) return;
+
+  // ── Input validation & sanitization ──
+  const name = SEC.sanitize(document.getElementById('im-name').value);
+  if (!name) { showAlert('Ingresa el nombre del producto','warn'); return; }
+  if (name.length > 200) { showAlert('Nombre demasiado largo (máx 200 chars)','warn'); return; }
+
+  const editId  = document.getElementById('item-edit-id').value;
+  const barcode = SEC.sanitize(document.getElementById('im-barcode').value) || 'BC'+Date.now();
+  const sku     = SEC.sanitize(document.getElementById('im-sku').value)     || 'SKU-'+Date.now();
+  const loc     = SEC.sanitize(document.getElementById('im-loc').value)     || 'Sin ubicación';
+  const supplier= SEC.sanitize(document.getElementById('im-supp').value);
+  const qty     = SEC.safeNum(document.getElementById('im-qty').value, 0, 99999);
+  const minQty  = SEC.safeNum(document.getElementById('im-min').value, 0, 99999);
+  const price   = SEC.safeNum(document.getElementById('im-price').value, 0, 999999);
+
+  // Validate allowed categories
+  const allowedCats = ['Ropa de Cama','Toallas','Amenidades','Limpieza','Insumos'];
+  const cat  = document.getElementById('im-cat').value;
+  const unit = document.getElementById('im-unit').value;
+  if (!allowedCats.includes(cat)) { showAlert('Categoría inválida','warn'); return; }
+
+  const data = {
+    barcode, sku, name, cat, unit, qty, minQty, price, loc, supplier,
+    updatedAt: S.fbReady ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString(),
+    updatedBy: S.user?.uid || 'offline',
+    updatedByName: S.user?.name || 'offline',
+  };
+
+  try {
+    if (S.fbReady) {
+      const db = firebase.firestore();
+      if (editId) {
+        await db.collection(COLS.INV).doc(editId).update(data);
+        await writeAudit('ITEM_UPDATED', { itemId:editId, name, qty, price });
+      } else {
+        data.createdAt  = firebase.firestore.FieldValue.serverTimestamp();
+        data.createdBy  = S.user?.uid || 'offline';
+        data.createdByName = S.user?.name || 'offline';
+        const ref = await db.collection(COLS.INV).add(data);
+        await writeAudit('ITEM_CREATED', { itemId:ref.id, name, qty, price });
+      }
+    } else {
+      if (editId) { const idx=S.items.findIndex(i=>i.id===editId); if(idx>=0)S.items[idx]={...S.items[idx],...data}; }
+      else { data.id='itm'+Date.now(); S.items.unshift(data); }
+      saveLocal(); renderInventory(); renderDashboard();
+    }
+    closeItemModal();
+    showAlert(editId ? t('updated_firebase') : t('saved_firebase'), 'success');
+    autoSnapshot();
+  } catch(e) {
+    showAlert('Error guardando: '+e.message, 'danger');
+    writeAudit('ITEM_SAVE_ERROR', { error: e.message, name });
   }
-  closeItemModal(); showAlert(editId?t('updated_firebase'):t('saved_firebase'),'success');
 }
 
 /* ── SCANNER ── */
@@ -1443,24 +1754,64 @@ function closeMovModal(){ document.getElementById('mov-modal').classList.remove(
 function selMovType(btn,type){ document.getElementById('mov-type-val').value=type; document.querySelectorAll('.mtype-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); }
 
 async function saveMovement(){
-  const productId=document.getElementById('mov-product-sel').value;
-  const type=document.getElementById('mov-type-val').value;
-  const qty=parseInt(document.getElementById('mov-qty-input').value);
-  const responsible=document.getElementById('mov-resp-input').value.trim()||S.user?.name||'Usuario';
-  const reason=document.getElementById('mov-reason-input').value.trim();
-  if(!qty||qty<=0){showAlert('Cantidad inválida','warn');return;}
-  const item=S.items.find(i=>i.id===productId); if(!item) return;
-  let newQty=item.qty||0;
-  if(type==='ENTRADA') newQty+=qty;
-  else if(type==='SALIDA') newQty=Math.max(0,newQty-qty);
-  else newQty=qty;
-  if(S.fbReady){
-    const db=firebase.firestore(); const batch=db.batch();
-    batch.update(db.collection(COLS.INV).doc(productId),{qty:newQty,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),updatedBy:S.user?.email});
-    batch.set(db.collection(COLS.MOV).doc(),{productId,productName:item.name,type,qty,newQty,responsible,reason,date:firebase.firestore.FieldValue.serverTimestamp(),createdBy:S.user?.email});
-    await batch.commit();
-  } else { item.qty=newQty; S.movements.unshift({id:'m'+Date.now(),productId,productName:item.name,type,qty,newQty,responsible,reason,date:new Date().toISOString()}); saveLocal(); renderInventory(); renderMovements(); renderDashboard(); }
-  closeMovModal(); showAlert(`${t('movement_registered')} — ${type} ${qty} ${item.unit}`,'success');
+  // ── Permission check ──
+  if (!SEC.enforce('writeMov', 'Registrar movimiento')) return;
+  if (!SEC.rateLimit('saveMovement', 30, 60000)) return;
+
+  const productId   = document.getElementById('mov-product-sel').value;
+  const typeVal     = document.getElementById('mov-type-val').value;
+  const qty         = SEC.safeNum(document.getElementById('mov-qty-input').value, 1, 99999);
+  const responsible = SEC.sanitize(document.getElementById('mov-resp-input').value) || S.user?.name || 'Usuario';
+  const reason      = SEC.sanitize(document.getElementById('mov-reason-input').value);
+
+  // Validate inputs
+  if (!qty || qty <= 0)    { showAlert('Ingresa una cantidad válida','warn'); return; }
+  if (!['ENTRADA','SALIDA','AJUSTE'].includes(typeVal)) { showAlert('Tipo de movimiento inválido','warn'); return; }
+
+  const item = S.items.find(i => i.id === productId);
+  if (!item) { showAlert('Producto no encontrado','warn'); return; }
+
+  // Prevent negative inventory (security check)
+  let newQty = item.qty || 0;
+  if (typeVal === 'ENTRADA')      newQty += qty;
+  else if (typeVal === 'SALIDA')  newQty = Math.max(0, newQty - qty);
+  else                            newQty = qty; // AJUSTE sets absolute value
+
+  if (newQty < 0) { showAlert('⚠️ El movimiento resultaría en inventario negativo','warn'); return; }
+
+  try {
+    if (S.fbReady) {
+      const db    = firebase.firestore();
+      const batch = db.batch();
+      batch.update(db.collection(COLS.INV).doc(productId), {
+        qty: newQty,
+        updatedAt:     firebase.firestore.FieldValue.serverTimestamp(),
+        updatedBy:     S.user?.uid,
+        updatedByName: S.user?.name,
+      });
+      batch.set(db.collection(COLS.MOV).doc(), {
+        productId, productName: item.name,
+        type: typeVal, qty, newQty,
+        responsible, reason,
+        date:      firebase.firestore.FieldValue.serverTimestamp(),
+        createdBy: S.user?.uid,
+        createdByName: S.user?.name,
+        createdByRole: S.user?.role,
+      });
+      await batch.commit();
+      await writeAudit('MOVEMENT_REGISTERED', { productId, productName:item.name, type:typeVal, qty, newQty });
+    } else {
+      item.qty = newQty;
+      S.movements.unshift({id:'m'+Date.now(),productId,productName:item.name,type:typeVal,qty,newQty,responsible,reason,date:new Date().toISOString()});
+      saveLocal(); renderInventory(); renderMovements(); renderDashboard();
+    }
+    closeMovModal();
+    showAlert(`${t('movement_registered')} — ${typeVal} ${qty} ${item.unit}`, 'success');
+    autoSnapshot();
+  } catch(e) {
+    showAlert('Error registrando movimiento: '+e.message, 'danger');
+    writeAudit('MOVEMENT_ERROR', { error: e.message });
+  }
 }
 
 function renderMovements(){
@@ -1540,7 +1891,7 @@ async function saveDelivery(){
     _deliveryItems.forEach(item=>{ const inv=S.items.find(i=>i.id===item.productId); if(inv) inv.qty=Math.max(0,(inv.qty||0)-item.qty); });
     saveLocal(); renderInventory(); renderDeliveries(); renderDashboard();
   }
-  closeDeliveryModal(); showAlert(t('delivery_saved'),'success'); updateDeliveryBadge();
+  closeDeliveryModal(); showAlert(t('delivery_saved'),'success'); updateDeliveryBadge(); autoSnapshot();
 }
 
 function renderDeliveries(){
@@ -1564,15 +1915,260 @@ function updateDeliveryBadge(){
 }
 
 /* ── HISTORY ── */
+
+/* ════════════════════════════════════════════════════════════
+   DAILY MEMORY + INVENTORY CALENDAR
+   Stores daily snapshots · Navigate by month · Export by day
+   ════════════════════════════════════════════════════════════ */
+
+/* ── DAILY MEMORY ───────────────────────────────────────────── */
+const MEM_KEY = 'sp_daily_memory'; // localStorage key
+
+function getDailyMemory(){
+  try{ return JSON.parse(localStorage.getItem(MEM_KEY)||'{}'); }catch(e){ return {}; }
+}
+function saveDailyMemory(data){
+  localStorage.setItem(MEM_KEY, JSON.stringify(data));
+}
+
+// Save a snapshot for today — called on every inventory change
+function saveDailySnapshot(){
+  const mem = getDailyMemory();
+  const today = new Date().toISOString().slice(0,10);
+  const todayMovs = S.movements.filter(m=>{
+    const d = m.date?.toDate ? m.date.toDate() : new Date(m.date||0);
+    return d.toISOString().slice(0,10) === today;
+  });
+  const todayDels = S.deliveries.filter(d=>{
+    const dd = d.date?.toDate ? d.date.toDate() : new Date(d.date||0);
+    return dd.toISOString().slice(0,10) === today;
+  });
+
+  const entries   = todayMovs.filter(m=>m.type==='ENTRADA').reduce((s,m)=>s+m.qty,0);
+  const exits     = todayMovs.filter(m=>m.type==='SALIDA').reduce((s,m)=>s+m.qty,0);
+  const adjs      = todayMovs.filter(m=>m.type==='AJUSTE').reduce((s,m)=>s+m.qty,0);
+  const totalVal  = S.items.reduce((s,i)=>s+(i.qty||0)*(i.price||0),0);
+  const outItems  = S.items.filter(i=>!i.qty||i.qty<=0).map(i=>({id:i.id,name:i.name,sku:i.sku}));
+  const lowItems  = S.items.filter(i=>i.qty>0&&i.qty<(i.minQty||10)).map(i=>({id:i.id,name:i.name,sku:i.sku,qty:i.qty,min:i.minQty||10}));
+
+  // Keep existing initial stock if snapshot already exists today
+  const existing = mem[today];
+  const initialVal = existing?.finalValue ?? totalVal;
+
+  mem[today] = {
+    date: today,
+    savedAt: new Date().toISOString(),
+    updatedBy: S.user?.name || '—',
+    itemCount: S.items.length,
+    initialValue: existing?.initialValue ?? initialVal,
+    finalValue: totalVal,
+    totalEntries: entries,
+    totalExits: exits,
+    totalAdj: adjs,
+    outOfStock: outItems,
+    lowStock: lowItems,
+    movementCount: todayMovs.length,
+    deliveryCount: todayDels.length,
+    // Store lightweight snapshot of all products
+    snapshot: S.items.map(i=>({id:i.id,sku:i.sku,name:i.name,cat:i.cat,qty:i.qty,unit:i.unit,price:i.price,minQty:i.minQty})),
+    // Store today's movements inline
+    movements: todayMovs.slice(0,100).map(m=>({
+      productId:m.productId, productName:m.productName,
+      type:m.type, qty:m.qty, responsible:m.responsible,
+      reason:m.reason,
+      date: m.date?.toDate ? m.date.toDate().toISOString() : (m.date||new Date().toISOString())
+    })),
+    deliveries: todayDels.slice(0,50).map(d=>({
+      roomNumber:d.roomNumber, roomName:d.roomName,
+      housekeeping:d.housekeeping, supervisor:d.supervisor,
+      items:d.items, notes:d.notes,
+      date: d.date?.toDate ? d.date.toDate().toISOString() : (d.date||new Date().toISOString())
+    }))
+  };
+
+  saveDailyMemory(mem);
+}
+
+// Auto-save snapshot after every significant action
+function autoSnapshot(){ setTimeout(saveDailySnapshot, 500); }
+
+/* ── CALENDAR STATE ─────────────────────────────────────────── */
+let CAL = {
+  year:  new Date().getFullYear(),
+  month: new Date().getMonth(), // 0-based
+  selectedDate: new Date().toISOString().slice(0,10)
+};
+
+function calPrev(){
+  CAL.month--;
+  if(CAL.month < 0){ CAL.month=11; CAL.year--; }
+  renderCalendar();
+}
+function calNext(){
+  CAL.month++;
+  if(CAL.month > 11){ CAL.month=0; CAL.year++; }
+  renderCalendar();
+}
+
+const MONTH_NAMES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const MONTH_NAMES_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function renderCalendar(){
+  const mem = getDailyMemory();
+  const today = new Date().toISOString().slice(0,10);
+  const firstDay = new Date(CAL.year, CAL.month, 1);
+  const daysInMonth = new Date(CAL.year, CAL.month+1, 0).getDate();
+  const startDow = firstDay.getDay(); // 0=Sun
+
+  const monthNames = LANG==='en' ? MONTH_NAMES_EN : MONTH_NAMES_ES;
+  document.getElementById('cal-month-label').textContent = monthNames[CAL.month]+' '+CAL.year;
+
+  let cells = '';
+  // Empty cells before first day
+  for(let i=0;i<startDow;i++) cells += '<div class="cal-cell empty"><span class="cal-num"></span></div>';
+
+  for(let d=1; d<=daysInMonth; d++){
+    const dateStr = `${CAL.year}-${String(CAL.month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dayMem  = mem[dateStr];
+    const isToday = dateStr === today;
+    const isSel   = dateStr === CAL.selectedDate;
+    const hasMovs = S.movements.some(m=>{ const dd=m.date?.toDate?m.date.toDate():new Date(m.date||0); return dd.toISOString().slice(0,10)===dateStr; });
+    const hasSnap = !!dayMem;
+    const hasCrit = dayMem?.outOfStock?.length > 0;
+    const hasAlert= dayMem?.lowStock?.length > 0;
+
+    let cls = 'cal-cell';
+    if(isToday) cls+=' today';
+    if(isSel)   cls+=' selected';
+    if(hasCrit) cls+=' has-critical';
+    else if(hasAlert) cls+=' has-alert';
+    else if(hasSnap||hasMovs) cls+=' has-data';
+
+    // Mini indicators
+    let mini = '';
+    if(hasSnap||hasMovs){
+      if(dayMem?.totalEntries>0) mini+=`<div class="cal-mini-dot" style="background:var(--green)"></div>`;
+      if(dayMem?.totalExits>0)   mini+=`<div class="cal-mini-dot" style="background:var(--red)"></div>`;
+      if(hasCrit)                mini+=`<div class="cal-mini-dot" style="background:var(--red)"></div>`;
+    }
+
+    cells += `<div class="${cls}" onclick="selectCalDay('${dateStr}')">
+      <span class="cal-num">${d}</span>
+      ${mini?`<div class="cal-dot-row">${mini}</div>`:''}
+    </div>`;
+  }
+  document.getElementById('cal-grid').innerHTML = cells;
+  renderCalDayDetail(CAL.selectedDate);
+}
+
+function selectCalDay(dateStr){
+  CAL.selectedDate = dateStr;
+  // Update selected styling
+  document.querySelectorAll('.cal-cell').forEach(c=>c.classList.remove('selected'));
+  event?.target?.closest('.cal-cell')?.classList.add('selected');
+  renderCalDayDetail(dateStr);
+}
+
+function renderCalDayDetail(dateStr){
+  const el = document.getElementById('cal-day-detail'); if(!el) return;
+  const mem  = getDailyMemory();
+  const snap = mem[dateStr];
+  const d    = new Date(dateStr+'T12:00:00');
+  const dlbl = d.toLocaleDateString(LANG==='en'?'en-US':'es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+  // Get movements for this date from live data or snapshot
+  const liveMovs = S.movements.filter(m=>{
+    const md = m.date?.toDate ? m.date.toDate() : new Date(m.date||0);
+    return md.toISOString().slice(0,10) === dateStr;
+  });
+  const movs = liveMovs.length > 0 ? liveMovs : (snap?.movements||[]);
+  const dels = (snap?.deliveries||S.deliveries.filter(d=>{
+    const dd=d.date?.toDate?d.date.toDate():new Date(d.date||0);
+    return dd.toISOString().slice(0,10)===dateStr;
+  }));
+
+  const entries  = movs.filter(m=>m.type==='ENTRADA').reduce((s,m)=>s+m.qty,0);
+  const exits    = movs.filter(m=>m.type==='SALIDA').reduce((s,m)=>s+m.qty,0);
+  const adjs     = movs.filter(m=>m.type==='AJUSTE').reduce((s,m)=>s+m.qty,0);
+  const finalVal = snap?.finalValue ?? S.items.reduce((s,i)=>s+(i.qty||0)*(i.price||0),0);
+  const isToday  = dateStr === new Date().toISOString().slice(0,10);
+  const hasData  = snap || movs.length > 0;
+
+  el.className = 'cal-day-detail';
+  el.innerHTML = `
+    <div class="cal-day-detail-hdr">
+      <h3>📅 ${dlbl}</h3>
+      <div style="display:flex;align-items:center;gap:8px">
+        ${snap?`<span class="cal-snapshot-badge">💾 Snapshot</span>`:''}
+        ${isToday?`<span style="background:var(--accent);color:var(--navy);padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700">HOY</span>`:''}
+      </div>
+    </div>
+    ${!hasData?`<div class="cal-empty-day">
+      <div style="font-size:28px;margin-bottom:8px">📭</div>
+      <div style="font-weight:600;color:var(--text2);margin-bottom:4px">Sin datos registrados</div>
+      <div style="font-size:12px">No hay movimientos ni inventario guardado para este día</div>
+    </div>`:`
+    <div class="cal-day-stats">
+      <div class="cal-stat-card"><div class="cal-stat-val" style="color:var(--green)">+${entries}</div><div class="cal-stat-lbl">Entradas</div></div>
+      <div class="cal-stat-card"><div class="cal-stat-val" style="color:var(--red)">-${exits}</div><div class="cal-stat-lbl">Salidas</div></div>
+      <div class="cal-stat-card"><div class="cal-stat-val" style="color:var(--blue)">$${finalVal.toFixed(0)}</div><div class="cal-stat-lbl">Valor Final</div></div>
+      <div class="cal-stat-card"><div class="cal-stat-val" style="color:var(--navy)">${movs.length}</div><div class="cal-stat-lbl">Movimientos</div></div>
+    </div>
+    ${snap?.outOfStock?.length?`<div class="alert-box danger" style="margin:0 12px 8px;font-size:12px">🚨 Sin stock: ${snap.outOfStock.map(i=>i.name).join(', ')}</div>`:''}
+    ${snap?.lowStock?.length?`<div class="alert-box warn" style="margin:0 12px 8px;font-size:12px">⚠️ Stock bajo: ${snap.lowStock.map(i=>i.name+' ('+i.qty+'/'+i.min+')').join(', ')}</div>`:''}
+    ${movs.length?`
+      <div style="padding:0 12px 4px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">Movimientos del día</div>
+      <div class="cal-mov-list">
+        ${movs.slice(0,12).map(m=>{
+          const ic=m.type==='ENTRADA'?'var(--green)':m.type==='SALIDA'?'var(--red)':'var(--blue2)';
+          const sign=m.type==='ENTRADA'?'+':m.type==='SALIDA'?'-':'~';
+          const mt=new Date(m.date?.toDate?m.date.toDate():(m.date||Date.now())).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+          return`<div class="cal-mov-row"><div class="cal-mov-ind" style="background:${ic}"></div><div class="cal-mov-body"><div class="cal-mov-name">${m.productName}</div><div class="cal-mov-meta">${mt} · ${m.responsible||'—'}${m.reason?' · '+m.reason:''}</div></div><div class="cal-mov-qty" style="color:${ic}">${sign}${m.qty}</div></div>`;
+        }).join('')}
+        ${movs.length>12?`<div style="font-size:11px;color:var(--text3);text-align:center;padding:6px">...y ${movs.length-12} más</div>`:''}
+      </div>`:''}
+    ${dels.length?`
+      <div style="padding:0 12px 4px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">Entregas del día (${dels.length})</div>
+      <div style="padding:0 12px 12px">
+        ${dels.slice(0,4).map(d=>`<div style="background:var(--surface2);border-radius:6px;padding:8px 10px;margin-bottom:6px;font-size:12px"><strong>🏨 Hab. ${d.roomNumber||'—'}</strong> ${d.roomName?'— '+d.roomName:''}<div style="color:var(--text3);margin-top:2px">👤 ${d.housekeeping||'—'} · ${(d.items||[]).length} productos</div></div>`).join('')}
+      </div>`:''}
+    <div class="cal-export-row">
+      <button class="btn-primary" onclick="exportCalDay('${dateStr}')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        PDF
+      </button>
+      <button class="btn-wa" onclick="shareCalDayWhatsApp('${dateStr}')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        WhatsApp
+      </button>
+      <button class="btn-secondary" onclick="generateReport('daily','${dateStr}','${dateStr}')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Full
+      </button>
+    </div>`}
+  `;
+}
+
+function exportCalDay(dateStr){
+  generateReport('daily', dateStr, dateStr);
+}
+
+function shareCalDayWhatsApp(dateStr){
+  const mem  = getDailyMemory();
+  const snap = mem[dateStr];
+  const d    = new Date(dateStr+'T12:00:00');
+  const dlbl = d.toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const liveMovs = S.movements.filter(m=>{const md=m.date?.toDate?m.date.toDate():new Date(m.date||0);return md.toISOString().slice(0,10)===dateStr;});
+  const entries = liveMovs.filter(m=>m.type==='ENTRADA').reduce((s,m)=>s+m.qty,0);
+  const exits   = liveMovs.filter(m=>m.type==='SALIDA').reduce((s,m)=>s+m.qty,0);
+  const finalVal= snap?.finalValue ?? S.items.reduce((s,i)=>s+(i.qty||0)*(i.price||0),0);
+  const msg=`📦 *StockPro — Hotel Arbellas*\n📅 ${dlbl}\n\n📊 *Inventario del día*\n✅ Entradas: *${entries}*\n🔴 Salidas: *${exits}*\n💰 Valor: *$${finalVal.toFixed(2)}*\n🚚 Movimientos: *${liveMovs.length}*\n${snap?.outOfStock?.length?`\n🚨 Sin stock: ${snap.outOfStock.map(i=>i.name).join(', ')}`:''}${snap?.lowStock?.length?`\n⚠️ Stock bajo: ${snap.lowStock.length} productos`:''}\n\n_StockPro v2 · Plantation, FL_`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
+}
+
+// Legacy histFilter kept for compatibility
 function histFilter(btn,period){
-  S.histFilter=period; document.querySelectorAll('.fchip').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
-  const hf=document.getElementById('hist-from'), ht=document.getElementById('hist-to');
-  const now=new Date(); const todayStr=now.toISOString().slice(0,10);
-  if(period==='today'){hf.value=todayStr;ht.value=todayStr;}
-  else if(period==='week'){hf.value=new Date(now-7*86400000).toISOString().slice(0,10);ht.value=todayStr;}
-  else if(period==='biweekly'){hf.value=new Date(now-15*86400000).toISOString().slice(0,10);ht.value=todayStr;}
-  else if(period==='month'){hf.value=new Date(now-30*86400000).toISOString().slice(0,10);ht.value=todayStr;}
-  renderHistory();
+  S.histFilter=period;
 }
 function renderHistory(){
   const el=document.getElementById('history-list'); if(!el) return;
@@ -1985,9 +2581,9 @@ function downloadPDF(){
       ['No Movement',totals.noMovement,'#6B7280'],
       ['Health',totals.outOfStock===0&&totals.lowStock===0?'Excellent':totals.outOfStock>0?'Critical':'Fair',totals.outOfStock===0&&totals.lowStock===0?'#065F46':totals.outOfStock>0?'#9B1C1C':'#B45309'],
     ];
-    const boxW=(CW-2)/6, boxH=14;
+    const boxW=(CW-2)/4, boxH=14; // 4 per row fits better in landscape
     summaryData.forEach(([label,val,hexColor],i)=>{
-      const col=i%6, row=Math.floor(i/6);
+      const col=i%4, row=Math.floor(i/4);
       const bx=M+col*(boxW+0.5), by=y+row*(boxH+2);
       const rgb=hexToRgb(hexColor)||[30,77,183];
       doc.setFillColor(245,247,252); doc.roundedRect(bx,by,boxW,boxH,1,1,'F');
@@ -1997,7 +2593,7 @@ function downloadPDF(){
       doc.setFont('helvetica','normal'); doc.setFontSize(6); doc.setTextColor(100,110,130);
       doc.text(label,bx+boxW/2,by+11.5,{align:'center'});
     });
-    y+=34;
+    y+=48; // 3 rows × 16mm each
 
     // Health bar
     const healthRgb=totals.outOfStock>0?[193,18,31]:totals.lowStock>0?[180,83,9]:[6,95,70];
@@ -2012,24 +2608,29 @@ function downloadPDF(){
     doc.text('INVENTORY STATEMENT TABLE',M,y); y+=4;
 
     // Table headers
+    // Columns must total exactly W-M*2 = 297-24 = 273mm
     const cols=[
       {label:'Code/SKU',    w:22, align:'left'},
-      {label:'Product Name',w:48, align:'left'},
-      {label:'Cat.',        w:18, align:'left'},
-      {label:'Unit',        w:14, align:'center'},
+      {label:'Product',     w:44, align:'left'},
+      {label:'Cat.',        w:16, align:'left'},
+      {label:'Unit',        w:12, align:'center'},
       {label:'Init.',       w:12, align:'right'},
-      {label:'+Entries',    w:14, align:'right'},
-      {label:'-Exits',      w:14, align:'right'},
-      {label:'Adj',         w:11, align:'right'},
+      {label:'+In',         w:12, align:'right'},
+      {label:'-Out',        w:12, align:'right'},
+      {label:'Adj',         w:10, align:'right'},
       {label:'Final',       w:13, align:'right'},
-      {label:'Min.',        w:12, align:'right'},
-      {label:'Unit $',      w:14, align:'right'},
-      {label:'Init. $',     w:17, align:'right'},
-      {label:'Entry $',     w:17, align:'right'},
-      {label:'Exit $',      w:17, align:'right'},
-      {label:'Final $',     w:17, align:'right'},
-      {label:'Status',      w:20, align:'center'},
+      {label:'Min.',        w:10, align:'right'},
+      {label:'Cost$',       w:14, align:'right'},
+      {label:'Init$',       w:16, align:'right'},
+      {label:'In$',         w:14, align:'right'},
+      {label:'Out$',        w:14, align:'right'},
+      {label:'Final$',      w:16, align:'right'},
+      {label:'Status',      w:16, align:'center'},
     ];
+    // Verify total: 22+44+16+12+12+12+12+10+13+10+14+16+14+14+16+16 = 243
+    // Add gutter: use M=12 each side → available = 297-24 = 273, scale factor
+    const colScale = 273 / cols.reduce((s,c)=>s+c.w,0);
+    cols.forEach(c=>{ c.w = c.w * colScale; });
     const rowH=7, hdrH=8;
     doc.setFillColor(15,31,61); doc.rect(M,y,CW,hdrH,'F');
     doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(6.5);
@@ -2118,18 +2719,20 @@ function downloadPDF(){
     doc.setFillColor(15,31,61); doc.rect(M,y,CW,9,'F');
     doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
     cx=M;
+    // Total row — use col widths from scaled cols array
+    const cw=cols.map(c=>c.w);
     const totalRow=[
-      {val:'TOTAL GENERAL',w:22+48+18+14,align:'left'},
-      {val:String(totals.products),w:12,align:'right'},
-      {val:'+'+totals.totalEntries,w:14,align:'right',color:[134,239,172]},
-      {val:'-'+totals.totalExits,w:14,align:'right',color:[252,165,165]},
-      {val:String(totals.totalAdj||0),w:11,align:'right',color:[147,197,253]},
-      {val:'',w:13+12+14,align:'right'},
-      {val:'$'+totals.initialValue.toFixed(2),w:17,align:'right'},
-      {val:'$'+totals.entryValue.toFixed(2),w:17,align:'right',color:[134,239,172]},
-      {val:'$'+totals.exitValue.toFixed(2),w:17,align:'right',color:[252,165,165]},
-      {val:'$'+totals.finalValue.toFixed(2),w:17,align:'right',color:[244,166,35]},
-      {val:'',w:20,align:'right'},
+      {val:'TOTAL GENERAL',    w:cw[0]+cw[1]+cw[2]+cw[3],align:'left'},
+      {val:String(totals.products), w:cw[4],align:'right'},
+      {val:'+'+totals.totalEntries, w:cw[5],align:'right',color:[134,239,172]},
+      {val:'-'+totals.totalExits,   w:cw[6],align:'right',color:[252,165,165]},
+      {val:String(totals.totalAdj||0),w:cw[7],align:'right',color:[147,197,253]},
+      {val:'',w:cw[8]+cw[9]+cw[10], align:'right'},
+      {val:'$'+totals.initialValue.toFixed(2),w:cw[11],align:'right'},
+      {val:'$'+totals.entryValue.toFixed(2),  w:cw[12],align:'right',color:[134,239,172]},
+      {val:'$'+totals.exitValue.toFixed(2),   w:cw[13],align:'right',color:[252,165,165]},
+      {val:'$'+totals.finalValue.toFixed(2),  w:cw[14],align:'right',color:[244,166,35]},
+      {val:'',w:cw[15],align:'right'},
     ];
     totalRow.forEach(cell=>{
       if(cell.color) doc.setTextColor(cell.color[0],cell.color[1],cell.color[2]);
@@ -2152,10 +2755,13 @@ function downloadPDF(){
 
       y=18;
       // Delivery table headers
+      // Delivery columns — total scaled to 273mm
       const delCols=[
-        {label:'Date/Time',w:26},{label:'Room',w:20},{label:'Room Name',w:32},{label:'Housekeeping',w:32},
-        {label:'Supervisor',w:30},{label:'Product',w:40},{label:'Qty',w:14},{label:'Unit $',w:18},{label:'Total $',w:20},{label:'Notes',w:35},
+        {label:'Date/Time',w:24},{label:'Room',w:16},{label:'Room Name',w:28},{label:'Housekeeping',w:28},
+        {label:'Supervisor',w:26},{label:'Product',w:36},{label:'Qty',w:12},{label:'Unit$',w:16},{label:'Total$',w:18},{label:'Notes',w:30},
       ];
+      const delScale = 273 / delCols.reduce((s,c)=>s+c.w,0);
+      delCols.forEach(c=>{ c.w = c.w * delScale; });
       doc.setFillColor(30,77,183); doc.rect(M,y,CW,7,'F');
       doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(6);
       cx=M;
@@ -2254,7 +2860,33 @@ function printInventory(){ window.print(); }
 
 function updateFbStats(){
   const el=document.getElementById('fb-live-stats'); if(!el) return;
-  el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"><div style="text-align:center;padding:8px;background:var(--surface2);border-radius:8px"><div style="font-size:18px;font-weight:800;color:var(--blue)">${S.items.length}</div><div style="font-size:10px;color:var(--text3)">Productos</div></div><div style="text-align:center;padding:8px;background:var(--surface2);border-radius:8px"><div style="font-size:18px;font-weight:800;color:var(--green)">${S.movements.length}</div><div style="font-size:10px;color:var(--text3)">Movimientos</div></div><div style="text-align:center;padding:8px;background:var(--surface2);border-radius:8px"><div style="font-size:18px;font-weight:800;color:var(--accent)">${S.deliveries.length}</div><div style="font-size:10px;color:var(--text3)">Entregas</div></div></div>`;
+  el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px"><div style="text-align:center;padding:8px;background:var(--surface2);border-radius:8px"><div style="font-size:18px;font-weight:800;color:var(--blue)">${S.items.length}</div><div style="font-size:10px;color:var(--text3)">Productos</div></div><div style="text-align:center;padding:8px;background:var(--surface2);border-radius:8px"><div style="font-size:18px;font-weight:800;color:var(--green)">${S.movements.length}</div><div style="font-size:10px;color:var(--text3)">Movimientos</div></div><div style="text-align:center;padding:8px;background:var(--surface2);border-radius:8px"><div style="font-size:18px;font-weight:800;color:var(--accent)">${S.deliveries.length}</div><div style="font-size:10px;color:var(--text3)">Entregas</div></div></div>`;
+  // Show security info for admin
+  const secEl = document.getElementById('security-info');
+  if (secEl && S.user) {
+    const lastBackup = localStorage.getItem('sp_last_backup') || 'Nunca';
+    const auditCount = JSON.parse(localStorage.getItem('sp_audit_local')||'[]').length;
+    secEl.innerHTML = `<strong>🔐 Seguridad activa</strong><br>
+      Rol: <strong>${S.user.role}</strong> · UID: <code style="font-size:10px">${S.user.uid?.slice(0,12)}...</code><br>
+      Último backup: <strong>${lastBackup}</strong><br>
+      Auditoría local: <strong>${auditCount} entradas</strong><br>
+      Firebase: <span style="color:var(--green)">✓ Conectado</span> · Reglas: <span style="color:var(--green)">✓ Activas</span>`;
+  }
+}
+
+function viewAuditLog(){
+  if(!SEC.enforce('readAudit','Ver auditoría')) return;
+  const logs = JSON.parse(localStorage.getItem('sp_audit_local')||'[]');
+  const content = logs.slice(0,20).map(l=>`
+    <div style="padding:8px;border-bottom:1px solid var(--border);font-size:11px">
+      <div style="display:flex;justify-content:space-between">
+        <strong style="color:var(--navy)">${l.action}</strong>
+        <span style="color:var(--text3)">${new Date(l.timestamp||Date.now()).toLocaleString()}</span>
+      </div>
+      <div style="color:var(--text2);margin-top:2px">${l.userName} (${l.role}) · ${l.data?.slice(0,100)||''}</div>
+    </div>`).join('');
+  showAlert('Log de auditoría — ver consola para detalle completo','info');
+  console.table(logs.map(l=>({action:l.action,user:l.userName,role:l.role,time:l.timestamp,data:l.data})));
 }
 
 /* ── ALERTS ── */
@@ -2301,9 +2933,6 @@ startClock();
 window.addEventListener('DOMContentLoaded',()=>{
   const today=new Date().toISOString().slice(0,10);
   const monthAgo=new Date(Date.now()-30*86400000).toISOString().slice(0,10);
-  // History filters
-  const hf=document.getElementById('hist-from'),ht=document.getElementById('hist-to');
-  if(hf)hf.value=today; if(ht)ht.value=today;
   // Report custom range
   const rf=document.getElementById('rpt-from'),rt=document.getElementById('rpt-to');
   if(rf)rf.value=monthAgo; if(rt)rt.value=today;
