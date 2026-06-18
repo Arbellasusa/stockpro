@@ -14,11 +14,6 @@
 // ── Define your team members here ──────────────────────────────────────────
 const TEAM_MEMBERS = [
   {
-    email: 'roldanarbella79@myyahoo.com',
-    name:  'Roldan Arbella',
-    role:  'administrator',    // Full access
-  },
-  {
     email: 'roldanarbella97@gmail.com',
     name:  'Arbella Roldan',
     role:  'administrator',    // Full access

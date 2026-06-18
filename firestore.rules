@@ -21,6 +21,18 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid != null;
     }
 
+    // Emails allowed to bootstrap/create the first administrator profile.
+    function isBootstrapAdminEmail() {
+      return isAuth() && request.auth.token.email in [
+        'roldanarbella97@gmail.com',
+        'roldanarbella79@myyahoo.com'
+      ];
+    }
+
+    function isOwnProfile(userId) {
+      return isAuth() && request.auth.uid == userId;
+    }
+
     // Read role from Firestore user profile (set by admin on creation)
     function userRole() {
       return get(/databases/$(database)/documents/stockpro_usuarios/$(request.auth.uid)).data.role;
@@ -76,15 +88,22 @@ service cloud.firestore {
       // Any staff can read profiles; also allow COUNT query for first-admin check
       allow read: if isStaff() || (isAuth() && request.auth.uid == userId);
 
-      // FIRST INSTALL: authenticated user can create their OWN profile
-      // if no admin exists yet — enforced by app logic, not rules
-      allow create: if isAuth() && request.auth.uid == userId;
+      // Own profile creation only. Regular users can only self-register as
+      // housekeeping. Bootstrap admin emails can create their own admin profile.
+      allow create: if isOwnProfile(userId)
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && (
+          request.resource.data.role == 'housekeeping'
+          || (isBootstrapAdminEmail() && request.resource.data.role == 'administrator')
+        );
 
-      // Users update their own presence only
-      allow update: if isAuth() && request.auth.uid == userId
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['online','lastSeen','name'])
-        || isAdmin();
+      // Users update their own presence/name only. Admin can manage profiles.
+      allow update: if (
+          isOwnProfile(userId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['online','lastSeen','name'])
+        ) || isAdmin();
 
       // Only admin can delete profiles
       allow delete: if isAdmin();
@@ -183,34 +202,6 @@ service cloud.firestore {
       allow update: if canWriteInventory()
         && auditFieldsUnchanged();
       allow delete: if false;
-    }
-
-
-    // ── DHS SUPPLIER PRODUCTS ─────────────────────────────────────────────
-    match /stockpro_dhs_products/{productId} {
-      allow read: if isStaff();
-      allow create: if canWriteInventory()
-        && validStr('name', 200)
-        && validStr('sku', 80)
-        && hasServerTimestamp('createdAt')
-        && request.resource.data.createdBy == request.auth.uid;
-      allow update: if canWriteInventory()
-        && auditFieldsUnchanged()
-        && validStr('name', 200)
-        && validStr('sku', 80)
-        && hasServerTimestamp('updatedAt')
-        && request.resource.data.updatedBy == request.auth.uid;
-      allow delete: if isAdmin();
-    }
-
-    match /stockpro_dhs_purchases/{purchaseId} {
-      allow read: if isStaff();
-      allow create: if canWriteInventory()
-        && validStr('sku', 80)
-        && validPositiveNum('qty')
-        && hasServerTimestamp('date')
-        && request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if false;
     }
 
     // ── SHARED WITH HK PRO ENTERPRISE ────────────────────────────────────
