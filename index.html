@@ -36,7 +36,129 @@
   --r:12px;--r2:8px;--r3:6px;
   --topbar:56px;--header:72px;--bottomnav:64px;
   --safe:env(safe-area-inset-bottom,0px);
+}<script>
+const FIRST_ADMIN_EMAIL = "roldanarbella97@gmail.com";
+
+const firebaseConfig = {
+  apiKey: "TU_API_KEY",
+  authDomain: "hk-pro-housekeeping.firebaseapp.com",
+  projectId: "hk-pro-housekeeping",
+  storageBucket: "hk-pro-housekeeping.appspot.com",
+  messagingSenderId: "TU_SENDER_ID",
+  appId: "TU_APP_ID"
+};
+
+firebase.initializeApp(firebaseConfig);
+
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+const loginEmail = document.getElementById("email");
+const loginPassword = document.getElementById("password");
+const loginBtn = document.getElementById("loginBtn");
+const googleBtn = document.getElementById("googleLoginBtn");
+const errorBox = document.getElementById("loginError");
+
+function showError(msg) {
+  if (errorBox) {
+    errorBox.innerText = msg;
+    errorBox.style.display = "block";
+  }
+  console.error(msg);
 }
+
+function showApp() {
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("appScreen").style.display = "block";
+}
+
+function showLogin() {
+  document.getElementById("loginScreen").style.display = "block";
+  document.getElementById("appScreen").style.display = "none";
+}
+
+async function createFirstAdmin(user) {
+  const ref = db.collection("stockpro_usuarios").doc(user.uid);
+
+  await ref.set({
+    uid: user.uid,
+    email: user.email,
+    name: "Arbella Roldan",
+    role: "administrator",
+    status: "active",
+    permissions: {
+      inventory: true,
+      reports: true,
+      users: true,
+      audit: true,
+      admin: true
+    },
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+
+  return true;
+}
+
+auth.onAuthStateChanged(async (user) => {
+  if (!user) {
+    showLogin();
+    return;
+  }
+
+  try {
+    const userRef = db.collection("stockpro_usuarios").doc(user.uid);
+    const snap = await userRef.get();
+
+    if (!snap.exists) {
+      if (user.email.toLowerCase() === FIRST_ADMIN_EMAIL.toLowerCase()) {
+        await createFirstAdmin(user);
+        alert("Administrador creado correctamente. La app se recargará.");
+        location.reload();
+        return;
+      } else {
+        await auth.signOut();
+        showError("Usuario autenticado, pero no autorizado para StockPro.");
+        return;
+      }
+    }
+
+    const profile = snap.data();
+
+    if (profile.status !== "active") {
+      await auth.signOut();
+      showError("Usuario inactivo o bloqueado.");
+      return;
+    }
+
+    window.stockproUser = profile;
+    showApp();
+
+  } catch (error) {
+    showError("Error de login: " + error.message);
+  }
+});
+
+loginBtn.addEventListener("click", async () => {
+  try {
+    await auth.signInWithEmailAndPassword(
+      loginEmail.value.trim(),
+      loginPassword.value.trim()
+    );
+  } catch (error) {
+    showError("Login error: " + error.message);
+  }
+});
+
+googleBtn.addEventListener("click", async () => {
+  try {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    await auth.signInWithPopup(provider);
+  } catch (error) {
+    showError("Google login error: " + error.message);
+  }
+});
+</script>
 html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:16px;background:var(--bg);color:var(--text)}
 button{cursor:pointer;font-family:inherit}
 input,select,textarea{font-family:inherit;font-size:inherit}
