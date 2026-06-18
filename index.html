@@ -63,8 +63,8 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 .login-fb-badge{display:flex;align-items:center;gap:8px;background:#FFF8E6;border:1px solid #F4A623;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;color:#854F0B;margin-bottom:20px}
 .fg{margin-bottom:14px}
 .fg label{display:block;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
-.fg input{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r2);font-size:15px;color:var(--text);background:var(--surface2);transition:border-color .2s}
-.fg input:focus{outline:none;border-color:var(--blue2);background:#fff}
+.fg input,.fg select{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r2);font-size:15px;color:var(--text);background:var(--surface2);transition:border-color .2s}
+.fg input:focus,.fg select:focus{outline:none;border-color:var(--blue2);background:#fff}
 .btn-login{width:100%;padding:14px;background:var(--blue);color:#fff;border:none;border-radius:var(--r2);font-size:15px;font-weight:700;margin-top:4px;transition:background .15s}
 .btn-login:active{background:var(--navy)}
 .err-msg{background:#FDE8E8;color:#C1121F;border-radius:var(--r2);padding:10px 12px;font-size:13px;margin-top:10px}
@@ -498,10 +498,20 @@ input,select,textarea{font-family:inherit;font-size:inherit}
       <div class="login-fb-badge">
         <svg width="14" height="14" viewBox="0 0 32 32" fill="#F4A623"><path d="M1.674 25.851l9.567-16.172.003.003L6.447 1.28C6.008.552 4.985.616 4.633 1.38L1.674 25.851zm11.853-8.847l3.306-5.514-3.281-6.214c-.353-.668-1.314-.668-1.667 0l-3.66 6.93 5.302 4.798zM30.326 25.851L18.19 5.374c-.363-.617-1.27-.617-1.633 0l-3.293 5.49 9.054 15.297c.353.596.991.839 1.574.839h6.434z"/></svg>
         Firebase · hk-pro-housekeeping
+        <span id="domain-badge" style="margin-left:auto;font-size:10px;padding:2px 6px;border-radius:4px;background:#fee;color:#c00"></span>
         <div class="lang-toggle" style="margin-left:auto">
           <button class="lang-btn active" onclick="setLang('es')">🇪🇸 ES</button>
           <button class="lang-btn" onclick="setLang('en')">🇺🇸 EN</button>
         </div>
+      </div>
+      <div class="fg"><label>Nombre completo</label><input type="text" id="l-name" autocomplete="name" placeholder="Ej: Roldan Arbella"></div>
+      <div class="fg"><label>Cargo / Sección</label>
+        <select id="l-role">
+          <option value="administrator">Administrador</option>
+          <option value="warehouse_manager">Almacenero / Warehouse Manager</option>
+          <option value="supervisor">Supervisor</option>
+          <option value="housekeeping">Housekeeping</option>
+        </select>
       </div>
       <div class="fg"><label data-i="email">Email</label><input type="email" id="l-email" autocomplete="email"></div>
       <div class="fg"><label data-i="password">Contraseña</label><input type="password" id="l-pass" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
@@ -520,7 +530,14 @@ input,select,textarea{font-family:inherit;font-size:inherit}
         <svg width="18" height="18" viewBox="0 0 18 18"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/><path d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.174 0 7.548 0 9s.348 2.826.957 4.039l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z" fill="#EA4335"/></svg>
         <span data-i="continue_google">Continuar con Google</span>
       </button>
-      <div class="login-foot" data-i="team_access">Acceso para equipo de Hotel Arbellas</div>
+      <div class="login-foot">
+        Acceso para equipo de Hotel Arbellas<br>
+        <a href="https://arbellasusa.github.io/stockpro" 
+           style="color:var(--accent);font-weight:600;text-decoration:none;font-size:11px"
+           target="_blank">
+          🔗 arbellasusa.github.io/stockpro
+        </a>
+      </div>
 
       <!-- RECOVERY / FIRST ADMIN PANEL -->
       <div class="recovery-panel" id="recovery-panel">
@@ -1539,11 +1556,15 @@ window.addEventListener('error', (e) => {
 });
 
 window.addEventListener('DOMContentLoaded', () => {
-  // Register Service Worker for PWA offline support
-  if ('serviceWorker' in navigator) {
+  // Register Service Worker — only on real deployment domains, not previews
+  const _swHost = location.hostname;
+  const _swAllowed = ['arbellasusa.github.io','localhost','127.0.0.1'];
+  if ('serviceWorker' in navigator && _swAllowed.some(h => _swHost.includes(h))) {
     navigator.serviceWorker.register('./sw.js')
       .then(reg => console.log('[SW] Registered — scope:', reg.scope))
       .catch(err => console.warn('[SW] Registration failed:', err));
+  } else if ('serviceWorker' in navigator) {
+    console.log('[SW] Skipped — preview/iframe domain:', _swHost);
   }
 
   setTimeout(() => {
@@ -1584,6 +1605,31 @@ async function startApp(){
   showLogin();
   console.log('[APP] startApp()');
 
+  // Domain check — Firebase Auth only works on authorized domains
+  const _host = location.hostname;
+  const _authorizedDomains = ['arbellasusa.github.io','localhost','127.0.0.1'];
+  const _isAuthorizedDomain = _authorizedDomains.some(d => _host.includes(d));
+
+  // Always show current domain in badge so user knows where they are
+  const _domBadge = document.getElementById('domain-badge');
+  if (_domBadge) {
+    if (_isAuthorizedDomain) {
+      _domBadge.textContent = '✓ ' + _host;
+      _domBadge.style.background = '#e6f4ea';
+      _domBadge.style.color = '#137333';
+    } else {
+      _domBadge.textContent = '⚠ ' + _host;
+      _domBadge.style.background = '#fce8e6';
+      _domBadge.style.color = '#c5221f';
+    }
+  }
+
+  if (!_isAuthorizedDomain) {
+    console.warn('[APP] Dominio no autorizado en Firebase:', _host);
+    showErr('⚠️ Esta es una VISTA PREVIA — el login NO funciona aquí.\n\nAbre la app en tu URL real:\nhttps://arbellasusa.github.io/stockpro');
+    // Still initialize Firebase for diagnostics
+  }
+
   if (!window.firebase) {
     console.error('[APP] Firebase SDK missing');
     showErr('Firebase no cargó. Verifica conexión y recarga la página.');
@@ -1595,6 +1641,20 @@ async function startApp(){
     _fbApp  = firebase.apps.length ? firebase.apps[0] : firebase.initializeApp(FB_CFG);
     _fbAuth = firebase.auth(_fbApp);
     _fbDb   = firebase.firestore(_fbApp);
+
+    // Network hardening for iPhone/Safari/hotel WiFi and GitHub Pages.
+    // Must be set before any Firestore read/write/listener.
+    try {
+      _fbDb.settings({
+        experimentalAutoDetectLongPolling: true,
+        ignoreUndefinedProperties: true
+      });
+      console.log('[APP] Firestore network settings applied');
+    } catch(se) {
+      console.warn('[APP] Firestore settings warn:', se.message || se.code);
+    }
+
+    try { await _fbDb.enableNetwork(); } catch(ne) { console.warn('[APP] enableNetwork warn:', ne.code || ne.message); }
 
     // Auth persistence — keeps session across refreshes
     try {
@@ -1632,6 +1692,15 @@ async function onAuthChanged(fbUser) {
   const email          = (fbUser.email || '').trim().toLowerCase();
   const isBootstrap    = isBootstrapAdminEmail(email);
   const userRef        = _fbDb.collection(COLS.USR).doc(fbUser.uid);
+  const pendingProfile = (() => {
+    try {
+      const raw = localStorage.getItem('sp_login_profile_pending');
+      const p = raw ? JSON.parse(raw) : null;
+      return p && p.email === email ? p : {};
+    } catch(e) { return {}; }
+  })();
+  const requestedRole = String(pendingProfile.role || '').trim();
+  const requestedName = String(pendingProfile.name || '').trim();
 
   try {
     let snap = await userRef.get();
@@ -1639,12 +1708,16 @@ async function onAuthChanged(fbUser) {
 
     if (!snap.exists) {
       // First time — create profile
-      const role = isBootstrap ? 'administrator' : 'housekeeping';
+      const validRoles = ['administrator','warehouse_manager','supervisor','housekeeping'];
+      const role = isBootstrap
+        ? 'administrator'
+        : (validRoles.includes(requestedRole) && requestedRole !== 'administrator' ? requestedRole : 'housekeeping');
       await userRef.set({
         uid:       fbUser.uid,
         email,
-        name:      fbUser.displayName || email.split('@')[0],
+        name:      requestedName || fbUser.displayName || email.split('@')[0],
         role,
+        title:     requestedRole || role,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         createdBy: isBootstrap ? 'bootstrap' : 'self_register',
         online:    true,
@@ -1670,16 +1743,31 @@ async function onAuthChanged(fbUser) {
       }
     }
 
+    // Keep professional login identity updated without allowing client-side role escalation.
+    if (requestedName || requestedRole) {
+      const safeUpdate = {
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        lastLoginName: requestedName || null,
+        requestedRole: requestedRole || null
+      };
+      if (requestedName) safeUpdate.name = requestedName;
+      if (requestedRole) safeUpdate.title = requestedRole;
+      await userRef.set(safeUpdate, { merge:true }).catch(e => console.warn('[AUTH] profile identity update skipped:', e.code));
+      snap = await userRef.get().catch(()=>snap);
+    }
+
     const profile = snap.data() || {};
     const role    = profile.role || (isBootstrap ? 'administrator' : 'housekeeping');
 
     S.user = {
       uid:      fbUser.uid,
       email:    fbUser.email,
-      name:     fbUser.displayName || profile.name || email.split('@')[0],
-      initials: (fbUser.displayName || fbUser.email || 'U')[0].toUpperCase(),
+      name:     profile.name || requestedName || fbUser.displayName || email.split('@')[0],
+      initials: (profile.name || requestedName || fbUser.displayName || fbUser.email || 'U')[0].toUpperCase(),
       role,
+      title:    profile.title || requestedRole || role,
     };
+    try { localStorage.removeItem('sp_login_profile_pending'); } catch(e) {}
     console.log('[AUTH] ✅ Logged in —', email, '| role:', role);
 
     // Non-blocking presence update
@@ -1732,14 +1820,24 @@ async function onAuthChanged(fbUser) {
 
 /* ─── doLogin: handle sign-in button ─── */
 async function doLogin(){
+  const name     = SEC.sanitize(document.getElementById('l-name')?.value || '');
+  const roleSel  = (document.getElementById('l-role')?.value || 'housekeeping').trim();
   const emailRaw = (document.getElementById('l-email').value || '').trim();
   const email    = emailRaw.toLowerCase();
   const pass     = (document.getElementById('l-pass').value  || '');
   document.getElementById('l-err').classList.add('hidden');
 
+  if (!name)  { showErr('Ingresa el nombre completo del trabajador'); return; }
   if (!email) { showErr('Ingresa tu correo electrónico'); return; }
   if (!pass)  { showErr('Ingresa tu contraseña');          return; }
   if (pass.length < 6) { showErr('La contraseña debe tener mínimo 6 caracteres'); return; }
+  if (roleSel === 'administrator' && !isBootstrapAdminEmail(email)) {
+    showErr('Solo los correos autorizados pueden entrar como Administrador. Selecciona tu cargo real o pide al administrador que te asigne permisos.');
+    return;
+  }
+  try {
+    localStorage.setItem('sp_login_profile_pending', JSON.stringify({email, name, role:roleSel, ts:Date.now()}));
+  } catch(e) {}
 
   _setBtnLoading(true);
   console.log('[LOGIN] Attempting sign-in for:', email, '| fbReady:', S.fbReady);
@@ -1748,9 +1846,10 @@ async function doLogin(){
   if (!S.fbReady) {
     S.user = {
       uid:'demo', email,
-      name: email.split('@')[0],
-      initials: email[0].toUpperCase(),
-      role: isBootstrapAdminEmail(email) ? 'administrator' : 'warehouse_manager',
+      name,
+      initials: (name || email)[0].toUpperCase(),
+      role: isBootstrapAdminEmail(email) ? 'administrator' : (roleSel === 'administrator' ? 'housekeeping' : roleSel),
+      title: roleSel,
     };
     hideLogin();
     document.getElementById('app').classList.remove('hidden');
@@ -1798,7 +1897,7 @@ async function doLogin(){
       'auth/user-disabled':         '❌ Esta cuenta está deshabilitada.',
       'auth/too-many-requests':     '⏳ Demasiados intentos. Espera unos minutos o usa "Olvidé mi contraseña".',
       'auth/operation-not-allowed': '⚠️ Activa Email/Password en Firebase Console → Authentication → Sign-in method.',
-      'auth/network-request-failed':'🌐 Sin conexión a internet. Verifica tu red e intenta de nuevo.',
+      'auth/network-request-failed':'❌ Firebase no puede conectarse desde este dominio. Abre la app en: arbellasusa.github.io/stockpro',
       'auth/unauthorized-domain':   '⚠️ Dominio no autorizado.\n\nVe a Firebase Console → Authentication → Settings → Authorized domains → agrega: arbellasusa.github.io',
       'auth/popup-blocked':         '⚠️ El navegador bloqueó el popup. Permite popups para este sitio.',
       'auth/popup-closed-by-user':  'Login cancelado.',
@@ -1915,8 +2014,10 @@ async function createFirstAdmin(){
   const resetBtn = () => { if(btn){ btn.disabled=false; btn.textContent='⭐ Crear primer administrador'; } };
 
   if (!S.fbReady) { showAlert('Firebase no está listo. Recarga la página.','warn'); return; }
+  const name  = SEC.sanitize(document.getElementById('l-name')?.value || '');
   const email = (document.getElementById('l-email').value || '').trim().toLowerCase();
   const pass  = (document.getElementById('l-pass').value  || '');
+  if (!name) { showAlert('Ingresa tu nombre completo arriba primero','warn'); return; }
   if (!email) { showAlert('Ingresa tu email arriba primero','warn'); return; }
   if (!pass || pass.length < 6) { showAlert('Ingresa una contraseña de al menos 6 caracteres','warn'); return; }
   if (!isBootstrapAdminEmail(email)) {
@@ -1937,8 +2038,9 @@ async function createFirstAdmin(){
     // Write admin profile
     await _fbDb.collection(COLS.USR).doc(cred.user.uid).set({
       uid: cred.user.uid, email,
-      name: cred.user.displayName || email.split('@')[0],
+      name,
       role: 'administrator',
+      title: 'administrator',
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       createdBy: 'first_admin_setup',
       online: true,
@@ -2337,47 +2439,123 @@ async function saveItem(){
 }
 
 /* ── SCANNER ── */
+function normalizeScanCode(value){
+  return String(value || '')
+    .trim()
+    .replace(/[^\w\-]/g,'')
+    .toUpperCase();
+}
+function codeMatchesValue(stored, scanned){
+  const a = normalizeScanCode(stored);
+  const b = normalizeScanCode(scanned);
+  if(!a || !b) return false;
+  if(a === b) return true;
+  // UPC/EAN sometimes include/omit leading zeros
+  const an = a.replace(/^0+/, '');
+  const bn = b.replace(/^0+/, '');
+  return an && bn && an === bn;
+}
+function findProductByCode(rawCode){
+  const q = normalizeScanCode(rawCode);
+  const fields = ['barcode','sku','upc','ean','code','vendorCode','supplierSku'];
+  let item = S.items.find(i => fields.some(f => codeMatchesValue(i[f], q)));
+  if(item) return { type:'inventory', item };
+  if(window.DHS && Array.isArray(DHS.products)){
+    const dhs = DHS.products.find(p => fields.some(f => codeMatchesValue(p[f], q)));
+    if(dhs) return { type:'dhs', item:dhs };
+  }
+  return null;
+}
+
 async function startScanner(){
   try{
-    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}});
-    document.getElementById('scan-video').srcObject=stream; S.scanActive=true;
+    const videoEl = document.getElementById('scan-video');
+    const constraints = {
+      video:{
+        facingMode:{ ideal:'environment' },
+        width:{ ideal:1920 },
+        height:{ ideal:1080 },
+        focusMode:'continuous',
+        exposureMode:'continuous'
+      }
+    };
+    const stream=await navigator.mediaDevices.getUserMedia(constraints);
+    videoEl.srcObject=stream;
+    try { await videoEl.play(); } catch(e) {}
+    S.scanActive=true;
+    S.lastScanCode='';
+    S.lastScanAt=0;
     document.getElementById('scan-start-btn').classList.add('hidden');
     document.getElementById('scan-stop-btn').classList.remove('hidden');
+
     if(window.ZXing){
       const hints=new Map();
-      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[ZXing.BarcodeFormat.EAN_13,ZXing.BarcodeFormat.EAN_8,ZXing.BarcodeFormat.CODE_128,ZXing.BarcodeFormat.CODE_39,ZXing.BarcodeFormat.UPC_A,ZXing.BarcodeFormat.UPC_E,ZXing.BarcodeFormat.QR_CODE]);
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[
+        ZXing.BarcodeFormat.EAN_13,
+        ZXing.BarcodeFormat.EAN_8,
+        ZXing.BarcodeFormat.CODE_128,
+        ZXing.BarcodeFormat.CODE_39,
+        ZXing.BarcodeFormat.UPC_A,
+        ZXing.BarcodeFormat.UPC_E,
+        ZXing.BarcodeFormat.ITF,
+        ZXing.BarcodeFormat.QR_CODE
+      ]);
       hints.set(ZXing.DecodeHintType.TRY_HARDER,true);
-      S.codeReader=new ZXing.BrowserMultiFormatReader(hints);
-      S.codeReader.decodeFromVideoDevice(null,'scan-video',result=>{if(result)handleScan(result.getText());});
+      S.codeReader=new ZXing.BrowserMultiFormatReader(hints, 350);
+      S.codeReader.decodeFromVideoDevice(null,'scan-video',(result,err)=>{
+        if(!S.scanActive || !result) return;
+        const code = normalizeScanCode(result.getText());
+        const now = Date.now();
+        if(code && (code !== S.lastScanCode || now - (S.lastScanAt||0) > 1500)){
+          S.lastScanCode = code;
+          S.lastScanAt = now;
+          handleScan(code);
+        }
+      });
+    } else {
+      showAlert('Librería de escáner no cargó. Usa búsqueda manual.', 'warn');
     }
-  }catch(err){showAlert(err.name==='NotAllowedError'?'Permite acceso a la cámara':'Error: '+err.message,'warn');}
+  }catch(err){
+    showAlert(err.name==='NotAllowedError'?'Permite acceso a la cámara':'Error de cámara: '+err.message,'warn');
+  }
 }
 function stopScanner(){
   if(S.codeReader){try{S.codeReader.reset();}catch(e){} S.codeReader=null;}
   const v=document.getElementById('scan-video');
   if(v?.srcObject){v.srcObject.getTracks().forEach(t=>t.stop());v.srcObject=null;}
   S.scanActive=false;
-  document.getElementById('scan-start-btn').classList.remove('hidden');
-  document.getElementById('scan-stop-btn').classList.add('hidden');
+  document.getElementById('scan-start-btn')?.classList.remove('hidden');
+  document.getElementById('scan-stop-btn')?.classList.add('hidden');
 }
 function handleScan(code){
-  if(!S.scanActive) return; stopScanner();
-  if('vibrate' in navigator) navigator.vibrate([80,40,80]);
-  document.getElementById('scan-manual').value=code; doManualScan(code);
+  if(!S.scanActive) return;
+  const q = normalizeScanCode(code);
+  if('vibrate' in navigator) navigator.vibrate([60,30,60]);
+  document.getElementById('scan-manual').value=q;
+  doManualScan(q, true);
 }
-function doManualScan(code){
-  const q=(code||document.getElementById('scan-manual').value).trim(); if(!q){showAlert('Ingresa un código','warn');return;}
-  const item=S.items.find(i=>i.barcode===q||i.sku===q||(i.sku||'').toLowerCase()===q.toLowerCase());
+function doManualScan(code, fromCamera=false){
+  const q=normalizeScanCode(code||document.getElementById('scan-manual').value);
+  if(!q){showAlert('Ingresa un código','warn');return;}
+  const found = findProductByCode(q);
+  const item = found?.item;
   const panel=document.getElementById('scan-result');
-  if(item){
+  if(item && found.type==='inventory'){
+    if(fromCamera) stopScanner();
     const s=getStatus(item);
-    panel.innerHTML=`<div class="card" style="margin:0 0 14px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><span style="font-size:26px">${CAT_EMOJI[item.cat]||'📦'}</span><div><div style="font-size:14px;font-weight:700">${item.name}</div><div style="font-size:12px;color:var(--text3)">${item.sku}</div></div><span class="badge ${s.cls}" style="margin-left:auto">${s.label}</span></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px"><div style="text-align:center;padding:10px;background:var(--surface2);border-radius:8px"><div style="font-size:22px;font-weight:800;color:var(--blue)">${item.qty||0}</div><div style="font-size:10px;color:var(--text3)">${item.unit}</div></div><div style="text-align:center;padding:10px;background:var(--surface2);border-radius:8px"><div style="font-size:22px;font-weight:800;color:var(--green)">$${Number(item.price||0).toFixed(2)}</div><div style="font-size:10px;color:var(--text3)">Precio</div></div></div><div style="font-size:12px;color:var(--text3);margin-bottom:10px">📍 ${item.loc}</div><button class="btn-primary" style="width:100%" onclick="navigate('inventory');setTimeout(()=>openDetail('${item.id}'),300)">Ver detalle →</button></div>`;
+    panel.innerHTML=`<div class="card" style="margin:0 0 14px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><span style="font-size:26px">${CAT_EMOJI[item.cat]||'📦'}</span><div><div style="font-size:14px;font-weight:700">${item.name}</div><div style="font-size:12px;color:var(--text3)">${item.sku||''}</div></div><span class="badge ${s.cls}" style="margin-left:auto">${s.label}</span></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px"><div style="text-align:center;padding:10px;background:var(--surface2);border-radius:8px"><div style="font-size:22px;font-weight:800;color:var(--blue)">${item.qty||0}</div><div style="font-size:10px;color:var(--text3)">${item.unit||''}</div></div><div style="text-align:center;padding:10px;background:var(--surface2);border-radius:8px"><div style="font-size:22px;font-weight:800;color:var(--green)">$${Number(item.price||item.cost||0).toFixed(2)}</div><div style="font-size:10px;color:var(--text3)">Precio</div></div></div><div style="font-size:12px;color:var(--text3);margin-bottom:10px">📍 ${item.loc||item.supplierName||''}</div><button class="btn-primary" style="width:100%" onclick="navigate('inventory');setTimeout(()=>openDetail('${item.id}'),300)">Ver detalle →</button></div>`;
+    addRecentScan({code:q,name:item.name,found:true});
+  } else if(item && found.type==='dhs'){
+    if(fromCamera) stopScanner();
+    panel.innerHTML=`<div class="card" style="margin:0 0 14px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><span style="font-size:26px">🏨</span><div><div style="font-size:14px;font-weight:700">${item.name}</div><div style="font-size:12px;color:var(--text3)">${item.sku||''} · ${item.brand||'DHS'}</div></div><span class="badge badge-ok" style="margin-left:auto">DHS</span></div><div style="font-size:12px;color:var(--text3);margin-bottom:10px">${item.cat||''} · ${item.unit||'Each'} · Case: ${item.casePack||'-'}</div><button class="btn-primary" style="width:100%" onclick="navigate('dhs');setTimeout(()=>openDHSDetail('${item.id||item.sku}'),300)">Abrir en proveedores →</button></div>`;
     addRecentScan({code:q,name:item.name,found:true});
   } else {
+    // Do not stop the camera immediately on a weak/unknown first read; allow another pass.
     panel.innerHTML=`<div class="card" style="margin:0 0 14px;text-align:center"><div style="font-size:28px;margin-bottom:8px">🔍</div><div style="font-size:14px;font-weight:700;margin-bottom:4px">${t('product_not_found')}</div><div style="font-size:12px;color:var(--text3);font-family:monospace;margin-bottom:12px">${q}</div><button class="btn-primary" style="width:100%" onclick="openAddModalWithCode('${q}')">${t('add_to_firebase')}</button></div>`;
     addRecentScan({code:q,name:t('product_not_found'),found:false});
   }
 }
+
 function openAddModalWithCode(code){ navigate('inventory'); setTimeout(()=>{openAddModal();document.getElementById('im-barcode').value=code;},200); }
 function addRecentScan(scan){
   scan.time=new Date().toLocaleTimeString(LANG==='en'?'en-US':'es-MX',{hour:'2-digit',minute:'2-digit'});
@@ -5539,9 +5717,12 @@ function initDHS(){
         DHS.products = snap.docs.map(d=>({id:d.id,...d.data()}));
         console.log(`✅ [DHS] Firestore snapshot → ${DHS.products.length} productos DHS`);
         localStorage.setItem('sp_dhs_products', JSON.stringify(DHS.products));
-        // Auto-seed catalog if completely empty
+        // Auto-seed catalog if completely empty, but show the preload immediately.
         if(DHS.products.length === 0){
-          console.log('🌱 [DHS] Catálogo vacío — ejecutando auto-seed del catálogo DHS...');
+          console.log('🌱 [DHS] Catálogo Firestore vacío — mostrando precarga local y sembrando en segundo plano...');
+          DHS.products = DHS_CATALOG_PRELOAD.map((p,i)=>({...p, id:'preload-'+i, qty:0}));
+          localStorage.setItem('sp_dhs_products', JSON.stringify(DHS.products));
+          if(document.getElementById('pg-dhs')?.classList.contains('active')) renderDHS();
           autoSeedDHSCatalog();
         } else {
           if(document.getElementById('pg-dhs')?.classList.contains('active')) renderDHS();
@@ -5596,7 +5777,12 @@ async function autoSeedDHSCatalog(){
     showAlert(`🏨 Catálogo DHS cargado automáticamente — ${DHS_CATALOG_PRELOAD.length} productos`, 'success');
   } catch(e) {
     console.error('❌ [DHS] autoSeed error:', e);
-    showAlert('Error al cargar catálogo DHS: '+e.message, 'danger');
+    if(!DHS.products.length){
+      DHS.products = DHS_CATALOG_PRELOAD.map((p,i)=>({...p, id:'preload-'+i, qty:0}));
+      localStorage.setItem('sp_dhs_products', JSON.stringify(DHS.products));
+      renderDHS();
+    }
+    showAlert('Catálogo DHS visible localmente. Revisa reglas Firestore para guardar en nube: '+(e.code||e.message), 'warn');
   }
 }
 
