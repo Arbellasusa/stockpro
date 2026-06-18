@@ -1,0 +1,85 @@
+supplier,supplierName,sku,brand,name,cat,unit,cost,minQty,casePack,notes
+DHS,Diversified Hospitality Solutions,DHS-H2O10-CS085,H2O Therapy®,Conditioning Shampoo – .85 oz/25 ml Tube,Amenities,Each (ea),0,300,300,PDF H2O Therapy Collection; case pack included
+DHS,Diversified Hospitality Solutions,DHS-H2O07-C085,H2O Therapy®,Conditioner – .85 oz/25 ml Tube,Amenities,Each (ea),0,300,300,PDF H2O Therapy Collection; case pack included
+DHS,Diversified Hospitality Solutions,DHS-H2O08-L085,H2O Therapy®,Lotion – .85 oz/25 ml Tube,Amenities,Each (ea),0,300,300,PDF H2O Therapy Collection; case pack included
+DHS,Diversified Hospitality Solutions,DHS-H2O09-W085,H2O Therapy®,Body Wash – .85 oz/25 ml Tube,Amenities,Each (ea),0,300,300,PDF H2O Therapy Collection; case pack included
+DHS,Diversified Hospitality Solutions,DHS-H2O31-S025,H2O Therapy®,Shampoo – .30 oz/10 ml Sachet Packet,Sachet Accessories,Each (ea),0,500,500,PDF H2O Therapy Collection; case pack included
+DHS,Diversified Hospitality Solutions,DHS-H2O32-L025,H2O Therapy®,Lotion – .30 oz/10 ml Sachet Packet,Sachet Accessories,Each (ea),0,500,500,PDF H2O Therapy Collection; case pack included
+DHS,Diversified Hospitality Solutions,DHS-H2O20-MB150,H2O Therapy®,Massage Bar – 30g Sachet,Neutral Soaps,Each (ea),0,400,400,PDF H2O Therapy Collection; case pack included
+DHS,Diversified Hospitality Solutions,DHS-H2O21-CB075,H2O Therapy®,Cleansing Bar – 14g Sachet,Neutral Soaps,Each (ea),0,1000,1000,PDF H2O Therapy Collection; case pack included
+DHS,Diversified Hospitality Solutions,DHS-H2O22-CB100,H2O Therapy®,Cleansing Bar – 28g Sachet,Neutral Soaps,Each (ea),0,500,500,PDF H2O Therapy Collection; case pack included
+DHS,Diversified Hospitality Solutions,DHS-H2O23-MB200,H2O Therapy®,Massage Bar – 42g Sachet,Neutral Soaps,Each (ea),0,200,200,PDF H2O Therapy Collection; case pack included
+DHS,Diversified Hospitality Solutions,DHS-H2O01-S100,H2O Therapy®,Shampoo – 1 oz/30 ml Tube,Amenities,Each (ea),0,300,300,PDF H2O Therapy Collection; case pack included
+DHS,Diversified Hospitality Solutions,DHS-H2O02-C100,H2O Therapy®,Conditioner – 1 oz/30 ml Tube,Amenities,Each (ea),0,300,300,PDF H2O Therapy Collection; case pack included
+DHS,Diversified Hospitality Solutions,DHS-H2O03-L100,H2O Therapy®,Lotion – 1 oz/30 ml Tube,Amenities,Each (ea),0,300,300,PDF H2O Therapy Collection; case pack included
+DHS,Diversified Hospitality Solutions,DHS-H2O04-W100,H2O Therapy®,Body Wash – 1 oz/30 ml Tube,Amenities,Each (ea),0,300,300,PDF H2O Therapy Collection; case pack included
+DHS,Diversified Hospitality Solutions,DHS-H2O06-S085,H2O Therapy®,Shampoo – .85 oz/25 ml Tube,Amenities,Each (ea),0,300,300,PDF H2O Therapy Collection; case pack included
+DHS,Diversified Hospitality Solutions,DHS-TPGT-SH-1,Terra Pure® Green Tea,Shampoo 1oz Bottle,Amenities,Each (ea),0,500,,
+DHS,Diversified Hospitality Solutions,DHS-TPGT-CD-1,Terra Pure® Green Tea,Conditioner 1oz Bottle,Amenities,Each (ea),0,500,,
+DHS,Diversified Hospitality Solutions,DHS-TPGT-BW-1,Terra Pure® Green Tea,Body Wash 1oz Bottle,Amenities,Each (ea),0,500,,
+DHS,Diversified Hospitality Solutions,DHS-TPGT-BL-1,Terra Pure® Green Tea,Body Lotion 1oz Bottle,Amenities,Each (ea),0,500,,
+DHS,Diversified Hospitality Solutions,DHS-KIT-TPGT-4,Terra Pure® Green Tea,4-piece Ecobox Amenity Kit,Amenity Kits,Case (cs),0,50,,
+DHS,Diversified Hospitality Solutions,DHS-DISP-ALTA-340,Alta,Alta 340ml Wall Dispenser,Dispensers,Each (ea),0,5,,
+DHS,Diversified Hospitality Solutions,DHS-GST-LUGBAG,DHS,Laundry/Luggage Bag,Guest Supplies,Each (ea),0,200,,
+DHS,Diversified Hospitality Solutions,DHS-GST-ICEBAG,DHS,Ice Bucket Liner Bag,Guest Supplies,Each (ea),0,500,,
+DHS,Diversified Hospitality Solutions,DHS-SAC-SC,DHS,Shower Cap Sachet,Sachet Accessories,Each (ea),0,300,,
+DHS,Diversified Hospitality Solutions,DHS-BOX-DN,DHS,Dental Kit Boxed,Boxed Accessories,Each (ea),0,100,,
+DHS,Diversified Hospitality Solutions,DHS-SLP-WFL-U,DHS,Waffle Slippers Universal,Slippers,Each (ea),0,50,,
+HD-SUPPLY,HD Supply / Guest Supply,HDS-TP-2PLY,Hotel Essentials,Toilet Paper 2-ply Roll,Paper Accessories,Roll,0,96,,
+HD-SUPPLY,HD Supply / Guest Supply,HDS-FACIAL-TISSUE,Hotel Essentials,Facial Tissue Box,Paper Accessories,Box,0,48,,
+HD-SUPPLY,HD Supply / Guest Supply,HDS-PAPER-TOWEL,Hotel Essentials,Paper Towel Roll,Paper Accessories,Roll,0,48,,
+HD-SUPPLY,HD Supply / Guest Supply,HDS-TRASH-13CLR,Hotel Essentials,Trash Bag Clear 13 gal,Trash Bags,Case (cs),0,5,,
+HD-SUPPLY,HD Supply / Guest Supply,HDS-TRASH-33BLK,Hotel Essentials,Trash Bag Black 33 gal,Trash Bags,Case (cs),0,5,,
+HD-SUPPLY,HD Supply / Guest Supply,HDS-TRASH-55BLK,Hotel Essentials,Trash Bag Black 55 gal,Trash Bags,Case (cs),0,5,,
+HD-SUPPLY,HD Supply / Guest Supply,HDS-ICE-BUCKET,Hotel Essentials,Guest Room Ice Bucket,Room Supplies,Each (ea),0,10,,
+HD-SUPPLY,HD Supply / Guest Supply,HDS-COFFEE-CUPS,Hotel Essentials,In-room Coffee Cups,Room Supplies,Case (cs),0,10,,
+HD-SUPPLY,HD Supply / Guest Supply,HDS-HANGER,Hotel Essentials,Guest Room Hangers,Room Supplies,Each (ea),0,100,,
+HD-SUPPLY,HD Supply / Guest Supply,HDS-DO-NOT-DISTURB,Hotel Essentials,Do Not Disturb Door Hanger,Guest Supplies,Each (ea),0,100,,
+ECOLAB,Ecolab,ECO-APC-GAL,Ecolab,All Purpose Cleaner Gallon,Housekeeping Chemicals,Gallon (gal),0,4,,
+ECOLAB,Ecolab,ECO-GLASS-GAL,Ecolab,Glass Cleaner Gallon,Housekeeping Chemicals,Gallon (gal),0,4,,
+ECOLAB,Ecolab,ECO-BATH-GAL,Ecolab,Bathroom Cleaner / Disinfectant Gallon,Housekeeping Chemicals,Gallon (gal),0,4,,
+ECOLAB,Ecolab,ECO-FLOOR-GAL,Ecolab,Neutral Floor Cleaner Gallon,Housekeeping Chemicals,Gallon (gal),0,4,,
+ECOLAB,Ecolab,ECO-DEGREASER-GAL,Ecolab,Degreaser Gallon,Housekeeping Chemicals,Gallon (gal),0,2,,
+ECOLAB,Ecolab,ECO-AIRFRESH,Ecolab,Air Freshener / Odor Eliminator,Housekeeping Chemicals,Each (ea),0,12,,
+ECOLAB,Ecolab,ECO-HANDSOAP-GAL,Ecolab,Liquid Hand Soap Gallon,Amenities,Gallon (gal),0,4,,
+ECOLAB,Ecolab,ECO-SANITIZER,Ecolab,Hand Sanitizer Refill,Amenities,Each (ea),0,12,,
+LAUNDRY-SUPPLIER,Laundry Supplier,LAU-DETERGENT,Laundry,Laundry Detergent,Laundry,Gallon (gal),0,4,,
+LAUNDRY-SUPPLIER,Laundry Supplier,LAU-BLEACH,Laundry,Bleach,Laundry,Gallon (gal),0,4,,
+LAUNDRY-SUPPLIER,Laundry Supplier,LAU-SOFTENER,Laundry,Fabric Softener,Laundry,Gallon (gal),0,4,,
+LAUNDRY-SUPPLIER,Laundry Supplier,LAU-STAIN,Laundry,Stain Remover,Laundry,Gallon (gal),0,2,,
+LAUNDRY-SUPPLIER,Laundry Supplier,LAU-DRYER,Laundry,Dryer Sheets,Laundry,Box,0,10,,
+LAUNDRY-SUPPLIER,Laundry Supplier,LAU-BAG,Laundry,Laundry Bag,Laundry,Each (ea),0,200,,
+LINEN-SUPPLIER,Linen / Hotel Textile Supplier,LIN-SHEET-KING,Hotel Linen,King Flat Sheet,Linens,Each (ea),0,24,,
+LINEN-SUPPLIER,Linen / Hotel Textile Supplier,LIN-SHEET-QUEEN,Hotel Linen,Queen Flat Sheet,Linens,Each (ea),0,24,,
+LINEN-SUPPLIER,Linen / Hotel Textile Supplier,LIN-FITTED-KING,Hotel Linen,King Fitted Sheet,Linens,Each (ea),0,24,,
+LINEN-SUPPLIER,Linen / Hotel Textile Supplier,LIN-PILLOWCASE,Hotel Linen,Pillowcase Standard/Queen,Linens,Each (ea),0,48,,
+LINEN-SUPPLIER,Linen / Hotel Textile Supplier,LIN-TOWEL-BATH,Hotel Linen,Bath Towel,Linens,Each (ea),0,48,,
+LINEN-SUPPLIER,Linen / Hotel Textile Supplier,LIN-TOWEL-HAND,Hotel Linen,Hand Towel,Linens,Each (ea),0,48,,
+LINEN-SUPPLIER,Linen / Hotel Textile Supplier,LIN-WASHCLOTH,Hotel Linen,Washcloth,Linens,Each (ea),0,96,,
+LINEN-SUPPLIER,Linen / Hotel Textile Supplier,LIN-BATHMAT,Hotel Linen,Bath Mat,Linens,Each (ea),0,24,,
+LINEN-SUPPLIER,Linen / Hotel Textile Supplier,ROOM-TOILET-BRUSH,Hotel Linen,Toilet Brush,Housekeeping Tools,Each (ea),0,12,,
+LINEN-SUPPLIER,Linen / Hotel Textile Supplier,ROOM-PLUNGER,Hotel Linen,Toilet Plunger,Maintenance,Each (ea),0,6,,
+GRAINGER,Grainger / Maintenance Supplier,MNT-AA,Maintenance,AA Batteries,Maintenance,Pack,0,20,,
+GRAINGER,Grainger / Maintenance Supplier,MNT-AAA,Maintenance,AAA Batteries,Maintenance,Pack,0,20,,
+GRAINGER,Grainger / Maintenance Supplier,MNT-9V,Maintenance,9V Batteries,Maintenance,Pack,0,10,,
+GRAINGER,Grainger / Maintenance Supplier,MNT-LIGHT-A19,Maintenance,LED Bulb A19,Maintenance,Each (ea),0,50,,
+GRAINGER,Grainger / Maintenance Supplier,MNT-LIGHT-BR30,Maintenance,LED Bulb BR30,Maintenance,Each (ea),0,25,,
+GRAINGER,Grainger / Maintenance Supplier,MNT-AIRFILTER,Maintenance,A/C Air Filter Assorted,Maintenance,Each (ea),0,30,,
+GRAINGER,Grainger / Maintenance Supplier,MNT-SILICONE,Maintenance,Silicone Caulk White,Maintenance,Tube,0,12,,
+GRAINGER,Grainger / Maintenance Supplier,MNT-PAINT-WHITE,Maintenance,Touch-up Paint White,Maintenance,Gallon (gal),0,2,,
+GRAINGER,Grainger / Maintenance Supplier,MNT-GLOVES-NITRILE,Maintenance,Nitrile Gloves Box,Maintenance,Box,0,20,,
+GRAINGER,Grainger / Maintenance Supplier,MNT-TAPE,Maintenance,Painter Tape / Duct Tape,Maintenance,Roll,0,12,,
+JANITORIAL,Janitorial Supplier,HK-MICROFIBER,Housekeeping,Microfiber Cleaning Cloth,Housekeeping Tools,Each (ea),0,100,,
+JANITORIAL,Janitorial Supplier,HK-SPONGE,Housekeeping,Scrub Sponge,Housekeeping Tools,Pack,0,20,,
+JANITORIAL,Janitorial Supplier,HK-MOPHEAD,Housekeeping,Mop Head,Housekeeping Tools,Each (ea),0,24,,
+JANITORIAL,Janitorial Supplier,HK-BROOM,Housekeeping,Broom,Housekeeping Tools,Each (ea),0,12,,
+JANITORIAL,Janitorial Supplier,HK-DUSTPAN,Housekeeping,Dustpan,Housekeeping Tools,Each (ea),0,12,,
+JANITORIAL,Janitorial Supplier,HK-CART-BAG,Housekeeping,Housekeeping Cart Bag,Housekeeping Tools,Each (ea),0,10,,
+JANITORIAL,Janitorial Supplier,HK-VACBAG,Housekeeping,Vacuum Bag / Filter,Housekeeping Tools,Pack,0,10,,
+JANITORIAL,Janitorial Supplier,HK-GLOVES,Housekeeping,Housekeeping Gloves,Housekeeping Tools,Pair,0,50,,
+SYSCO,Sysco / Foodservice Supplier,FB-COFFEE-PODS,F&B,Guest Room Coffee Pods,Food & Beverage,Case (cs),0,10,,
+SYSCO,Sysco / Foodservice Supplier,FB-CREAMER,F&B,Coffee Creamer Packets,Food & Beverage,Case (cs),0,5,,
+SYSCO,Sysco / Foodservice Supplier,FB-SUGAR,F&B,Sugar Packets,Food & Beverage,Case (cs),0,5,,
+SYSCO,Sysco / Foodservice Supplier,FB-STIRRER,F&B,Coffee Stirrers,Food & Beverage,Box,0,10,,
+SYSCO,Sysco / Foodservice Supplier,FB-TEA,F&B,Tea Bags Assorted,Food & Beverage,Box,0,20,,
+SYSCO,Sysco / Foodservice Supplier,FB-WATER,F&B,Bottled Water 16.9 oz,Food & Beverage,Case (cs),0,20,,
