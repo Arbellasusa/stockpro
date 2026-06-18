@@ -615,6 +615,18 @@ input,select,textarea{font-family:inherit;font-size:inherit}
         <div class="rpt-type-btn" onclick="generateReport('biweekly')"><div class="icon">🗓️</div><h4 data-i="biweekly_report">Quincenal</h4><p data-i="last_15_days">Últimos 15 días</p></div>
         <div class="rpt-type-btn" onclick="generateReport('monthly')"><div class="icon">📊</div><h4 data-i="monthly_report">Reporte Mensual</h4><p data-i="last_30_days">Últimos 30 días</p></div>
       </div>
+      <!-- Custom Date Range -->
+      <div class="card" style="margin:0 12px 0;border:1.5px dashed var(--border2)">
+        <h4 style="margin-bottom:10px">📅 <span data-i="custom">Rango personalizado</span></h4>
+        <div class="frow2" style="margin-bottom:10px">
+          <div class="fgrp"><label data-i="from">Desde</label><input type="date" id="rpt-from"></div>
+          <div class="fgrp"><label data-i="to">Hasta</label><input type="date" id="rpt-to"></div>
+        </div>
+        <button class="btn-primary" style="width:100%" onclick="generateCustomReport()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          Generar Reporte Personalizado
+        </button>
+      </div>
       <div class="rpt-card">
         <h3>📈 <span data-i="stock_by_category">Stock por categoría</span></h3>
         <div id="rpt-cat-chart"></div>
@@ -833,15 +845,29 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 
 <!-- REPORT PREVIEW MODAL -->
 <div class="modal-bg" id="rpt-modal">
-  <div class="modal" style="max-height:95vh">
-    <div class="modal-hdr">
-      <h3 id="rpt-modal-title">Reporte</h3>
-      <button class="modal-close" onclick="closeRptModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  <div class="modal" style="max-height:96vh">
+    <div class="modal-hdr" style="background:var(--navy);border-radius:20px 20px 0 0">
+      <h3 id="rpt-modal-title" style="color:#fff;font-size:15px">Warehouse Inventory Statement</h3>
+      <button class="modal-close" onclick="closeRptModal()" style="background:rgba(255,255,255,.15);color:#fff">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
     </div>
-    <div class="modal-body" id="rpt-preview"></div>
-    <div class="modal-foot" style="flex-direction:column;gap:8px">
-      <button class="btn-primary" onclick="downloadPDF()" style="width:100%">📥 <span data-i="download_pdf">Descargar PDF</span></button>
-      <button class="btn-wa" onclick="shareReportWhatsApp()" style="width:100%">💬 <span data-i="send_whatsapp">Enviar por WhatsApp</span></button>
+    <div class="modal-body" id="rpt-preview" style="padding:0;background:#F8F9FA"></div>
+    <div class="modal-foot" style="flex-direction:column;gap:8px;background:#fff">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button class="btn-primary" onclick="downloadPDF()" style="font-size:13px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span data-i="download_pdf">Descargar PDF</span>
+        </button>
+        <button class="btn-wa" onclick="shareReportWhatsApp()" style="font-size:13px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          <span data-i="send_whatsapp">WhatsApp</span>
+        </button>
+      </div>
+      <button class="btn-secondary" onclick="printReport()" style="width:100%;font-size:13px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Imprimir / Print
+      </button>
     </div>
   </div>
 </div>
@@ -1024,16 +1050,17 @@ async function startApp(){
     const app = firebase.apps.length ? firebase.apps[0] : firebase.initializeApp(FB_CFG);
     const db = firebase.firestore(app);
     const auth = firebase.auth(app);
-    // Use modern cache settings — suppresses both deprecation warnings
+    // Modern offline persistence — no deprecation warnings
     try {
-      db.settings({
-        cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED,
-        merge: true
+      db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+        // code:'failed-precondition' = multiple tabs open (OK)
+        // code:'unimplemented' = browser doesn't support it (OK)
       });
-      db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
     } catch(e) {}
     S.fbReady = true;
-    console.log('✅ Firebase inicializado — hk-pro-housekeeping');
+    // Suppress Firebase deprecation warnings in console
+    if (firebase.firestore.setLogLevel) firebase.firestore.setLogLevel('error');
+    console.log('%c✅ Firebase inicializado — hk-pro-housekeeping','color:#1FAD6E;font-weight:bold');
     auth.onAuthStateChanged(user => {
       if (user) {
         S.user = {uid:user.uid, email:user.email, name:user.displayName||user.email.split('@')[0], initials:(user.displayName||user.email)[0].toUpperCase(), role:'warehouse_manager'};
@@ -1579,90 +1606,622 @@ function renderReports(){
   document.getElementById('rpt-alerts-section').innerHTML=`<h3>🚨 ${t('out_of_stock')} (${out.length})</h3>${out.map(i=>`<div class="alert-box danger" style="margin-bottom:6px">${CAT_EMOJI[i.cat]||'📦'} <div><strong>${i.name}</strong><div style="font-size:11px">${i.loc} · Reordenar: ${i.minQty||10} ${i.unit}</div></div></div>`).join('')||`<div class="alert-box success">✅ Todo OK</div>`}${low.length?`<h3 style="margin-top:12px">⚠️ ${t('low_stock')} (${low.length})</h3>${low.map(i=>`<div class="alert-box warn" style="margin-bottom:6px">${CAT_EMOJI[i.cat]||'📦'} <div><strong>${i.name}</strong><div style="font-size:11px">${i.qty||0}/${i.minQty||10} ${i.unit}</div></div></div>`).join('')}`:''}`;
 }
 
-function generateReport(period){
-  const now=new Date();
-  const periodoLabels={daily:t('daily_report'),weekly:t('weekly_report'),biweekly:t('biweekly_report'),monthly:t('monthly_report')};
-  const days={daily:1,weekly:7,biweekly:15,monthly:30};
-  const cutoff=new Date(now-days[period]*86400000);
-  const periodMovs=S.movements.filter(m=>{const d=m.date?.toDate?m.date.toDate():new Date(m.date||0);return d>=cutoff;});
-  const entries=periodMovs.filter(m=>m.type==='ENTRADA');
-  const exits=periodMovs.filter(m=>m.type==='SALIDA');
-  const totalVal=S.items.reduce((s,i)=>s+(i.qty||0)*(i.price||0),0);
-  const out=S.items.filter(i=>!i.qty||i.qty<=0);
-  const low=S.items.filter(i=>i.qty>0&&i.qty<(i.minQty||10));
-  const topConsumed=[...S.items].sort((a,b)=>{const ae=exits.filter(m=>m.productId===a.id).reduce((s,m)=>s+m.qty,0);const be=exits.filter(m=>m.productId===b.id).reduce((s,m)=>s+m.qty,0);return be-ae;}).slice(0,5);
-  const noMovement=S.items.filter(i=>!periodMovs.find(m=>m.productId===i.id));
 
-  document.getElementById('rpt-modal-title').textContent=periodoLabels[period];
-  document.getElementById('rpt-preview').innerHTML=`
-    <div style="text-align:center;padding:10px 0 16px;border-bottom:1px solid var(--border);margin-bottom:16px">
-      <div style="font-size:22px;margin-bottom:4px">📊</div>
-      <div style="font-size:16px;font-weight:800">StockPro — Hotel Arbellas</div>
-      <div style="font-size:12px;color:var(--text3)">Plantation, FL · ${periodoLabels[period]}</div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px">${now.toLocaleString(LANG==='en'?'en-US':'es-MX')} · ${S.user?.name||'—'}</div>
+/* ════════════════════════════════════════════════════════════
+   STOCKPRO v2 — PROFESSIONAL ACCOUNTING PDF MODULE
+   Warehouse Inventory Statement · Hotel Arbellas
+   ════════════════════════════════════════════════════════════ */
+
+/* ── REPORT NUMBER GENERATOR ── */
+function genReportNum(){
+  const now=new Date();
+  return 'RPT-'+now.getFullYear()+String(now.getMonth()+1).padStart(2,'0')+String(now.getDate()).padStart(2,'0')+'-'+String(Math.floor(Math.random()*9000)+1000);
+}
+
+/* ── PRODUCT STATUS CLASSIFIER ── */
+function classifyProduct(item, periodMovs){
+  const qty = item.qty||0;
+  const min = item.minQty||10;
+  const hasMov = periodMovs.some(m=>m.productId===item.id);
+  if(qty<0)  return {label:'Negative Stock', es:'Stock Negativo', color:'#7B2FBE', bg:'#F3E8FF'};
+  if(qty===0) return {label:'Out of Stock',   es:'Sin Stock',      color:'#C1121F', bg:'#FDE8E8'};
+  if(qty<min) return {label:'Low Stock',      es:'Stock Bajo',     color:'#B45309', bg:'#FFF3CD'};
+  if(!hasMov) return {label:'No Movement',    es:'Sin Movimiento', color:'#6B7280', bg:'#F3F4F6'};
+  if(qty>min*3) return{label:'Overstock',     es:'Exceso',         color:'#D97706', bg:'#FEF3C7'};
+  return        {label:'In Stock',            es:'En Stock',       color:'#065F46', bg:'#D1FAE5'};
+}
+
+/* ── CALCULATE INVENTORY PERIOD ── */
+function calcPeriodData(period, fromDate, toDate){
+  const now = new Date();
+  let cutoff;
+  if(fromDate && toDate){
+    cutoff = new Date(fromDate+'T00:00:00');
+  } else {
+    const days = {daily:1, weekly:7, biweekly:15, monthly:30};
+    cutoff = new Date(now - (days[period]||1)*86400000);
+  }
+
+  const periodMovs = S.movements.filter(m=>{
+    const d = m.date?.toDate ? m.date.toDate() : new Date(m.date||0);
+    return d >= cutoff && (!toDate || d <= new Date(toDate+'T23:59:59'));
+  });
+
+  const periodDels = S.deliveries.filter(d=>{
+    const dd = d.date?.toDate ? d.date.toDate() : new Date(d.date||0);
+    return dd >= cutoff && (!toDate || dd <= new Date(toDate+'T23:59:59'));
+  });
+
+  // Build per-product accounting data
+  const productData = S.items.map(item => {
+    const price = Number(item.price||0);
+    const entriesMov  = periodMovs.filter(m=>m.productId===item.id && m.type==='ENTRADA');
+    const exitsMov    = periodMovs.filter(m=>m.productId===item.id && m.type==='SALIDA');
+    const adjMov      = periodMovs.filter(m=>m.productId===item.id && m.type==='AJUSTE');
+
+    const totalEntries  = entriesMov.reduce((s,m)=>s+m.qty,0);
+    const totalExits    = exitsMov.reduce((s,m)=>s+m.qty,0);
+    const totalAdj      = adjMov.reduce((s,m)=>s+m.qty,0);
+
+    const finalStock    = item.qty||0;
+    // Back-calculate initial stock from movements
+    const initialStock  = finalStock - totalEntries + totalExits - totalAdj;
+
+    const initialValue  = Math.max(0,initialStock) * price;
+    const entryValue    = totalEntries * price;
+    const exitValue     = totalExits   * price;
+    const finalValue    = Math.max(0,finalStock) * price;
+    const variance      = finalValue - initialValue;
+    const status        = classifyProduct(item, periodMovs);
+
+    return {
+      ...item, price,
+      initialStock, totalEntries, totalExits, totalAdj, finalStock,
+      initialValue, entryValue, exitValue, finalValue, variance,
+      status, entriesMov, exitsMov, adjMov
+    };
+  });
+
+  // Executive summary totals
+  const totals = productData.reduce((acc,p)=>({
+    initialValue:   acc.initialValue   + p.initialValue,
+    entryValue:     acc.entryValue     + p.entryValue,
+    exitValue:      acc.exitValue      + p.exitValue,
+    finalValue:     acc.finalValue     + p.finalValue,
+    totalEntries:   acc.totalEntries   + p.totalEntries,
+    totalExits:     acc.totalExits     + p.totalExits,
+    totalAdj:       acc.totalAdj       + p.totalAdj,
+    outOfStock:     acc.outOfStock     + (p.finalStock<=0?1:0),
+    lowStock:       acc.lowStock       + (p.finalStock>0&&p.finalStock<(p.minQty||10)?1:0),
+    noMovement:     acc.noMovement     + (p.totalEntries===0&&p.totalExits===0?1:0),
+  }), {initialValue:0,entryValue:0,exitValue:0,finalValue:0,totalEntries:0,totalExits:0,totalAdj:0,outOfStock:0,lowStock:0,noMovement:0});
+
+  totals.variance = totals.finalValue - totals.initialValue;
+  totals.products = S.items.length;
+
+  const health = totals.outOfStock===0 && totals.lowStock===0 ? '✅ Excellent'
+    : totals.outOfStock>0 ? '🚨 Critical — Stock Outs Detected'
+    : '⚠️ Fair — Low Stock Items Present';
+
+  return {productData, totals, periodMovs, periodDels, cutoff, now, health};
+}
+
+/* ── GENERATE REPORT PREVIEW (screen) ── */
+function generateReport(period, fromDate, toDate){
+  const now = new Date();
+  const reportNum = genReportNum();
+  const periodoLabels={daily:'Daily Report',weekly:'Weekly Report',biweekly:'Biweekly Report',monthly:'Monthly Report'};
+  const periodoES={daily:'Reporte Diario',weekly:'Reporte Semanal',biweekly:'Reporte Quincenal',monthly:'Reporte Mensual'};
+  const periodLabel = fromDate ? `Custom: ${fromDate} → ${toDate||now.toISOString().slice(0,10)}` : (periodoLabels[period]||period);
+  const periodLabelES = fromDate ? `Personalizado: ${fromDate} → ${toDate||now.toISOString().slice(0,10)}` : (periodoES[period]||period);
+
+  const {productData, totals, periodMovs, periodDels, cutoff, health} = calcPeriodData(period, fromDate, toDate);
+
+  document.getElementById('rpt-modal-title').textContent = periodLabel;
+
+  const topConsumed  = [...productData].sort((a,b)=>b.totalExits-a.totalExits).slice(0,5);
+  const noMovement   = productData.filter(p=>p.totalEntries===0&&p.totalExits===0);
+  const outProducts  = productData.filter(p=>p.finalStock<=0);
+  const lowProducts  = productData.filter(p=>p.finalStock>0&&p.finalStock<(p.minQty||10));
+
+  /* --- SCREEN PREVIEW HTML --- */
+  document.getElementById('rpt-preview').innerHTML = `
+  <div style="background:#fff;border-bottom:3px solid #0F1F3D">
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#0F1F3D 0%,#1E4DB7 100%);padding:16px 16px 12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="width:40px;height:40px;background:#1E4DB7;border:2px solid rgba(255,255,255,.3);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📊</div>
+        <div>
+          <div style="color:#fff;font-size:15px;font-weight:800;letter-spacing:-.3px">WAREHOUSE INVENTORY STATEMENT</div>
+          <div style="color:rgba(255,255,255,.65);font-size:11px">Estado de Resultados de Almacén</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <div style="background:rgba(255,255,255,.08);border-radius:6px;padding:7px 10px">
+          <div style="font-size:9px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.06em">Hotel / Company</div>
+          <div style="font-size:12px;font-weight:700;color:#fff">Hotel Arbellas</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.6)">Plantation, FL</div>
+        </div>
+        <div style="background:rgba(255,255,255,.08);border-radius:6px;padding:7px 10px">
+          <div style="font-size:9px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.06em">Report</div>
+          <div style="font-size:11px;font-weight:700;color:#F4A623">${reportNum}</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.6)">${periodLabel}</div>
+        </div>
+        <div style="background:rgba(255,255,255,.08);border-radius:6px;padding:7px 10px">
+          <div style="font-size:9px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.06em">Generated</div>
+          <div style="font-size:11px;font-weight:600;color:#fff">${now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.6)">${now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</div>
+        </div>
+        <div style="background:rgba(255,255,255,.08);border-radius:6px;padding:7px 10px">
+          <div style="font-size:9px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.06em">Generated By</div>
+          <div style="font-size:11px;font-weight:600;color:#fff">${S.user?.name||'—'}</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.6)">Warehouse Dept.</div>
+        </div>
+      </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
-      <div style="background:var(--surface2);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:800;color:var(--blue)">${S.items.length}</div><div style="font-size:10px;color:var(--text3)">${t('total_products')}</div></div>
-      <div style="background:var(--surface2);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:800;color:var(--green)">$${totalVal.toFixed(2)}</div><div style="font-size:10px;color:var(--text3)">${t('inventory_value')}</div></div>
-      <div style="background:var(--surface2);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:800;color:var(--red)">${out.length}</div><div style="font-size:10px;color:var(--text3)">${t('out_of_stock')}</div></div>
-      <div style="background:var(--surface2);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:800;color:var(--yellow)">${low.length}</div><div style="font-size:10px;color:var(--text3)">${t('low_stock')}</div></div>
-      <div style="background:var(--surface2);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:800;color:var(--green)">${entries.reduce((s,m)=>s+m.qty,0)}</div><div style="font-size:10px;color:var(--text3)">Entradas</div></div>
-      <div style="background:var(--surface2);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:800;color:var(--red)">${exits.reduce((s,m)=>s+m.qty,0)}</div><div style="font-size:10px;color:var(--text3)">Salidas</div></div>
+
+    <!-- Executive Summary -->
+    <div style="padding:14px 14px 10px;border-bottom:1px solid #E5E7EB">
+      <div style="font-size:11px;font-weight:800;color:#0F1F3D;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+        <div style="width:3px;height:14px;background:#1E4DB7;border-radius:2px"></div>
+        EXECUTIVE SUMMARY / RESUMEN EJECUTIVO
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px">
+        ${[
+          ['Total Products','Productos',totals.products,'#1E4DB7'],
+          ['Initial Value','Valor Inicial','$'+totals.initialValue.toFixed(2),'#374151'],
+          ['Entries Value','Valor Entradas','$'+totals.entryValue.toFixed(2),'#065F46'],
+          ['Exits Value','Valor Salidas','$'+totals.exitValue.toFixed(2),'#9B1C1C'],
+          ['Final Value','Valor Final','$'+totals.finalValue.toFixed(2),'#1E4DB7'],
+          ['Variance','Variación',(totals.variance>=0?'+':'')+totals.variance.toFixed(2),totals.variance>=0?'#065F46':'#9B1C1C'],
+          ['Total Received','Total Recibido',totals.totalEntries+' u.','#065F46'],
+          ['Total Delivered','Total Entregado',totals.totalExits+' u.','#9B1C1C'],
+          ['Out of Stock','Sin Stock',totals.outOfStock,totals.outOfStock>0?'#9B1C1C':'#065F46'],
+          ['Low Stock','Stock Bajo',totals.lowStock,totals.lowStock>0?'#B45309':'#065F46'],
+          ['No Movement','Sin Movimiento',totals.noMovement,'#6B7280'],
+          ['Health','Estado',health.split(' ')[0],'#065F46'],
+        ].map(([en,es,val,color])=>`
+          <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;padding:8px 10px">
+            <div style="font-size:9px;color:#6B7280;font-weight:600;text-transform:uppercase">${en}</div>
+            <div style="font-size:15px;font-weight:800;color:${color};line-height:1.2">${val}</div>
+            <div style="font-size:9px;color:#9CA3AF">${es}</div>
+          </div>`).join('')}
+      </div>
+      <div style="margin-top:8px;padding:8px 12px;background:${totals.outOfStock>0?'#FDE8E8':totals.lowStock>0?'#FFF3CD':'#D1FAE5'};border-radius:8px;font-size:12px;font-weight:700;color:${totals.outOfStock>0?'#9B1C1C':totals.lowStock>0?'#B45309':'#065F46'}">
+        Inventory Health: ${health}
+      </div>
     </div>
-    ${out.length?`<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:6px">🚨 SIN STOCK (${out.length})</div>${out.map(i=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)"><span>${i.name}</span><span class="badge badge-out">${t('out_of_stock')}</span></div>`).join('')}</div>`:''}
-    ${low.length?`<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--yellow);margin-bottom:6px">⚠️ STOCK CRÍTICO (${low.length})</div>${low.map(i=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)"><span>${i.name}</span><span class="badge badge-low">${i.qty||0}/${i.minQty||10}</span></div>`).join('')}</div>`:''}
-    <div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">📦 MAYOR CONSUMO</div>${topConsumed.map(i=>{const consumed=exits.filter(m=>m.productId===i.id).reduce((s,m)=>s+m.qty,0);return`<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)"><span>${i.name}</span><span style="font-weight:600">-${consumed} ${i.unit}</span></div>`;}).join('')}</div>
-    ${noMovement.length?`<div><div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:6px">😴 SIN MOVIMIENTO (${noMovement.length})</div>${noMovement.slice(0,5).map(i=>`<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--border);color:var(--text2)">${i.name}</div>`).join('')}${noMovement.length>5?`<div style="font-size:11px;color:var(--text3)">...y ${noMovement.length-5} más</div>`:''}</div>`:''}
-  `;
-  S.currentRptData = {period,periodoLabel:periodoLabels[period],now,items:S.items,movements:periodMovs,out,low,totalVal,entries,exits,topConsumed,noMovement};
+
+    <!-- Inventory Table -->
+    <div style="padding:14px 14px 10px;border-bottom:1px solid #E5E7EB">
+      <div style="font-size:11px;font-weight:800;color:#0F1F3D;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+        <div style="width:3px;height:14px;background:#1E4DB7;border-radius:2px"></div>
+        INVENTORY STATEMENT TABLE
+      </div>
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+        <table style="width:100%;border-collapse:collapse;font-size:10px;min-width:600px">
+          <thead>
+            <tr style="background:#0F1F3D;color:#fff">
+              <th style="padding:6px 6px;text-align:left;white-space:nowrap">Code</th>
+              <th style="padding:6px 6px;text-align:left">Product</th>
+              <th style="padding:6px 4px;text-align:center">Unit</th>
+              <th style="padding:6px 4px;text-align:right">Init.</th>
+              <th style="padding:6px 4px;text-align:right;color:#86EFAC">+In</th>
+              <th style="padding:6px 4px;text-align:right;color:#FCA5A5">-Out</th>
+              <th style="padding:6px 4px;text-align:right;color:#93C5FD">Adj</th>
+              <th style="padding:6px 4px;text-align:right">Final</th>
+              <th style="padding:6px 4px;text-align:right">Cost</th>
+              <th style="padding:6px 4px;text-align:right">Final $</th>
+              <th style="padding:6px 6px;text-align:center">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${productData.map((p,i)=>`
+            <tr style="background:${i%2===0?'#fff':'#F9FAFB'};border-bottom:1px solid #E5E7EB">
+              <td style="padding:5px 6px;font-family:monospace;font-size:9px;color:#374151">${p.sku}</td>
+              <td style="padding:5px 6px;font-weight:600;color:#111827">${p.name}</td>
+              <td style="padding:5px 4px;text-align:center;color:#6B7280">${p.unit}</td>
+              <td style="padding:5px 4px;text-align:right;color:#374151">${p.initialStock}</td>
+              <td style="padding:5px 4px;text-align:right;color:#065F46;font-weight:600">${p.totalEntries>0?'+'+p.totalEntries:'—'}</td>
+              <td style="padding:5px 4px;text-align:right;color:#9B1C1C;font-weight:600">${p.totalExits>0?'-'+p.totalExits:'—'}</td>
+              <td style="padding:5px 4px;text-align:right;color:#1E4DB7">${p.totalAdj!==0?(p.totalAdj>0?'+':'')+p.totalAdj:'—'}</td>
+              <td style="padding:5px 4px;text-align:right;font-weight:800;color:${p.finalStock<=0?'#9B1C1C':p.finalStock<(p.minQty||10)?'#B45309':'#111827'}">${p.finalStock}</td>
+              <td style="padding:5px 4px;text-align:right;color:#374151">$${p.price.toFixed(2)}</td>
+              <td style="padding:5px 4px;text-align:right;font-weight:700;color:#1E4DB7">$${p.finalValue.toFixed(2)}</td>
+              <td style="padding:5px 6px;text-align:center"><span style="background:${p.status.bg};color:${p.status.color};padding:2px 6px;border-radius:10px;font-size:8px;font-weight:700;white-space:nowrap">${p.status.label}</span></td>
+            </tr>`).join('')}
+          </tbody>
+          <tfoot>
+            <tr style="background:#0F1F3D;color:#fff;font-weight:800">
+              <td colspan="3" style="padding:7px 6px;font-size:11px">TOTAL GENERAL</td>
+              <td style="padding:7px 4px;text-align:right;font-size:11px">—</td>
+              <td style="padding:7px 4px;text-align:right;color:#86EFAC;font-size:11px">+${totals.totalEntries}</td>
+              <td style="padding:7px 4px;text-align:right;color:#FCA5A5;font-size:11px">-${totals.totalExits}</td>
+              <td style="padding:7px 4px;text-align:right;color:#93C5FD;font-size:11px">${totals.totalAdj!==0?(totals.totalAdj>0?'+':'')+totals.totalAdj:'—'}</td>
+              <td colspan="2" style="padding:7px 4px"></td>
+              <td style="padding:7px 4px;text-align:right;color:#F4A623;font-size:12px">$${totals.finalValue.toFixed(2)}</td>
+              <td style="padding:7px 6px"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- Top Consumed -->
+    ${topConsumed.some(p=>p.totalExits>0)?`
+    <div style="padding:14px 14px 10px;border-bottom:1px solid #E5E7EB">
+      <div style="font-size:11px;font-weight:800;color:#0F1F3D;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;display:flex;align-items:center;gap:6px"><div style="width:3px;height:14px;background:#E5383B;border-radius:2px"></div>TOP CONSUMPTION / MAYOR CONSUMO</div>
+      ${topConsumed.filter(p=>p.totalExits>0).map((p,i)=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #F3F4F6">
+          <div style="width:20px;height:20px;background:#0F1F3D;color:#F4A623;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0">${i+1}</div>
+          <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div><div style="font-size:10px;color:#6B7280">${p.sku} · ${p.cat}</div></div>
+          <div style="text-align:right;flex-shrink:0"><div style="font-size:13px;font-weight:800;color:#9B1C1C">-${p.totalExits} ${p.unit}</div><div style="font-size:10px;color:#6B7280">$${p.exitValue.toFixed(2)}</div></div>
+        </div>`).join('')}
+    </div>`:''}
+
+    <!-- Out of Stock Alert -->
+    ${outProducts.length?`
+    <div style="padding:14px 14px 10px;border-bottom:1px solid #E5E7EB;background:#FFF5F5">
+      <div style="font-size:11px;font-weight:800;color:#9B1C1C;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;display:flex;align-items:center;gap:6px"><div style="width:3px;height:14px;background:#E5383B;border-radius:2px"></div>🚨 OUT OF STOCK (${outProducts.length})</div>
+      ${outProducts.map(p=>`<div style="display:flex;justify-content:space-between;padding:5px 8px;background:#FDE8E8;border-radius:6px;margin-bottom:4px;font-size:11px"><span style="font-weight:600">${p.name}</span><span style="color:#9B1C1C;font-weight:700">${p.sku} · ${p.loc}</span></div>`).join('')}
+    </div>`:''}
+
+    <!-- Low Stock Alert -->
+    ${lowProducts.length?`
+    <div style="padding:14px 14px 10px;border-bottom:1px solid #E5E7EB;background:#FFFBEB">
+      <div style="font-size:11px;font-weight:800;color:#B45309;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;display:flex;align-items:center;gap:6px"><div style="width:3px;height:14px;background:#F59E0B;border-radius:2px"></div>⚠️ LOW STOCK (${lowProducts.length})</div>
+      ${lowProducts.map(p=>`<div style="display:flex;justify-content:space-between;padding:5px 8px;background:#FFF3CD;border-radius:6px;margin-bottom:4px;font-size:11px"><span style="font-weight:600">${p.name}</span><span style="color:#B45309;font-weight:700">${p.finalStock}/${p.minQty||10} ${p.unit}</span></div>`).join('')}
+    </div>`:''}
+
+    <!-- Delivery Detail -->
+    ${periodDels.length?`
+    <div style="padding:14px 14px 10px;border-bottom:1px solid #E5E7EB">
+      <div style="font-size:11px;font-weight:800;color:#0F1F3D;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;display:flex;align-items:center;gap:6px"><div style="width:3px;height:14px;background:#1FAD6E;border-radius:2px"></div>DELIVERY DETAIL / DETALLE DE SALIDAS (${periodDels.length})</div>
+      ${periodDels.map(d=>{
+        const dv=d.date?.toDate?d.date.toDate():new Date(d.date||Date.now());
+        return`<div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;padding:10px;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+            <div style="font-size:12px;font-weight:700">🏨 Room ${d.roomNumber||'—'} ${d.roomName?'— '+d.roomName:''}</div>
+            <div style="font-size:10px;color:#6B7280">${dv.toLocaleDateString('en-US',{month:'short',day:'numeric'})} ${dv.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px;font-size:10px;color:#374151">
+            <span>👤 HK: ${d.housekeeping||'—'}</span><span>👔 Sup: ${d.supervisor||'—'}</span>
+          </div>
+          ${(d.items||[]).map(item=>`<div style="display:flex;justify-content:space-between;font-size:10px;padding:3px 0;border-top:1px solid #F3F4F6"><span style="color:#374151">${item.productName}</span><span style="font-weight:700;color:#0F1F3D">${item.qty} ${item.unit||''}</span></div>`).join('')}
+          ${d.notes?`<div style="font-size:10px;color:#6B7280;margin-top:4px;font-style:italic">📝 ${d.notes}</div>`:''}
+        </div>`;
+      }).join('')}
+    </div>`:''}
+
+    <!-- Footer -->
+    <div style="padding:12px 14px;background:#F3F4F6;border-top:2px solid #0F1F3D">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:9px;color:#6B7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px">Prepared by / Preparado por</div>
+          <div style="font-size:11px;font-weight:700;color:#0F1F3D">${S.user?.name||'—'}</div>
+          <div style="font-size:9px;color:#9CA3AF">Warehouse Department · ${now.toLocaleString()}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:9px;color:#6B7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px">Report Number</div>
+          <div style="font-size:12px;font-weight:800;color:#1E4DB7;font-family:monospace">${reportNum}</div>
+          <div style="font-size:9px;color:#9CA3AF">StockPro v2 · © 2026 Hotel Arbellas</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        ${['Almacenero / Warehouse','Supervisado por / Supervisor','Aprobado por / Director'].map(label=>`
+          <div style="border-top:1.5px solid #374151;padding-top:5px;text-align:center">
+            <div style="font-size:8px;color:#9CA3AF">${label}</div>
+            <div style="height:20px"></div>
+            <div style="font-size:8px;color:#D1D5DB">Firma / Signature</div>
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+
+  S.currentRptData = {period, fromDate, toDate, periodLabel, periodLabelES, reportNum, now,
+    productData, totals, periodMovs, periodDels, health, cutoff};
   document.getElementById('rpt-modal').classList.add('open');
 }
-function closeRptModal(){ document.getElementById('rpt-modal').classList.remove('open'); }
 
+function closeRptModal(){ document.getElementById('rpt-modal').classList.remove('open'); }
+function printReport(){ window.print(); }
+
+/* ── PROFESSIONAL jsPDF ACCOUNTING REPORT ── */
 function downloadPDF(){
   if(!S.currentRptData){showAlert('Genera un reporte primero','warn');return;}
-  const {periodoLabel,now,items,out,low,totalVal,entries,exits}=S.currentRptData;
-  if(!window.jspdf){showAlert('Abriendo vista de impresión...','info');window.print();return;}
+  const {periodLabel, reportNum, now, productData, totals, periodDels, health} = S.currentRptData;
+  if(!window.jspdf){showAlert('Generando PDF...','info');window.print();return;}
   try{
     const {jsPDF}=window.jspdf;
-    const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-    const W=210, M=15;
-    doc.setFillColor(15,31,61); doc.rect(0,0,W,40,'F');
-    doc.setTextColor(255,255,255); doc.setFontSize(22); doc.setFont('helvetica','bold'); doc.text('StockPro',M,18);
-    doc.setFontSize(11); doc.setFont('helvetica','normal'); doc.text('Hotel Arbellas · Plantation, FL',M,26);
-    doc.setFontSize(10); doc.text(periodoLabel,M,34);
-    doc.setTextColor(244,166,35); doc.text(now.toLocaleString(),W-M,34,{align:'right'});
-    let y=52;
-    doc.setTextColor(50,50,50); doc.setFontSize(10);
-    const stats=[['Total Productos',items.length],['Valor Total','$'+totalVal.toFixed(2)],['Sin Stock',out.length],['Stock Crítico',low.length],['Entradas',entries.reduce((s,m)=>s+m.qty,0)],['Salidas',exits.reduce((s,m)=>s+m.qty,0)]];
-    stats.forEach(([k,v],i)=>{
-      const x=M+(i%3)*(W-M*2)/3, row=Math.floor(i/3);
-      if(i%3===0&&i>0){y+=20;}
-      doc.setFillColor(240,244,250); doc.roundedRect(x,y,58,16,2,2,'F');
-      doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(30,77,183); doc.text(String(v),x+29,y+8,{align:'center'});
-      doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(100,100,100); doc.text(k,x+29,y+13,{align:'center'});
+    const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+    const W=297, H=210, M=12, CW=W-M*2;
+
+    // ── PAGE 1: HEADER + EXECUTIVE SUMMARY + INVENTORY TABLE ──
+    // Header band
+    doc.setFillColor(15,31,61);
+    doc.rect(0,0,W,32,'F');
+    doc.setFillColor(30,77,183);
+    doc.rect(0,32,W,6,'F');
+
+    // Logo placeholder square
+    doc.setFillColor(30,77,183);
+    doc.roundedRect(M,4,22,22,2,2,'F');
+    doc.setTextColor(244,166,35);
+    doc.setFontSize(16); doc.setFont('helvetica','bold');
+    doc.text('SP',M+11,18,{align:'center'});
+
+    // Title
+    doc.setTextColor(255,255,255);
+    doc.setFontSize(14); doc.setFont('helvetica','bold');
+    doc.text('WAREHOUSE INVENTORY STATEMENT',M+26,13);
+    doc.setFontSize(9); doc.setFont('helvetica','normal');
+    doc.setTextColor(180,200,255);
+    doc.text('Estado de Resultados de Almacén  —  Hotel Arbellas · Plantation, FL',M+26,20);
+    doc.setFontSize(8); doc.setTextColor(244,166,35);
+    doc.text('Report: '+reportNum+'  |  Period: '+periodLabel,M+26,27);
+
+    // Right header info
+    doc.setTextColor(255,255,255); doc.setFontSize(8);
+    doc.text('Generated: '+now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '+now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}),W-M,12,{align:'right'});
+    doc.text('By: '+(S.user?.name||'—')+'  |  Dept: Warehouse',W-M,19,{align:'right'});
+    doc.text('StockPro v2  |  Firebase: hk-pro-housekeeping',W-M,26,{align:'right'});
+
+    // ── EXECUTIVE SUMMARY BOXES ──
+    let y=42;
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(15,31,61);
+    doc.text('EXECUTIVE SUMMARY / RESUMEN EJECUTIVO',M,y); y+=5;
+
+    const summaryData=[
+      ['Total Products',totals.products,'#1E4DB7'],
+      ['Initial Value','$'+totals.initialValue.toFixed(2),'#374151'],
+      ['Entries Value','$'+totals.entryValue.toFixed(2),'#065F46'],
+      ['Exits Value','$'+totals.exitValue.toFixed(2),'#9B1C1C'],
+      ['Final Value','$'+totals.finalValue.toFixed(2),'#1E4DB7'],
+      ['Variance',(totals.variance>=0?'+':'')+('$'+Math.abs(totals.variance).toFixed(2)),totals.variance>=0?'#065F46':'#9B1C1C'],
+      ['Total Received',totals.totalEntries+' u.','#065F46'],
+      ['Total Delivered',totals.totalExits+' u.','#9B1C1C'],
+      ['Out of Stock',totals.outOfStock,totals.outOfStock>0?'#9B1C1C':'#065F46'],
+      ['Low Stock',totals.lowStock,totals.lowStock>0?'#B45309':'#065F46'],
+      ['No Movement',totals.noMovement,'#6B7280'],
+      ['Health',totals.outOfStock===0&&totals.lowStock===0?'Excellent':totals.outOfStock>0?'Critical':'Fair',totals.outOfStock===0&&totals.lowStock===0?'#065F46':totals.outOfStock>0?'#9B1C1C':'#B45309'],
+    ];
+    const boxW=(CW-2)/6, boxH=14;
+    summaryData.forEach(([label,val,hexColor],i)=>{
+      const col=i%6, row=Math.floor(i/6);
+      const bx=M+col*(boxW+0.5), by=y+row*(boxH+2);
+      const rgb=hexToRgb(hexColor)||[30,77,183];
+      doc.setFillColor(245,247,252); doc.roundedRect(bx,by,boxW,boxH,1,1,'F');
+      doc.setDrawColor(220,225,235); doc.setLineWidth(.3); doc.roundedRect(bx,by,boxW,boxH,1,1,'S');
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(rgb[0],rgb[1],rgb[2]);
+      doc.text(String(val),bx+boxW/2,by+7,{align:'center'});
+      doc.setFont('helvetica','normal'); doc.setFontSize(6); doc.setTextColor(100,110,130);
+      doc.text(label,bx+boxW/2,by+11.5,{align:'center'});
     });
-    y+=36;
-    if(out.length){
-      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(200,0,0); doc.text('⚠ PRODUCTOS SIN STOCK',M,y); y+=8;
-      out.forEach(i=>{doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(50,50,50);doc.text(`• ${i.name} (${i.loc})`,M+4,y);y+=6;});
-      y+=4;
+    y+=34;
+
+    // Health bar
+    const healthRgb=totals.outOfStock>0?[193,18,31]:totals.lowStock>0?[180,83,9]:[6,95,70];
+    doc.setFillColor(healthRgb[0],healthRgb[1],healthRgb[2]);
+    doc.roundedRect(M,y,CW,7,1,1,'F');
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(7);
+    doc.text('INVENTORY HEALTH: '+health,W/2,y+4.5,{align:'center'});
+    y+=11;
+
+    // ── INVENTORY TABLE ──
+    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(15,31,61);
+    doc.text('INVENTORY STATEMENT TABLE',M,y); y+=4;
+
+    // Table headers
+    const cols=[
+      {label:'Code/SKU',    w:22, align:'left'},
+      {label:'Product Name',w:48, align:'left'},
+      {label:'Cat.',        w:18, align:'left'},
+      {label:'Unit',        w:14, align:'center'},
+      {label:'Init.',       w:12, align:'right'},
+      {label:'+Entries',    w:14, align:'right'},
+      {label:'-Exits',      w:14, align:'right'},
+      {label:'Adj',         w:11, align:'right'},
+      {label:'Final',       w:13, align:'right'},
+      {label:'Min.',        w:12, align:'right'},
+      {label:'Unit $',      w:14, align:'right'},
+      {label:'Init. $',     w:17, align:'right'},
+      {label:'Entry $',     w:17, align:'right'},
+      {label:'Exit $',      w:17, align:'right'},
+      {label:'Final $',     w:17, align:'right'},
+      {label:'Status',      w:20, align:'center'},
+    ];
+    const rowH=7, hdrH=8;
+    doc.setFillColor(15,31,61); doc.rect(M,y,CW,hdrH,'F');
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(6.5);
+    let cx=M;
+    cols.forEach(col=>{
+      const tx=col.align==='right'?cx+col.w-1:col.align==='center'?cx+col.w/2:cx+1;
+      doc.text(col.label,tx,y+5.5,{align:col.align==='right'?'right':col.align==='center'?'center':'left'});
+      cx+=col.w;
+    });
+    y+=hdrH;
+
+    // Table rows
+    const catColors={'Ropa de Cama':'#EFF6FF','Toallas':'#F0FDF4','Amenidades':'#FEF3C7','Limpieza':'#F5F3FF','Insumos':'#FFF7ED'};
+    let currentCat=''; let pageNum=1;
+    productData.forEach((p,idx)=>{
+      if(y>H-20){
+        addFooter(doc,W,H,pageNum,reportNum,now);
+        doc.addPage(); pageNum++;
+        y=15;
+        doc.setFillColor(15,31,61); doc.rect(M,y,CW,hdrH,'F');
+        doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(6.5);
+        cx=M;
+        cols.forEach(col=>{const tx=col.align==='right'?cx+col.w-1:col.align==='center'?cx+col.w/2:cx+1;doc.text(col.label,tx,y+5.5,{align:col.align==='right'?'right':col.align==='center'?'center':'left'});cx+=col.w;});
+        y+=hdrH;
+      }
+      // Category separator
+      if(p.cat!==currentCat){
+        currentCat=p.cat;
+        const catRgb=hexToRgb('#1E4DB7');
+        doc.setFillColor(240,244,252); doc.rect(M,y,CW,5,'F');
+        doc.setFont('helvetica','bold'); doc.setFontSize(6); doc.setTextColor(30,77,183);
+        doc.text('▶  '+currentCat.toUpperCase(),M+2,y+3.5);
+        y+=5;
+      }
+      // Row background
+      const rowBg=idx%2===0?[255,255,255]:[249,250,251];
+      doc.setFillColor(rowBg[0],rowBg[1],rowBg[2]);
+      doc.rect(M,y,CW,rowH,'F');
+      doc.setDrawColor(235,237,240); doc.setLineWidth(.15);
+      doc.line(M,y+rowH,M+CW,y+rowH);
+
+      // Status color
+      const stRgb=hexToRgb(p.status.color)||[6,95,70];
+      const stBgRgb=hexToRgb(p.status.bg)||[209,250,229];
+
+      doc.setFontSize(6.5); cx=M;
+      const rowData=[
+        {val:p.sku,         align:'left',  color:[55,65,81],   bold:false},
+        {val:p.name,        align:'left',  color:[17,24,39],   bold:true, maxW:46},
+        {val:p.cat.slice(0,8),align:'left',color:[75,85,99],   bold:false},
+        {val:p.unit,        align:'center',color:[107,114,128],bold:false},
+        {val:String(p.initialStock),align:'right',color:[55,65,81],bold:false},
+        {val:p.totalEntries>0?'+'+p.totalEntries:'—',align:'right',color:[6,95,70],bold:p.totalEntries>0},
+        {val:p.totalExits>0?'-'+p.totalExits:'—',align:'right',color:[155,28,28],bold:p.totalExits>0},
+        {val:p.totalAdj!==0?(p.totalAdj>0?'+':'')+p.totalAdj:'—',align:'right',color:[30,77,183],bold:false},
+        {val:String(p.finalStock),align:'right',color:p.finalStock<=0?[155,28,28]:p.finalStock<(p.minQty||10)?[180,83,9]:[17,24,39],bold:true},
+        {val:String(p.minQty||10),align:'right',color:[107,114,128],bold:false},
+        {val:'$'+p.price.toFixed(2),align:'right',color:[55,65,81],bold:false},
+        {val:'$'+p.initialValue.toFixed(2),align:'right',color:[55,65,81],bold:false},
+        {val:p.entryValue>0?'$'+p.entryValue.toFixed(2):'—',align:'right',color:[6,95,70],bold:false},
+        {val:p.exitValue>0?'$'+p.exitValue.toFixed(2):'—',align:'right',color:[155,28,28],bold:false},
+        {val:'$'+p.finalValue.toFixed(2),align:'right',color:[30,77,183],bold:true},
+        {val:p.status.label,align:'center',color:stRgb,bold:true,isBadge:true,bg:stBgRgb},
+      ];
+      rowData.forEach((cell,ci)=>{
+        const col=cols[ci];
+        if(cell.isBadge){
+          doc.setFillColor(cell.bg[0],cell.bg[1],cell.bg[2]);
+          doc.roundedRect(cx+1,y+1.5,col.w-2,rowH-3,1,1,'F');
+        }
+        doc.setFont('helvetica',cell.bold?'bold':'normal');
+        doc.setTextColor(cell.color[0],cell.color[1],cell.color[2]);
+        const tx=cell.align==='right'?cx+col.w-1:cell.align==='center'?cx+col.w/2:cx+1;
+        let val=cell.val;
+        if(cell.maxW&&doc.getTextWidth(val)>cell.maxW){
+          while(val.length>3&&doc.getTextWidth(val+'...')>cell.maxW) val=val.slice(0,-1);
+          val+='...';
+        }
+        doc.text(val,tx,y+4.5,{align:cell.align==='right'?'right':cell.align==='center'?'center':'left'});
+        cx+=col.w;
+      });
+      y+=rowH;
+    });
+
+    // Totals row
+    doc.setFillColor(15,31,61); doc.rect(M,y,CW,9,'F');
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
+    cx=M;
+    const totalRow=[
+      {val:'TOTAL GENERAL',w:22+48+18+14,align:'left'},
+      {val:String(totals.products),w:12,align:'right'},
+      {val:'+'+totals.totalEntries,w:14,align:'right',color:[134,239,172]},
+      {val:'-'+totals.totalExits,w:14,align:'right',color:[252,165,165]},
+      {val:String(totals.totalAdj||0),w:11,align:'right',color:[147,197,253]},
+      {val:'',w:13+12+14,align:'right'},
+      {val:'$'+totals.initialValue.toFixed(2),w:17,align:'right'},
+      {val:'$'+totals.entryValue.toFixed(2),w:17,align:'right',color:[134,239,172]},
+      {val:'$'+totals.exitValue.toFixed(2),w:17,align:'right',color:[252,165,165]},
+      {val:'$'+totals.finalValue.toFixed(2),w:17,align:'right',color:[244,166,35]},
+      {val:'',w:20,align:'right'},
+    ];
+    totalRow.forEach(cell=>{
+      if(cell.color) doc.setTextColor(cell.color[0],cell.color[1],cell.color[2]);
+      else doc.setTextColor(255,255,255);
+      const tx=cell.align==='right'?cx+cell.w-1:cx+2;
+      doc.text(cell.val,tx,y+6,{align:cell.align==='right'?'right':'left'});
+      cx+=cell.w;
+    });
+    y+=12;
+
+    addFooter(doc,W,H,pageNum,reportNum,now);
+
+    // ── PAGE 2: DELIVERY DETAIL + AUDIT ──
+    if(periodDels.length>0){
+      doc.addPage(); pageNum++;
+      y=15;
+      doc.setFillColor(15,31,61); doc.rect(0,0,W,10,'F');
+      doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(9);
+      doc.text('DELIVERY DETAIL / DETALLE DE SALIDAS — '+reportNum,W/2,7,{align:'center'});
+
+      y=18;
+      // Delivery table headers
+      const delCols=[
+        {label:'Date/Time',w:26},{label:'Room',w:20},{label:'Room Name',w:32},{label:'Housekeeping',w:32},
+        {label:'Supervisor',w:30},{label:'Product',w:40},{label:'Qty',w:14},{label:'Unit $',w:18},{label:'Total $',w:20},{label:'Notes',w:35},
+      ];
+      doc.setFillColor(30,77,183); doc.rect(M,y,CW,7,'F');
+      doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(6);
+      cx=M;
+      delCols.forEach(c=>{doc.text(c.label,cx+1,y+4.5);cx+=c.w;});
+      y+=7;
+      periodDels.forEach((d,di)=>{
+        const dv=d.date?.toDate?d.date.toDate():new Date(d.date||Date.now());
+        const dateStr=dv.toLocaleDateString('en-US',{month:'2-digit',day:'2-digit'})+' '+dv.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+        (d.items||[{productName:'—',qty:0}]).forEach((item,ii)=>{
+          if(y>H-18){addFooter(doc,W,H,pageNum,reportNum,now);doc.addPage();pageNum++;y=15;}
+          const bg=di%2===0?[255,255,255]:[249,250,251];
+          doc.setFillColor(bg[0],bg[1],bg[2]); doc.rect(M,y,CW,6,'F');
+          doc.setTextColor(55,65,81); doc.setFont('helvetica','normal'); doc.setFontSize(6);
+          const totalCost=(item.qty||0)*(S.items.find(p=>p.id===item.productId)?.price||0);
+          const vals=[ii===0?dateStr:'',ii===0?(d.roomNumber||''):'',ii===0?(d.roomName||''):'',ii===0?(d.housekeeping||''):'',ii===0?(d.supervisor||''):'',item.productName||'',String(item.qty||0),'$'+(S.items.find(p=>p.id===item.productId)?.price||0).toFixed(2),'$'+totalCost.toFixed(2),ii===0?(d.notes||''):''];
+          cx=M;
+          delCols.forEach((c,ci)=>{let v=vals[ci];if(doc.getTextWidth(v)>c.w-2){while(v.length>1&&doc.getTextWidth(v+'...')>c.w-2)v=v.slice(0,-1);v+='...';}doc.text(v,cx+1,y+4);cx+=c.w;});
+          y+=6;
+        });
+      });
+      addFooter(doc,W,H,pageNum,reportNum,now);
     }
-    if(low.length){
-      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(200,120,0); doc.text('⚠ STOCK CRÍTICO',M,y); y+=8;
-      low.forEach(i=>{doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(50,50,50);doc.text(`• ${i.name}: ${i.qty||0}/${i.minQty||10} ${i.unit}`,M+4,y);y+=6;});
-      y+=4;
-    }
-    y=280; doc.setFillColor(15,31,61); doc.rect(0,y,W,17,'F');
-    doc.setTextColor(255,255,255); doc.setFontSize(8); doc.setFont('helvetica','normal');
-    doc.text('StockPro v2 · Hotel Arbellas · Plantation, FL · © 2026 · Generado por: '+(S.user?.name||'—'),W/2,y+6,{align:'center'});
-    doc.text(now.toLocaleString(),W/2,y+12,{align:'center'});
-    doc.save(`StockPro_${periodoLabel.replace(/ /g,'_')}_${now.toISOString().slice(0,10)}.pdf`);
-    showAlert('✅ PDF descargado','success');
-  } catch(e){ console.error(e); window.print(); }
+
+    // Save
+    const fname=`StockPro_Inventory_Statement_${reportNum}_${now.toISOString().slice(0,10)}.pdf`;
+    doc.save(fname);
+    showAlert('✅ PDF profesional descargado','success');
+
+    // Log export to localStorage
+    const logs=JSON.parse(localStorage.getItem('sp_rpt_log')||'[]');
+    logs.unshift({reportNum,period:periodLabel,generatedBy:S.user?.name||'—',generatedAt:now.toISOString(),totalProducts:totals.products,finalValue:totals.finalValue.toFixed(2)});
+    localStorage.setItem('sp_rpt_log',JSON.stringify(logs.slice(0,20)));
+
+  }catch(e){
+    console.error('PDF error:',e);
+    showAlert('Error generando PDF — abriendo impresión','warn');
+    window.print();
+  }
+}
+
+/* ── HEX TO RGB HELPER ── */
+function hexToRgb(hex){
+  if(!hex) return null;
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return isNaN(r)?null:[r,g,b];
+}
+
+/* ── PDF FOOTER ── */
+function addFooter(doc,W,H,pageNum,reportNum,now){
+  doc.setFillColor(15,31,61); doc.rect(0,H-8,W,8,'F');
+  doc.setTextColor(150,170,210); doc.setFont('helvetica','normal'); doc.setFontSize(6.5);
+  doc.text('StockPro v2  ·  Hotel Arbellas  ·  Plantation, FL  ·  © 2026  ·  All Rights Reserved',W/2,H-4,{align:'center'});
+  doc.setTextColor(244,166,35);
+  doc.text('Page '+pageNum,W-12,H-4,{align:'right'});
+  doc.setTextColor(150,170,210);
+  doc.text(reportNum,12,H-4);
 }
 
 function shareReportWhatsApp(){ shareWhatsApp(); }
+
+function generateCustomReport(){
+  const from=document.getElementById('rpt-from')?.value;
+  const to=document.getElementById('rpt-to')?.value;
+  if(!from){showAlert('Selecciona una fecha de inicio','warn');return;}
+  generateReport('custom', from, to||new Date().toISOString().slice(0,10));
+}
 
 function shareWhatsApp(){
   const now=new Date();
@@ -1738,11 +2297,16 @@ document.addEventListener('keydown', e=>{ if(e.key==='Escape'){closeSearch();clo
 applyLang();
 startClock();
 
-// Set today's date in history filters
+// Set default dates on load
 window.addEventListener('DOMContentLoaded',()=>{
   const today=new Date().toISOString().slice(0,10);
+  const monthAgo=new Date(Date.now()-30*86400000).toISOString().slice(0,10);
+  // History filters
   const hf=document.getElementById('hist-from'),ht=document.getElementById('hist-to');
   if(hf)hf.value=today; if(ht)ht.value=today;
+  // Report custom range
+  const rf=document.getElementById('rpt-from'),rt=document.getElementById('rpt-to');
+  if(rf)rf.value=monthAgo; if(rt)rt.value=today;
 });
 </script>
 </body>
