@@ -98,12 +98,22 @@ service cloud.firestore {
           || (isBootstrapAdminEmail() && request.resource.data.role == 'administrator')
         );
 
-      // Users update their own presence/name only. Admin can manage profiles.
+      // Users update their own presence/name only.
+      // Bootstrap admin emails can also self-repair their role to 'administrator'.
+      // Full admin can manage all profiles.
       allow update: if (
           isOwnProfile(userId)
           && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['online','lastSeen','name'])
-        ) || isAdmin();
+        )
+        || (
+          isOwnProfile(userId)
+          && isBootstrapAdminEmail()
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['role','_roleFixedAt'])
+          && request.resource.data.role == 'administrator'
+        )
+        || isAdmin();
 
       // Only admin can delete profiles
       allow delete: if isAdmin();
@@ -202,6 +212,23 @@ service cloud.firestore {
       allow update: if canWriteInventory()
         && auditFieldsUnchanged();
       allow delete: if false;
+    }
+
+
+    // ── DHS SUPPLIER PRODUCTS ─────────────────────────────────────────────────
+    match /stockpro_dhs_products/{id} {
+      allow read:   if isStaff();
+      allow create: if canWriteInventory()
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if canWriteInventory();
+      allow delete: if isAdmin();
+    }
+    match /stockpro_dhs_purchases/{id} {
+      allow read:   if isStaff();
+      allow create: if canWriteInventory()
+        && hasServerTimestamp('date')
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if false;
     }
 
     // ── SHARED WITH HK PRO ENTERPRISE ────────────────────────────────────
