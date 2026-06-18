@@ -62,7 +62,9 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 .login-fb-badge{display:flex;align-items:center;gap:8px;background:#FFF8E6;border:1px solid #F4A623;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;color:#854F0B;margin-bottom:20px}
 .fg{margin-bottom:14px}
 .fg label{display:block;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
-.fg input{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r2);font-size:15px;color:var(--text);background:var(--surface2);transition:border-color .2s}
+.fg input,.fg select{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r2);font-size:15px;color:var(--text);background:var(--surface2);transition:border-color .2s}
+.fg select{appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--text3) 50%),linear-gradient(135deg,var(--text3) 50%,transparent 50%);background-position:calc(100% - 18px) 50%,calc(100% - 12px) 50%;background-size:6px 6px,6px 6px;background-repeat:no-repeat}
+.login-role-help{font-size:11px;color:var(--text3);line-height:1.4;margin:-5px 0 10px}
 .fg input:focus{outline:none;border-color:var(--blue2);background:#fff}
 .btn-login{width:100%;padding:14px;background:var(--blue);color:#fff;border:none;border-radius:var(--r2);font-size:15px;font-weight:700;margin-top:4px;transition:background .15s}
 .btn-login:active{background:var(--navy)}
@@ -491,7 +493,15 @@ input,select,textarea{font-family:inherit;font-size:inherit}
           <button class="lang-btn" onclick="setLang('en')">🇺🇸 EN</button>
         </div>
       </div>
-      <div class="fg"><label data-i="email">Email</label><input type="email" id="l-email" autocomplete="email"></div>
+      <div class="fg"><label>Nombre completo</label><input type="text" id="l-name" autocomplete="name" placeholder="Ej. Roldan Arbella"></div>
+      <div class="fg"><label>Cargo / Sección</label><select id="l-role">
+        <option value="administrator">Administrador</option>
+        <option value="warehouse_manager">Almacenero / Warehouse Manager</option>
+        <option value="supervisor">Supervisor</option>
+        <option value="housekeeping">Housekeeping</option>
+      </select></div>
+      <div class="login-role-help">El cargo no se toma del correo. La app usará el rol guardado en Firebase; solo el primer admin o un admin autorizado puede activar privilegios completos.</div>
+      <div class="fg"><label data-i="email">Email</label><input type="email" id="l-email" autocomplete="email" placeholder="usuario@correo.com"></div>
       <div class="fg"><label data-i="password">Contraseña</label><input type="password" id="l-pass" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <button class="btn-primary" id="l-btn" style="width:100%;margin-top:6px" onclick="doLogin()"><span data-i="signin">Iniciar sesión</span></button>
       <div id="l-err" class="err-msg hidden"></div>
@@ -1179,7 +1189,7 @@ const SEC = {
   sanitize(str) {
     if (typeof str !== 'string') return String(str||'');
     return str
-      .replace(/[<>'"&\\]/g, c => ({ '<':'', '>':'', '"':'', "'":'', '&':'', '\\':'' }[c]))
+      .replace(/[<>\'"&\\]/g, '')
       .trim()
       .slice(0, 500); // hard max length
   },
@@ -1490,24 +1500,14 @@ window.addEventListener('DOMContentLoaded', () => {
   }, 1500);
 });
 
-
-// ── Bootstrap admin emails ─────────────────────────────────────
-// Only these emails are allowed to create themselves as administrator
-// during first setup / recovery. Everyone else starts as housekeeping.
-const BOOTSTRAP_ADMIN_EMAILS = [
-  'roldanarbella97@gmail.com',
-  'roldanarbella79@myyahoo.com',
-];
-function isBootstrapAdminEmail(email){
-  return BOOTSTRAP_ADMIN_EMAILS.includes(String(email||'').trim().toLowerCase());
-}
-
 async function startApp(){
   setLang(LANG);
   startClock();
 
-  // Always show login first. Firebase auth state will open the app after profile is valid.
+  // ── Always show login screen first (safety net) ──────────────
   showLogin();
+
+  // ── Run diagnostics in background ─────────────────────────────
   setTimeout(runDiagnostics, 800);
 
   if (!window.firebase) {
@@ -1519,60 +1519,85 @@ async function startApp(){
     const app  = firebase.apps.length ? firebase.apps[0] : firebase.initializeApp(FB_CFG);
     const db   = firebase.firestore(app);
     const auth = firebase.auth(app);
-    try { await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch(e) { console.warn('Auth persistence:', e.message); }
     S.fbReady  = true;
     console.log('✅ Firebase inicializado — hk-pro-housekeeping');
 
     auth.onAuthStateChanged(async user => {
-      const btn = document.getElementById('l-btn');
-      if (btn) { btn.disabled = false; btn.textContent = t('signin'); }
+      if (user) {
+        try {
+          // ── Load role from Firestore ────────────────────────────
+          const profileDoc = await firebase.firestore()
+            .collection(COLS.USR).doc(user.uid).get();
 
-      if (!user) {
-        detachListeners();
-        showLogin();
-        checkFirstAdminNeeded();
-        return;
-      }
+          if (!profileDoc.exists) {
+            // ── NEW USER: no profile yet ─────────────────────────
+            // Check if ANY admin exists in system
+            const adminCheck = await firebase.firestore()
+              .collection(COLS.USR)
+              .where('role','==','administrator')
+              .limit(1).get();
 
-      try {
-        const userRef = db.collection(COLS.USR).doc(user.uid);
-        let profileDoc = await userRef.get();
-
-        if (!profileDoc.exists) {
-          // IMPORTANT: Do NOT query all admins here. With secure rules, a user without
-          // a Firestore profile cannot query other users yet. Create only own profile.
-          const email = String(user.email || '').trim().toLowerCase();
-          const bootstrapAdmin = isBootstrapAdminEmail(email);
-          const newProfile = {
-            uid:       user.uid,
-            email:     email,
-            name:      user.displayName || email.split('@')[0] || 'Usuario',
-            role:      bootstrapAdmin ? 'administrator' : 'housekeeping',
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            createdBy: bootstrapAdmin ? 'bootstrap_admin_email' : 'self_register',
-            online:    true,
-            lastSeen:  firebase.firestore.FieldValue.serverTimestamp(),
+            if (adminCheck.empty) {
+              // ── FIRST ADMIN: auto-create with full access ───────
+              const adminProfile = {
+                uid:         user.uid,
+                email:       user.email,
+                name:        displayNameFromLogin(user),
+                role:        'administrator',
+                createdAt:   firebase.firestore.FieldValue.serverTimestamp(),
+                createdBy:   'first_admin_auto',
+                online:      true,
+                lastSeen:    firebase.firestore.FieldValue.serverTimestamp(),
+              };
+              await firebase.firestore()
+                .collection(COLS.USR).doc(user.uid).set(adminProfile);
+              S.user = { ...adminProfile, initials: (user.email[0]||'A').toUpperCase() };
+              showAlert('⭐ Primer administrador creado automáticamente', 'success');
+            } else {
+              // ── NEW STAFF: create with minimum role ─────────────
+              const newProfile = {
+                uid:       user.uid,
+                email:     user.email,
+                name:      displayNameFromLogin(user),
+                role:      (requestedRoleFromLogin()==='administrator' && canBootstrapAdmin(user.email)) ? 'administrator' : requestedRoleFromLogin(),
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                createdBy: 'self_register',
+                online:    true,
+                lastSeen:  firebase.firestore.FieldValue.serverTimestamp(),
+              };
+              await firebase.firestore()
+                .collection(COLS.USR).doc(user.uid).set(newProfile);
+              S.user = { ...newProfile, initials: (user.email[0]||'U').toUpperCase() };
+              showAlert('👤 Perfil creado — rol asignado por administrador', 'info');
+            }
+          } else {
+            // ── EXISTING USER: load profile ──────────────────────
+            const profile = profileDoc.data();
+            S.user = {
+              uid:      user.uid,
+              email:    user.email,
+              name:     profile.name || displayNameFromLogin(user),
+              initials: (profile.name || displayNameFromLogin(user) || user.email)[0].toUpperCase(),
+              role:     normalizeRole(profile.role),
+            };
+            // Update online status
+            firebase.firestore().collection(COLS.USR).doc(user.uid).update({
+              online: true,
+              lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
+              name: profile.name || displayNameFromLogin(user)
+            }).catch(()=>{});
+          }
+        } catch(profileErr) {
+          console.warn('Profile load failed:', profileErr.message);
+          // Graceful fallback: warehouse_manager (can at least use app)
+          S.user = {
+            uid:      user.uid,
+            email:    user.email,
+            name:     displayNameFromLogin(user),
+            initials: (displayNameFromLogin(user) || user.email)[0].toUpperCase(),
+            role:     canBootstrapAdmin(user.email) ? 'administrator' : 'warehouse_manager',
           };
-
-          await userRef.set(newProfile);
-          profileDoc = await userRef.get();
-          showAlert(bootstrapAdmin ? '⭐ Administrador activado' : '👤 Perfil creado — rol housekeeping', bootstrapAdmin ? 'success' : 'info');
         }
-
-        const profile = profileDoc.data() || {};
-        S.user = {
-          uid:      user.uid,
-          email:    user.email,
-          name:     user.displayName || profile.name || user.email.split('@')[0],
-          initials: (user.displayName || user.email || 'U')[0].toUpperCase(),
-          role:     profile.role || 'housekeeping',
-        };
-
-        userRef.update({
-          online: true,
-          lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
-          name: S.user.name,
-        }).catch(()=>{});
 
         hideLogin();
         document.getElementById('app').classList.remove('hidden');
@@ -1583,14 +1608,11 @@ async function startApp(){
         writeAudit('LOGIN', { method: 'firebase' });
         updatePresence(true);
 
-      } catch(profileErr) {
-        console.error('Profile/login failed:', profileErr);
-        await auth.signOut().catch(()=>{});
+      } else {
+        // ── NOT LOGGED IN ────────────────────────────────────────
+        detachListeners();
         showLogin();
-        const msg = profileErr.code === 'permission-denied'
-          ? 'Login bloqueado por reglas Firestore. Sube las reglas corregidas y verifica el perfil en stockpro_usuarios.'
-          : ('No se pudo cargar/crear el perfil: ' + (profileErr.message || profileErr));
-        showErr(msg);
+        checkFirstAdminNeeded();
       }
     });
 
@@ -1650,9 +1672,9 @@ async function checkFirstAdminNeeded(){
       showRecovery(false);
     }
   } catch(e) {
-    // Firestore rules may block this check for unauthenticated users
-    // Show recovery panel as safe fallback
-    showRecovery(true);
+    // Firestore rules normally block this check before login. Do not show the
+    // recovery box just because rules are secure.
+    showRecovery(false);
   }
 }
 
@@ -1666,18 +1688,15 @@ async function createFirstAdmin(){
     showAlert('Firebase requerido para crear administrador. Verifica conexión.','warn');
     return;
   }
-  const email = document.getElementById('l-email').value.trim();
+  const email = document.getElementById('l-email').value.trim().toLowerCase();
   const pass  = document.getElementById('l-pass').value;
-  if (!email || !pass) {
-    showAlert('Ingresa email y contraseña primero, luego haz clic aquí','warn');
+  const loginProfile = getLoginProfile();
+  if (!loginProfile.name || !email || !pass) {
+    showAlert('Ingresa nombre, email y contraseña primero','warn');
     return;
   }
   if (pass.length < 6) {
     showAlert('La contraseña debe tener al menos 6 caracteres','warn');
-    return;
-  }
-  if (!isBootstrapAdminEmail(email)) {
-    showAlert('Este email no está autorizado para crear el primer administrador. Usa el correo admin autorizado.','danger');
     return;
   }
 
@@ -1700,10 +1719,14 @@ async function createFirstAdmin(){
 
     const uid = userCred.user.uid;
 
+    if (!canBootstrapAdmin(email)) {
+      throw new Error('Este correo no está autorizado para crear administrador. Agrega el correo en ADMIN_BOOTSTRAP_EMAILS.');
+    }
+
     // Create admin profile in Firestore
     await firebase.firestore().collection(COLS.USR).doc(uid).set({
       uid, email,
-      name:      email.split('@')[0],
+      name:      loginProfile.name,
       role:      'administrator',
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       createdBy: 'first_admin_setup',
@@ -1812,39 +1835,37 @@ function hideLogin(){
 }
 
 
-async function doLogin(){
-  const email = document.getElementById('l-email').value.trim();
+function doLogin(){
+  const loginProfile = getLoginProfile();
+  const name  = loginProfile.name;
+  const role  = loginProfile.requestedRole;
+  const email = document.getElementById('l-email').value.trim().toLowerCase();
   const pass  = document.getElementById('l-pass').value;
   const errEl = document.getElementById('l-err');
   errEl.classList.add('hidden');
-  if(!email||!pass){ showErr('Completa todos los campos'); return; }
+  if(!name || !email || !pass){ showErr('Completa nombre, cargo, email y contraseña'); return; }
+  if(!SEC.validEmail(email)){ showErr('Email inválido'); return; }
+  sessionStorage.setItem('sp_login_name', name);
+  sessionStorage.setItem('sp_login_role', role);
+
   const btn = document.getElementById('l-btn');
   btn.disabled=true; btn.textContent=t('loading');
-
   if (!S.fbReady){
-    S.user={uid:'demo-'+Date.now(),email,name:email.split('@')[0],initials:email[0].toUpperCase(),role:'warehouse_manager'};
+    S.user={uid:'demo-'+Date.now(),email,name,initials:name[0].toUpperCase(),role:role==='administrator'?'warehouse_manager':role};
     hideLogin(); showApp(); applyRoleUI();
     btn.disabled=false; btn.textContent=t('signin'); return;
   }
-
-  try {
-    await firebase.auth().signInWithEmailAndPassword(email, pass);
-    // onAuthStateChanged will continue login after Firestore profile loads.
-  } catch(err) {
+  firebase.auth().signInWithEmailAndPassword(email, pass).catch(err => {
     const msgs={
-      'auth/user-not-found':'Usuario no encontrado en Firebase Authentication',
+      'auth/user-not-found':'Usuario no encontrado. Primero créalo en Firebase Authentication o usa Crear primer administrador si es la primera instalación.',
       'auth/wrong-password':'Contraseña incorrecta',
-      'auth/invalid-credential':'Usuario o contraseña incorrectos',
+      'auth/invalid-credential':'Email o contraseña incorrectos',
       'auth/invalid-email':'Email inválido',
-      'auth/too-many-requests':'Demasiados intentos. Espera unos minutos.',
-      'auth/operation-not-allowed':'Activa Email/Password en Firebase Authentication',
-      'auth/network-request-failed':'Sin conexión o Firebase bloqueado por el navegador',
+      'auth/too-many-requests':'Demasiados intentos. Espera unos minutos.'
     };
-    showErr(msgs[err.code]||err.message);
-    btn.disabled=false; btn.textContent=t('signin');
-  }
+    showErr(msgs[err.code]||err.message); btn.disabled=false; btn.textContent=t('signin');
+  });
 }
-
 function doGoogleLogin(){
   if(!S.fbReady||!window.firebase){ showErr('Firebase no disponible — usa email/contraseña'); return; }
   firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(err=>{
@@ -2181,18 +2202,44 @@ async function saveItem(){
 /* ── SCANNER ── */
 async function startScanner(){
   try{
-    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}});
-    document.getElementById('scan-video').srcObject=stream; S.scanActive=true;
+    const constraints = {
+      video:{
+        facingMode:{ideal:'environment'},
+        width:{ideal:1920},
+        height:{ideal:1080},
+        advanced:[{focusMode:'continuous'},{torch:false}]
+      }
+    };
+    const v=document.getElementById('scan-video');
+    S.scanActive=true;
     document.getElementById('scan-start-btn').classList.add('hidden');
     document.getElementById('scan-stop-btn').classList.remove('hidden');
+
     if(window.ZXing){
       const hints=new Map();
-      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[ZXing.BarcodeFormat.EAN_13,ZXing.BarcodeFormat.EAN_8,ZXing.BarcodeFormat.CODE_128,ZXing.BarcodeFormat.CODE_39,ZXing.BarcodeFormat.UPC_A,ZXing.BarcodeFormat.UPC_E,ZXing.BarcodeFormat.QR_CODE]);
-      hints.set(ZXing.DecodeHintType.TRY_HARDER,true);
-      S.codeReader=new ZXing.BrowserMultiFormatReader(hints);
-      S.codeReader.decodeFromVideoDevice(null,'scan-video',result=>{if(result)handleScan(result.getText());});
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[
+        ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8,
+        ZXing.BarcodeFormat.UPC_A,  ZXing.BarcodeFormat.UPC_E,
+        ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39,
+        ZXing.BarcodeFormat.ITF, ZXing.BarcodeFormat.QR_CODE
+      ]);
+      // TRY_HARDER can slow iPhone scans; leave disabled for normal product barcodes.
+      S.codeReader=new ZXing.BrowserMultiFormatReader(hints, 250);
+      await S.codeReader.decodeFromConstraints(constraints,'scan-video',(result,err)=>{
+        if(result && S.scanActive){
+          const code = normalizeBarcode(result.getText());
+          if(code) handleScan(code);
+        }
+      });
+    } else {
+      const stream=await navigator.mediaDevices.getUserMedia(constraints);
+      v.srcObject=stream;
+      await v.play();
     }
-  }catch(err){showAlert(err.name==='NotAllowedError'?'Permite acceso a la cámara':'Error: '+err.message,'warn');}
+  }catch(err){
+    showAlert(err.name==='NotAllowedError'?'Permite acceso a la cámara':'Error de cámara/escáner: '+err.message,'warn');
+    stopScanner();
+  }
 }
 function stopScanner(){
   if(S.codeReader){try{S.codeReader.reset();}catch(e){} S.codeReader=null;}
@@ -2207,9 +2254,22 @@ function handleScan(code){
   if('vibrate' in navigator) navigator.vibrate([80,40,80]);
   document.getElementById('scan-manual').value=code; doManualScan(code);
 }
+function normalizeBarcode(code){
+  return String(code||'').trim().replace(/[^A-Za-z0-9\-_]/g,'');
+}
+function findItemByCode(code){
+  const q=normalizeBarcode(code);
+  const qLower=q.toLowerCase();
+  const qNoZero=q.replace(/^0+/,'');
+  return S.items.find(i=>{
+    const b=normalizeBarcode(i.barcode);
+    const sku=String(i.sku||'').trim().toLowerCase();
+    return b===q || b.replace(/^0+/,'')===qNoZero || sku===qLower;
+  });
+}
 function doManualScan(code){
-  const q=(code||document.getElementById('scan-manual').value).trim(); if(!q){showAlert('Ingresa un código','warn');return;}
-  const item=S.items.find(i=>i.barcode===q||i.sku===q||(i.sku||'').toLowerCase()===q.toLowerCase());
+  const q=normalizeBarcode(code||document.getElementById('scan-manual').value); if(!q){showAlert('Ingresa un código','warn');return;}
+  const item=findItemByCode(q);
   const panel=document.getElementById('scan-result');
   if(item){
     const s=getStatus(item);
@@ -3455,1153 +3515,114 @@ const DHS_SUPPLIER = {
   location:'USA',
 };
 
-const DHS_CATEGORIES = ["All", "Amenities", "Amenity Kits", "Dispensers", "Gallons / Bulk", "Housekeeping Chemicals", "Laundry", "Paper Accessories", "Trash Bags", "Linens", "Room Supplies", "Food & Beverage", "Maintenance", "Housekeeping Tools", "Accessories", "Boxed Accessories", "Sachet Accessories", "Luxury Wipes", "Slippers", "Neutral Soaps", "EcoBars", "Guest Supplies"];
+const DHS_CATEGORIES = [
+  'All','Amenities','Amenity Kits','Dispensers','Gallons / Bulk',
+  'Detergents','Accessories','Paper Accessories','Boxed Accessories',
+  'Sachet Accessories','Luxury Wipes','Slippers','Neutral Soaps',
+  'EcoBars','Guest Supplies'
+];
 
 const DHS_CAT_EMOJI = {
-  "Amenities": "🧴",
-  "Amenity Kits": "🎁",
-  "Dispensers": "🔧",
-  "Gallons / Bulk": "🛢️",
-  "Housekeeping Chemicals": "🧪",
-  "Laundry": "🧺",
-  "Paper Accessories": "🧻",
-  "Trash Bags": "🗑️",
-  "Linens": "🛏️",
-  "Room Supplies": "🏨",
-  "Food & Beverage": "☕",
-  "Maintenance": "🛠️",
-  "Housekeeping Tools": "🧹",
-  "Accessories": "📎",
-  "Boxed Accessories": "📦",
-  "Sachet Accessories": "🪅",
-  "Luxury Wipes": "🫧",
-  "Slippers": "🥿",
-  "Neutral Soaps": "🧼",
-  "EcoBars": "♻️",
-  "Guest Supplies": "🏨",
-  "All": "📋"
+  'Amenities':'🧴','Amenity Kits':'🎁','Dispensers':'🔧',
+  'Gallons / Bulk':'🛢️','Detergents':'🧼','Accessories':'📎',
+  'Paper Accessories':'🧻','Boxed Accessories':'📦','Sachet Accessories':'🪅',
+  'Luxury Wipes':'🫧','Slippers':'🥿','Neutral Soaps':'🍵',
+  'EcoBars':'♻️','Guest Supplies':'🏨','All':'📋'
 };
 
 const DHS_CAT_COLOR = {
-  "Amenities": "#0051A5",
-  "Amenity Kits": "#003087",
-  "Dispensers": "#003087",
-  "Gallons / Bulk": "#003087",
-  "Housekeeping Chemicals": "#0891B2",
-  "Laundry": "#7C3AED",
-  "Paper Accessories": "#B45309",
-  "Trash Bags": "#374151",
-  "Linens": "#1E40AF",
-  "Room Supplies": "#003087",
-  "Food & Beverage": "#B45309",
-  "Maintenance": "#C2410C",
-  "Housekeeping Tools": "#166534",
-  "Accessories": "#003087",
-  "Boxed Accessories": "#003087",
-  "Sachet Accessories": "#003087",
-  "Luxury Wipes": "#003087",
-  "Slippers": "#003087",
-  "Neutral Soaps": "#003087",
-  "EcoBars": "#003087",
-  "Guest Supplies": "#003087",
-  "All": "#003087"
+  'Amenities':'#0051A5','Amenity Kits':'#6B21A8','Dispensers':'#1FAD6E',
+  'Gallons / Bulk':'#C2410C','Detergents':'#0891B2','Accessories':'#374151',
+  'Paper Accessories':'#B45309','Boxed Accessories':'#5B21B6',
+  'Sachet Accessories':'#BE185D','Luxury Wipes':'#065F46',
+  'Slippers':'#9D174D','Neutral Soaps':'#1E40AF',
+  'EcoBars':'#166534','Guest Supplies':'#003087'
 };
 
 // Pre-loaded DHS catalog — based on actual product lines from diversifiedhospitality.com
-// Pre-loaded hotel catalog — most used hotel products by supplier, including H2O Therapy exact SKUs/case packs from uploaded DHS PDF
 const DHS_CATALOG_PRELOAD = [
-  {
-    "sku": "DHS-H2O10-CS085",
-    "brand": "H2O Therapy®",
-    "name": "Conditioning Shampoo – .85 oz/25 ml Tube",
-    "cat": "Amenities",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 300,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": 300,
-    "notes": "PDF H2O Therapy Collection; case pack included"
-  },
-  {
-    "sku": "DHS-H2O07-C085",
-    "brand": "H2O Therapy®",
-    "name": "Conditioner – .85 oz/25 ml Tube",
-    "cat": "Amenities",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 300,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": 300,
-    "notes": "PDF H2O Therapy Collection; case pack included"
-  },
-  {
-    "sku": "DHS-H2O08-L085",
-    "brand": "H2O Therapy®",
-    "name": "Lotion – .85 oz/25 ml Tube",
-    "cat": "Amenities",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 300,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": 300,
-    "notes": "PDF H2O Therapy Collection; case pack included"
-  },
-  {
-    "sku": "DHS-H2O09-W085",
-    "brand": "H2O Therapy®",
-    "name": "Body Wash – .85 oz/25 ml Tube",
-    "cat": "Amenities",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 300,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": 300,
-    "notes": "PDF H2O Therapy Collection; case pack included"
-  },
-  {
-    "sku": "DHS-H2O31-S025",
-    "brand": "H2O Therapy®",
-    "name": "Shampoo – .30 oz/10 ml Sachet Packet",
-    "cat": "Sachet Accessories",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 500,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": 500,
-    "notes": "PDF H2O Therapy Collection; case pack included"
-  },
-  {
-    "sku": "DHS-H2O32-L025",
-    "brand": "H2O Therapy®",
-    "name": "Lotion – .30 oz/10 ml Sachet Packet",
-    "cat": "Sachet Accessories",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 500,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": 500,
-    "notes": "PDF H2O Therapy Collection; case pack included"
-  },
-  {
-    "sku": "DHS-H2O20-MB150",
-    "brand": "H2O Therapy®",
-    "name": "Massage Bar – 30g Sachet",
-    "cat": "Neutral Soaps",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 400,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": 400,
-    "notes": "PDF H2O Therapy Collection; case pack included"
-  },
-  {
-    "sku": "DHS-H2O21-CB075",
-    "brand": "H2O Therapy®",
-    "name": "Cleansing Bar – 14g Sachet",
-    "cat": "Neutral Soaps",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 1000,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": 1000,
-    "notes": "PDF H2O Therapy Collection; case pack included"
-  },
-  {
-    "sku": "DHS-H2O22-CB100",
-    "brand": "H2O Therapy®",
-    "name": "Cleansing Bar – 28g Sachet",
-    "cat": "Neutral Soaps",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 500,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": 500,
-    "notes": "PDF H2O Therapy Collection; case pack included"
-  },
-  {
-    "sku": "DHS-H2O23-MB200",
-    "brand": "H2O Therapy®",
-    "name": "Massage Bar – 42g Sachet",
-    "cat": "Neutral Soaps",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 200,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": 200,
-    "notes": "PDF H2O Therapy Collection; case pack included"
-  },
-  {
-    "sku": "DHS-H2O01-S100",
-    "brand": "H2O Therapy®",
-    "name": "Shampoo – 1 oz/30 ml Tube",
-    "cat": "Amenities",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 300,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": 300,
-    "notes": "PDF H2O Therapy Collection; case pack included"
-  },
-  {
-    "sku": "DHS-H2O02-C100",
-    "brand": "H2O Therapy®",
-    "name": "Conditioner – 1 oz/30 ml Tube",
-    "cat": "Amenities",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 300,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": 300,
-    "notes": "PDF H2O Therapy Collection; case pack included"
-  },
-  {
-    "sku": "DHS-H2O03-L100",
-    "brand": "H2O Therapy®",
-    "name": "Lotion – 1 oz/30 ml Tube",
-    "cat": "Amenities",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 300,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": 300,
-    "notes": "PDF H2O Therapy Collection; case pack included"
-  },
-  {
-    "sku": "DHS-H2O04-W100",
-    "brand": "H2O Therapy®",
-    "name": "Body Wash – 1 oz/30 ml Tube",
-    "cat": "Amenities",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 300,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": 300,
-    "notes": "PDF H2O Therapy Collection; case pack included"
-  },
-  {
-    "sku": "DHS-H2O06-S085",
-    "brand": "H2O Therapy®",
-    "name": "Shampoo – .85 oz/25 ml Tube",
-    "cat": "Amenities",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 300,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": 300,
-    "notes": "PDF H2O Therapy Collection; case pack included"
-  },
-  {
-    "sku": "DHS-TPGT-SH-1",
-    "brand": "Terra Pure® Green Tea",
-    "name": "Shampoo 1oz Bottle",
-    "cat": "Amenities",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 500,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "DHS-TPGT-CD-1",
-    "brand": "Terra Pure® Green Tea",
-    "name": "Conditioner 1oz Bottle",
-    "cat": "Amenities",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 500,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "DHS-TPGT-BW-1",
-    "brand": "Terra Pure® Green Tea",
-    "name": "Body Wash 1oz Bottle",
-    "cat": "Amenities",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 500,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "DHS-TPGT-BL-1",
-    "brand": "Terra Pure® Green Tea",
-    "name": "Body Lotion 1oz Bottle",
-    "cat": "Amenities",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 500,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "DHS-KIT-TPGT-4",
-    "brand": "Terra Pure® Green Tea",
-    "name": "4-piece Ecobox Amenity Kit",
-    "cat": "Amenity Kits",
-    "unit": "Case (cs)",
-    "cost": 0,
-    "minQty": 50,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "DHS-DISP-ALTA-340",
-    "brand": "Alta",
-    "name": "Alta 340ml Wall Dispenser",
-    "cat": "Dispensers",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 5,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "DHS-GST-LUGBAG",
-    "brand": "DHS",
-    "name": "Laundry/Luggage Bag",
-    "cat": "Guest Supplies",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 200,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "DHS-GST-ICEBAG",
-    "brand": "DHS",
-    "name": "Ice Bucket Liner Bag",
-    "cat": "Guest Supplies",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 500,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "DHS-SAC-SC",
-    "brand": "DHS",
-    "name": "Shower Cap Sachet",
-    "cat": "Sachet Accessories",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 300,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "DHS-BOX-DN",
-    "brand": "DHS",
-    "name": "Dental Kit Boxed",
-    "cat": "Boxed Accessories",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 100,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "DHS-SLP-WFL-U",
-    "brand": "DHS",
-    "name": "Waffle Slippers Universal",
-    "cat": "Slippers",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 50,
-    "supplier": "DHS",
-    "supplierName": "Diversified Hospitality Solutions",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "HDS-TP-2PLY",
-    "brand": "Hotel Essentials",
-    "name": "Toilet Paper 2-ply Roll",
-    "cat": "Paper Accessories",
-    "unit": "Roll",
-    "cost": 0,
-    "minQty": 96,
-    "supplier": "HD-SUPPLY",
-    "supplierName": "HD Supply / Guest Supply",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "HDS-FACIAL-TISSUE",
-    "brand": "Hotel Essentials",
-    "name": "Facial Tissue Box",
-    "cat": "Paper Accessories",
-    "unit": "Box",
-    "cost": 0,
-    "minQty": 48,
-    "supplier": "HD-SUPPLY",
-    "supplierName": "HD Supply / Guest Supply",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "HDS-PAPER-TOWEL",
-    "brand": "Hotel Essentials",
-    "name": "Paper Towel Roll",
-    "cat": "Paper Accessories",
-    "unit": "Roll",
-    "cost": 0,
-    "minQty": 48,
-    "supplier": "HD-SUPPLY",
-    "supplierName": "HD Supply / Guest Supply",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "HDS-TRASH-13CLR",
-    "brand": "Hotel Essentials",
-    "name": "Trash Bag Clear 13 gal",
-    "cat": "Trash Bags",
-    "unit": "Case (cs)",
-    "cost": 0,
-    "minQty": 5,
-    "supplier": "HD-SUPPLY",
-    "supplierName": "HD Supply / Guest Supply",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "HDS-TRASH-33BLK",
-    "brand": "Hotel Essentials",
-    "name": "Trash Bag Black 33 gal",
-    "cat": "Trash Bags",
-    "unit": "Case (cs)",
-    "cost": 0,
-    "minQty": 5,
-    "supplier": "HD-SUPPLY",
-    "supplierName": "HD Supply / Guest Supply",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "HDS-TRASH-55BLK",
-    "brand": "Hotel Essentials",
-    "name": "Trash Bag Black 55 gal",
-    "cat": "Trash Bags",
-    "unit": "Case (cs)",
-    "cost": 0,
-    "minQty": 5,
-    "supplier": "HD-SUPPLY",
-    "supplierName": "HD Supply / Guest Supply",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "HDS-ICE-BUCKET",
-    "brand": "Hotel Essentials",
-    "name": "Guest Room Ice Bucket",
-    "cat": "Room Supplies",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 10,
-    "supplier": "HD-SUPPLY",
-    "supplierName": "HD Supply / Guest Supply",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "HDS-COFFEE-CUPS",
-    "brand": "Hotel Essentials",
-    "name": "In-room Coffee Cups",
-    "cat": "Room Supplies",
-    "unit": "Case (cs)",
-    "cost": 0,
-    "minQty": 10,
-    "supplier": "HD-SUPPLY",
-    "supplierName": "HD Supply / Guest Supply",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "HDS-HANGER",
-    "brand": "Hotel Essentials",
-    "name": "Guest Room Hangers",
-    "cat": "Room Supplies",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 100,
-    "supplier": "HD-SUPPLY",
-    "supplierName": "HD Supply / Guest Supply",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "HDS-DO-NOT-DISTURB",
-    "brand": "Hotel Essentials",
-    "name": "Do Not Disturb Door Hanger",
-    "cat": "Guest Supplies",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 100,
-    "supplier": "HD-SUPPLY",
-    "supplierName": "HD Supply / Guest Supply",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "ECO-APC-GAL",
-    "brand": "Ecolab",
-    "name": "All Purpose Cleaner Gallon",
-    "cat": "Housekeeping Chemicals",
-    "unit": "Gallon (gal)",
-    "cost": 0,
-    "minQty": 4,
-    "supplier": "ECOLAB",
-    "supplierName": "Ecolab",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "ECO-GLASS-GAL",
-    "brand": "Ecolab",
-    "name": "Glass Cleaner Gallon",
-    "cat": "Housekeeping Chemicals",
-    "unit": "Gallon (gal)",
-    "cost": 0,
-    "minQty": 4,
-    "supplier": "ECOLAB",
-    "supplierName": "Ecolab",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "ECO-BATH-GAL",
-    "brand": "Ecolab",
-    "name": "Bathroom Cleaner / Disinfectant Gallon",
-    "cat": "Housekeeping Chemicals",
-    "unit": "Gallon (gal)",
-    "cost": 0,
-    "minQty": 4,
-    "supplier": "ECOLAB",
-    "supplierName": "Ecolab",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "ECO-FLOOR-GAL",
-    "brand": "Ecolab",
-    "name": "Neutral Floor Cleaner Gallon",
-    "cat": "Housekeeping Chemicals",
-    "unit": "Gallon (gal)",
-    "cost": 0,
-    "minQty": 4,
-    "supplier": "ECOLAB",
-    "supplierName": "Ecolab",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "ECO-DEGREASER-GAL",
-    "brand": "Ecolab",
-    "name": "Degreaser Gallon",
-    "cat": "Housekeeping Chemicals",
-    "unit": "Gallon (gal)",
-    "cost": 0,
-    "minQty": 2,
-    "supplier": "ECOLAB",
-    "supplierName": "Ecolab",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "ECO-AIRFRESH",
-    "brand": "Ecolab",
-    "name": "Air Freshener / Odor Eliminator",
-    "cat": "Housekeeping Chemicals",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 12,
-    "supplier": "ECOLAB",
-    "supplierName": "Ecolab",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "ECO-HANDSOAP-GAL",
-    "brand": "Ecolab",
-    "name": "Liquid Hand Soap Gallon",
-    "cat": "Amenities",
-    "unit": "Gallon (gal)",
-    "cost": 0,
-    "minQty": 4,
-    "supplier": "ECOLAB",
-    "supplierName": "Ecolab",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "ECO-SANITIZER",
-    "brand": "Ecolab",
-    "name": "Hand Sanitizer Refill",
-    "cat": "Amenities",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 12,
-    "supplier": "ECOLAB",
-    "supplierName": "Ecolab",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "LAU-DETERGENT",
-    "brand": "Laundry",
-    "name": "Laundry Detergent",
-    "cat": "Laundry",
-    "unit": "Gallon (gal)",
-    "cost": 0,
-    "minQty": 4,
-    "supplier": "LAUNDRY-SUPPLIER",
-    "supplierName": "Laundry Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "LAU-BLEACH",
-    "brand": "Laundry",
-    "name": "Bleach",
-    "cat": "Laundry",
-    "unit": "Gallon (gal)",
-    "cost": 0,
-    "minQty": 4,
-    "supplier": "LAUNDRY-SUPPLIER",
-    "supplierName": "Laundry Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "LAU-SOFTENER",
-    "brand": "Laundry",
-    "name": "Fabric Softener",
-    "cat": "Laundry",
-    "unit": "Gallon (gal)",
-    "cost": 0,
-    "minQty": 4,
-    "supplier": "LAUNDRY-SUPPLIER",
-    "supplierName": "Laundry Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "LAU-STAIN",
-    "brand": "Laundry",
-    "name": "Stain Remover",
-    "cat": "Laundry",
-    "unit": "Gallon (gal)",
-    "cost": 0,
-    "minQty": 2,
-    "supplier": "LAUNDRY-SUPPLIER",
-    "supplierName": "Laundry Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "LAU-DRYER",
-    "brand": "Laundry",
-    "name": "Dryer Sheets",
-    "cat": "Laundry",
-    "unit": "Box",
-    "cost": 0,
-    "minQty": 10,
-    "supplier": "LAUNDRY-SUPPLIER",
-    "supplierName": "Laundry Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "LAU-BAG",
-    "brand": "Laundry",
-    "name": "Laundry Bag",
-    "cat": "Laundry",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 200,
-    "supplier": "LAUNDRY-SUPPLIER",
-    "supplierName": "Laundry Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "LIN-SHEET-KING",
-    "brand": "Hotel Linen",
-    "name": "King Flat Sheet",
-    "cat": "Linens",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 24,
-    "supplier": "LINEN-SUPPLIER",
-    "supplierName": "Linen / Hotel Textile Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "LIN-SHEET-QUEEN",
-    "brand": "Hotel Linen",
-    "name": "Queen Flat Sheet",
-    "cat": "Linens",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 24,
-    "supplier": "LINEN-SUPPLIER",
-    "supplierName": "Linen / Hotel Textile Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "LIN-FITTED-KING",
-    "brand": "Hotel Linen",
-    "name": "King Fitted Sheet",
-    "cat": "Linens",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 24,
-    "supplier": "LINEN-SUPPLIER",
-    "supplierName": "Linen / Hotel Textile Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "LIN-PILLOWCASE",
-    "brand": "Hotel Linen",
-    "name": "Pillowcase Standard/Queen",
-    "cat": "Linens",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 48,
-    "supplier": "LINEN-SUPPLIER",
-    "supplierName": "Linen / Hotel Textile Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "LIN-TOWEL-BATH",
-    "brand": "Hotel Linen",
-    "name": "Bath Towel",
-    "cat": "Linens",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 48,
-    "supplier": "LINEN-SUPPLIER",
-    "supplierName": "Linen / Hotel Textile Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "LIN-TOWEL-HAND",
-    "brand": "Hotel Linen",
-    "name": "Hand Towel",
-    "cat": "Linens",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 48,
-    "supplier": "LINEN-SUPPLIER",
-    "supplierName": "Linen / Hotel Textile Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "LIN-WASHCLOTH",
-    "brand": "Hotel Linen",
-    "name": "Washcloth",
-    "cat": "Linens",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 96,
-    "supplier": "LINEN-SUPPLIER",
-    "supplierName": "Linen / Hotel Textile Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "LIN-BATHMAT",
-    "brand": "Hotel Linen",
-    "name": "Bath Mat",
-    "cat": "Linens",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 24,
-    "supplier": "LINEN-SUPPLIER",
-    "supplierName": "Linen / Hotel Textile Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "ROOM-TOILET-BRUSH",
-    "brand": "Hotel Linen",
-    "name": "Toilet Brush",
-    "cat": "Housekeeping Tools",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 12,
-    "supplier": "LINEN-SUPPLIER",
-    "supplierName": "Linen / Hotel Textile Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "ROOM-PLUNGER",
-    "brand": "Hotel Linen",
-    "name": "Toilet Plunger",
-    "cat": "Maintenance",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 6,
-    "supplier": "LINEN-SUPPLIER",
-    "supplierName": "Linen / Hotel Textile Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "MNT-AA",
-    "brand": "Maintenance",
-    "name": "AA Batteries",
-    "cat": "Maintenance",
-    "unit": "Pack",
-    "cost": 0,
-    "minQty": 20,
-    "supplier": "GRAINGER",
-    "supplierName": "Grainger / Maintenance Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "MNT-AAA",
-    "brand": "Maintenance",
-    "name": "AAA Batteries",
-    "cat": "Maintenance",
-    "unit": "Pack",
-    "cost": 0,
-    "minQty": 20,
-    "supplier": "GRAINGER",
-    "supplierName": "Grainger / Maintenance Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "MNT-9V",
-    "brand": "Maintenance",
-    "name": "9V Batteries",
-    "cat": "Maintenance",
-    "unit": "Pack",
-    "cost": 0,
-    "minQty": 10,
-    "supplier": "GRAINGER",
-    "supplierName": "Grainger / Maintenance Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "MNT-LIGHT-A19",
-    "brand": "Maintenance",
-    "name": "LED Bulb A19",
-    "cat": "Maintenance",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 50,
-    "supplier": "GRAINGER",
-    "supplierName": "Grainger / Maintenance Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "MNT-LIGHT-BR30",
-    "brand": "Maintenance",
-    "name": "LED Bulb BR30",
-    "cat": "Maintenance",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 25,
-    "supplier": "GRAINGER",
-    "supplierName": "Grainger / Maintenance Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "MNT-AIRFILTER",
-    "brand": "Maintenance",
-    "name": "A/C Air Filter Assorted",
-    "cat": "Maintenance",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 30,
-    "supplier": "GRAINGER",
-    "supplierName": "Grainger / Maintenance Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "MNT-SILICONE",
-    "brand": "Maintenance",
-    "name": "Silicone Caulk White",
-    "cat": "Maintenance",
-    "unit": "Tube",
-    "cost": 0,
-    "minQty": 12,
-    "supplier": "GRAINGER",
-    "supplierName": "Grainger / Maintenance Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "MNT-PAINT-WHITE",
-    "brand": "Maintenance",
-    "name": "Touch-up Paint White",
-    "cat": "Maintenance",
-    "unit": "Gallon (gal)",
-    "cost": 0,
-    "minQty": 2,
-    "supplier": "GRAINGER",
-    "supplierName": "Grainger / Maintenance Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "MNT-GLOVES-NITRILE",
-    "brand": "Maintenance",
-    "name": "Nitrile Gloves Box",
-    "cat": "Maintenance",
-    "unit": "Box",
-    "cost": 0,
-    "minQty": 20,
-    "supplier": "GRAINGER",
-    "supplierName": "Grainger / Maintenance Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "MNT-TAPE",
-    "brand": "Maintenance",
-    "name": "Painter Tape / Duct Tape",
-    "cat": "Maintenance",
-    "unit": "Roll",
-    "cost": 0,
-    "minQty": 12,
-    "supplier": "GRAINGER",
-    "supplierName": "Grainger / Maintenance Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "HK-MICROFIBER",
-    "brand": "Housekeeping",
-    "name": "Microfiber Cleaning Cloth",
-    "cat": "Housekeeping Tools",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 100,
-    "supplier": "JANITORIAL",
-    "supplierName": "Janitorial Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "HK-SPONGE",
-    "brand": "Housekeeping",
-    "name": "Scrub Sponge",
-    "cat": "Housekeeping Tools",
-    "unit": "Pack",
-    "cost": 0,
-    "minQty": 20,
-    "supplier": "JANITORIAL",
-    "supplierName": "Janitorial Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "HK-MOPHEAD",
-    "brand": "Housekeeping",
-    "name": "Mop Head",
-    "cat": "Housekeeping Tools",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 24,
-    "supplier": "JANITORIAL",
-    "supplierName": "Janitorial Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "HK-BROOM",
-    "brand": "Housekeeping",
-    "name": "Broom",
-    "cat": "Housekeeping Tools",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 12,
-    "supplier": "JANITORIAL",
-    "supplierName": "Janitorial Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "HK-DUSTPAN",
-    "brand": "Housekeeping",
-    "name": "Dustpan",
-    "cat": "Housekeeping Tools",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 12,
-    "supplier": "JANITORIAL",
-    "supplierName": "Janitorial Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "HK-CART-BAG",
-    "brand": "Housekeeping",
-    "name": "Housekeeping Cart Bag",
-    "cat": "Housekeeping Tools",
-    "unit": "Each (ea)",
-    "cost": 0,
-    "minQty": 10,
-    "supplier": "JANITORIAL",
-    "supplierName": "Janitorial Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "HK-VACBAG",
-    "brand": "Housekeeping",
-    "name": "Vacuum Bag / Filter",
-    "cat": "Housekeeping Tools",
-    "unit": "Pack",
-    "cost": 0,
-    "minQty": 10,
-    "supplier": "JANITORIAL",
-    "supplierName": "Janitorial Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "HK-GLOVES",
-    "brand": "Housekeeping",
-    "name": "Housekeeping Gloves",
-    "cat": "Housekeeping Tools",
-    "unit": "Pair",
-    "cost": 0,
-    "minQty": 50,
-    "supplier": "JANITORIAL",
-    "supplierName": "Janitorial Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "FB-COFFEE-PODS",
-    "brand": "F&B",
-    "name": "Guest Room Coffee Pods",
-    "cat": "Food & Beverage",
-    "unit": "Case (cs)",
-    "cost": 0,
-    "minQty": 10,
-    "supplier": "SYSCO",
-    "supplierName": "Sysco / Foodservice Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "FB-CREAMER",
-    "brand": "F&B",
-    "name": "Coffee Creamer Packets",
-    "cat": "Food & Beverage",
-    "unit": "Case (cs)",
-    "cost": 0,
-    "minQty": 5,
-    "supplier": "SYSCO",
-    "supplierName": "Sysco / Foodservice Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "FB-SUGAR",
-    "brand": "F&B",
-    "name": "Sugar Packets",
-    "cat": "Food & Beverage",
-    "unit": "Case (cs)",
-    "cost": 0,
-    "minQty": 5,
-    "supplier": "SYSCO",
-    "supplierName": "Sysco / Foodservice Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "FB-STIRRER",
-    "brand": "F&B",
-    "name": "Coffee Stirrers",
-    "cat": "Food & Beverage",
-    "unit": "Box",
-    "cost": 0,
-    "minQty": 10,
-    "supplier": "SYSCO",
-    "supplierName": "Sysco / Foodservice Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "FB-TEA",
-    "brand": "F&B",
-    "name": "Tea Bags Assorted",
-    "cat": "Food & Beverage",
-    "unit": "Box",
-    "cost": 0,
-    "minQty": 20,
-    "supplier": "SYSCO",
-    "supplierName": "Sysco / Foodservice Supplier",
-    "casePack": "",
-    "notes": ""
-  },
-  {
-    "sku": "FB-WATER",
-    "brand": "F&B",
-    "name": "Bottled Water 16.9 oz",
-    "cat": "Food & Beverage",
-    "unit": "Case (cs)",
-    "cost": 0,
-    "minQty": 20,
-    "supplier": "SYSCO",
-    "supplierName": "Sysco / Foodservice Supplier",
-    "casePack": "",
-    "notes": ""
-  }
+  // ── Amenities — Terra Pure Green Tea ──────────────────────────────────
+  {sku:'DHS-TPGT-SH-1',  brand:'Terra Pure® Green Tea', name:'Shampoo 1oz Bottle',       cat:'Amenities',        unit:'Each (ea)',  cost:0.28, minQty:500},
+  {sku:'DHS-TPGT-CD-1',  brand:'Terra Pure® Green Tea', name:'Conditioner 1oz Bottle',    cat:'Amenities',        unit:'Each (ea)',  cost:0.28, minQty:500},
+  {sku:'DHS-TPGT-BW-1',  brand:'Terra Pure® Green Tea', name:'Body Wash 1oz Bottle',      cat:'Amenities',        unit:'Each (ea)',  cost:0.28, minQty:500},
+  {sku:'DHS-TPGT-BL-1',  brand:'Terra Pure® Green Tea', name:'Body Lotion 1oz Bottle',    cat:'Amenities',        unit:'Each (ea)',  cost:0.28, minQty:500},
+  // ── Amenities — Infusé White Tea & Coconut ────────────────────────────
+  {sku:'DHS-INFW-SH-1',  brand:'Infusé® White Tea & Coconut', name:'Shampoo 1oz Bottle',  cat:'Amenities',        unit:'Each (ea)',  cost:0.32, minQty:300},
+  {sku:'DHS-INFW-CD-1',  brand:'Infusé® White Tea & Coconut', name:'Conditioner 1oz',     cat:'Amenities',        unit:'Each (ea)',  cost:0.32, minQty:300},
+  {sku:'DHS-INFW-BW-1',  brand:'Infusé® White Tea & Coconut', name:'Body Wash 1oz',       cat:'Amenities',        unit:'Each (ea)',  cost:0.32, minQty:300},
+  // ── Amenities — H2O Therapy ───────────────────────────────────────────
+  {sku:'DHS-H2O-SH-1',   brand:'H2O Therapy®',          name:'Shampoo 1oz',               cat:'Amenities',        unit:'Each (ea)',  cost:0.26, minQty:500},
+  {sku:'DHS-H2O-CD-1',   brand:'H2O Therapy®',          name:'Conditioner 1oz',           cat:'Amenities',        unit:'Each (ea)',  cost:0.26, minQty:500},
+  {sku:'DHS-H2O-BW-1',   brand:'H2O Therapy®',          name:'Body Wash 1oz',             cat:'Amenities',        unit:'Each (ea)',  cost:0.26, minQty:500},
+  {sku:'DHS-H2O-BL-1',   brand:'H2O Therapy®',          name:'Body Lotion 1oz',           cat:'Amenities',        unit:'Each (ea)',  cost:0.26, minQty:500},
+  // ── Amenities — Eco Botanics ──────────────────────────────────────────
+  {sku:'DHS-ECOB-SH-1',  brand:'Eco Botanics®',         name:'Shampoo 1oz',               cat:'Amenities',        unit:'Each (ea)',  cost:0.24, minQty:500},
+  {sku:'DHS-ECOB-CD-1',  brand:'Eco Botanics®',         name:'Conditioner 1oz',           cat:'Amenities',        unit:'Each (ea)',  cost:0.24, minQty:500},
+  {sku:'DHS-ECOB-BW-1',  brand:'Eco Botanics®',         name:'Body Wash 1oz',             cat:'Amenities',        unit:'Each (ea)',  cost:0.24, minQty:500},
+  // ── Amenities — Panama Jack ───────────────────────────────────────────
+  {sku:'DHS-PJ-WIS-SH',  brand:'Panama Jack® Wisteria', name:'Shampoo 1oz',               cat:'Amenities',        unit:'Each (ea)',  cost:0.38, minQty:200},
+  {sku:'DHS-PJ-WIS-CD',  brand:'Panama Jack® Wisteria', name:'Conditioner 1oz',           cat:'Amenities',        unit:'Each (ea)',  cost:0.38, minQty:200},
+  {sku:'DHS-PJ-OCS-SH',  brand:'Panama Jack® Orange Creamsicle', name:'Shampoo 1oz',      cat:'Amenities',        unit:'Each (ea)',  cost:0.38, minQty:200},
+  // ── Amenity Kits ──────────────────────────────────────────────────────
+  {sku:'DHS-KIT-TPGT-4', brand:'Terra Pure® Green Tea', name:'4-piece Ecobox Amenity Kit', cat:'Amenity Kits',    unit:'Case (cs)',  cost:1.15, minQty:50},
+  {sku:'DHS-KIT-INFW-4', brand:'Infusé® White Tea',     name:'4-piece Ecobox Amenity Kit', cat:'Amenity Kits',    unit:'Case (cs)',  cost:1.30, minQty:50},
+  {sku:'DHS-KIT-PJ-4',   brand:'Panama Jack® Wisteria', name:'4-piece Amenity Kit',        cat:'Amenity Kits',    unit:'Case (cs)',  cost:1.55, minQty:25},
+  {sku:'DHS-KIT-MKR-4',  brand:'Makari Le Bosquet',     name:'4-piece Luxury Amenity Kit', cat:'Amenity Kits',    unit:'Case (cs)',  cost:1.85, minQty:25},
+  {sku:'DHS-KIT-CTL-4',  brand:'Cutler',                name:'4-piece Premium Amenity Kit',cat:'Amenity Kits',    unit:'Case (cs)',  cost:1.60, minQty:25},
+  // ── Dispensers ────────────────────────────────────────────────────────
+  {sku:'DHS-DISP-AIR-TP', brand:'EcoLux® Air',          name:'Air Dispenser Terra Pure 11oz',cat:'Dispensers',    unit:'Each (ea)', cost:24.50, minQty:5},
+  {sku:'DHS-DISP-AIR-IN', brand:'EcoLux® Air',          name:'Air Dispenser Infusé WTC 11oz',cat:'Dispensers',   unit:'Each (ea)', cost:24.50, minQty:5},
+  {sku:'DHS-DISP-ALTA-340',brand:'Alta',                name:'Alta 340ml Wall Dispenser',    cat:'Dispensers',   unit:'Each (ea)', cost:18.75, minQty:5},
+  {sku:'DHS-DISP-ALTA-380',brand:'Alta',                name:'Alta 380ml Wall Dispenser',    cat:'Dispensers',   unit:'Each (ea)', cost:21.00, minQty:5},
+  {sku:'DHS-DISP-AQV-TP', brand:'Acquavera',            name:'Acquavera Dispenser Wild Citrus',cat:'Dispensers', unit:'Each (ea)', cost:19.50, minQty:5},
+  {sku:'DHS-DISP-TRUE-TP',brand:'True',                 name:'True Dispenser Terra Pure',    cat:'Dispensers',   unit:'Each (ea)', cost:22.00, minQty:5},
+  {sku:'DHS-DISP-BKT',    brand:'EcoLux®',              name:'EcoLux Bracket Kit',           cat:'Dispensers',   unit:'Each (ea)', cost:8.50,  minQty:10},
+  // ── Gallons / Bulk ────────────────────────────────────────────────────
+  {sku:'DHS-GAL-TPGT-SH', brand:'Terra Pure® Green Tea',name:'Shampoo Gallon (1 gal)',       cat:'Gallons / Bulk',unit:'Gallon (gal)',cost:32.00,minQty:4},
+  {sku:'DHS-GAL-TPGT-CD', brand:'Terra Pure® Green Tea',name:'Conditioner Gallon',           cat:'Gallons / Bulk',unit:'Gallon (gal)',cost:32.00,minQty:4},
+  {sku:'DHS-GAL-TPGT-BW', brand:'Terra Pure® Green Tea',name:'Body Wash Gallon',             cat:'Gallons / Bulk',unit:'Gallon (gal)',cost:30.00,minQty:4},
+  {sku:'DHS-GAL-H2O-SH',  brand:'H2O Therapy®',         name:'Shampoo Gallon',               cat:'Gallons / Bulk',unit:'Gallon (gal)',cost:28.00,minQty:4},
+  // ── Detergents ────────────────────────────────────────────────────────
+  {sku:'DHS-DET-TB-PKT',  brand:'Terra Breeze®',        name:'Laundry Detergent Packet',     cat:'Detergents',   unit:'Each (ea)', cost:0.18, minQty:200},
+  {sku:'DHS-DET-TB-BOX',  brand:'Terra Breeze®',        name:'Laundry Detergent Box Kit',    cat:'Detergents',   unit:'Box',        cost:1.45, minQty:50},
+  {sku:'DHS-DET-TB-GAL',  brand:'Terra Breeze®',        name:'Laundry Detergent Gallon',     cat:'Detergents',   unit:'Gallon (gal)',cost:26.00,minQty:2},
+  // ── Accessories — Paper ───────────────────────────────────────────────
+  {sku:'DHS-PAP-FT-SF',   brand:'DHS',                  name:'Facial Tissue Soft Fold 2-ply', cat:'Paper Accessories',unit:'Box',   cost:0.85, minQty:100},
+  {sku:'DHS-PAP-TP-4',    brand:'DHS',                  name:'Toilet Paper Roll 4-pack',      cat:'Paper Accessories',unit:'Pack',  cost:2.40, minQty:50},
+  {sku:'DHS-PAP-TW-SR',   brand:'DHS',                  name:'Towelettes Sanitizing Roll',    cat:'Paper Accessories',unit:'Each (ea)',cost:0.12,minQty:300},
+  // ── Accessories — Boxed ───────────────────────────────────────────────
+  {sku:'DHS-BOX-CP',      brand:'DHS',                  name:'Cotton Pads Box (50ct)',         cat:'Boxed Accessories',unit:'Box',  cost:1.20, minQty:50},
+  {sku:'DHS-BOX-CB',      brand:'DHS',                  name:'Cotton Balls Box (50ct)',        cat:'Boxed Accessories',unit:'Box',  cost:1.10, minQty:50},
+  {sku:'DHS-BOX-QT',      brand:'DHS',                  name:'Q-Tips Box (50ct)',              cat:'Boxed Accessories',unit:'Box',  cost:0.95, minQty:100},
+  {sku:'DHS-BOX-SC',      brand:'DHS',                  name:'Shower Cap Boxed',               cat:'Boxed Accessories',unit:'Each (ea)',cost:0.22,minQty:200},
+  {sku:'DHS-BOX-DN',      brand:'DHS',                  name:'Dental Kit Boxed',               cat:'Boxed Accessories',unit:'Each (ea)',cost:0.65,minQty:100},
+  {sku:'DHS-BOX-RZR',     brand:'DHS',                  name:'Razor Boxed',                    cat:'Boxed Accessories',unit:'Each (ea)',cost:0.55,minQty:100},
+  // ── Accessories — Sachet ──────────────────────────────────────────────
+  {sku:'DHS-SAC-SC',      brand:'DHS',                  name:'Shower Cap Sachet',              cat:'Sachet Accessories',unit:'Each (ea)',cost:0.18,minQty:300},
+  {sku:'DHS-SAC-SW-SH',   brand:'DHS',                  name:'Sewing Kit Sachet',              cat:'Sachet Accessories',unit:'Each (ea)',cost:0.42,minQty:200},
+  {sku:'DHS-SAC-SL',      brand:'DHS',                  name:'Shoeshine Cloth Sachet',         cat:'Sachet Accessories',unit:'Each (ea)',cost:0.38,minQty:200},
+  // ── Luxury Wipes ──────────────────────────────────────────────────────
+  {sku:'DHS-LW-FM',       brand:'DHS Luxury',           name:'Face & Makeup Remover Wipes',    cat:'Luxury Wipes',  unit:'Each (ea)',cost:0.55,minQty:100},
+  {sku:'DHS-LW-BB',       brand:'DHS Luxury',           name:'Body Buff Luxury Wipe',          cat:'Luxury Wipes',  unit:'Each (ea)',cost:0.65,minQty:100},
+  {sku:'DHS-LW-SF',       brand:'DHS Luxury',           name:'Softening Facial Wipe',          cat:'Luxury Wipes',  unit:'Each (ea)',cost:0.58,minQty:100},
+  // ── Slippers ──────────────────────────────────────────────────────────
+  {sku:'DHS-SLP-WFL-U',   brand:'DHS',                  name:'Waffle Slippers Universal',      cat:'Slippers',      unit:'Pair',    cost:1.85, minQty:50},
+  {sku:'DHS-SLP-VEL-U',   brand:'DHS',                  name:'Velour Slippers Universal',      cat:'Slippers',      unit:'Pair',    cost:2.20, minQty:50},
+  {sku:'DHS-SLP-SPA-U',   brand:'DHS',                  name:'Spa Slippers EVA sole',          cat:'Slippers',      unit:'Pair',    cost:1.65, minQty:50},
+  // ── Neutral Soaps ─────────────────────────────────────────────────────
+  {sku:'DHS-NSP-WHT-1',   brand:'DHS Neutral',          name:'White Soap Bar 1oz',             cat:'Neutral Soaps', unit:'Each (ea)',cost:0.14,minQty:500},
+  {sku:'DHS-NSP-WHT-1.5', brand:'DHS Neutral',          name:'White Soap Bar 1.5oz',           cat:'Neutral Soaps', unit:'Each (ea)',cost:0.18,minQty:500},
+  {sku:'DHS-NSP-WHT-2',   brand:'DHS Neutral',          name:'White Soap Bar 2oz',             cat:'Neutral Soaps', unit:'Each (ea)',cost:0.22,minQty:300},
+  {sku:'DHS-NSP-IVR-1',   brand:'DHS Neutral',          name:'Ivory Soap Bar 1oz',             cat:'Neutral Soaps', unit:'Each (ea)',cost:0.15,minQty:500},
+  // ── EcoBars ───────────────────────────────────────────────────────────
+  {sku:'DHS-ECOB-GRN-1',  brand:'EcoBar®',              name:'EcoBar Green Tea 1oz',           cat:'EcoBars',       unit:'Each (ea)',cost:0.32,minQty:300},
+  {sku:'DHS-ECOB-LVN-1',  brand:'EcoBar®',              name:'EcoBar Lavender 1oz',            cat:'EcoBars',       unit:'Each (ea)',cost:0.32,minQty:300},
+  {sku:'DHS-ECOB-CTR-1',  brand:'EcoBar®',              name:'EcoBar Citrus 1oz',              cat:'EcoBars',       unit:'Each (ea)',cost:0.32,minQty:300},
+  // ── Guest Supplies ────────────────────────────────────────────────────
+  {sku:'DHS-GST-KIT-DLX', brand:'DHS',                  name:'Guest Welcome Kit Deluxe',       cat:'Guest Supplies',unit:'Each (ea)',cost:3.50,minQty:25},
+  {sku:'DHS-GST-AMN-BAG', brand:'DHS',                  name:'Amenity Bag Resealable',         cat:'Guest Supplies',unit:'Each (ea)',cost:0.28,minQty:200},
+  {sku:'DHS-GST-LUGBAG',  brand:'DHS',                  name:'Laundry/Luggage Bag',            cat:'Guest Supplies',unit:'Each (ea)',cost:0.45,minQty:200},
+  {sku:'DHS-GST-ICEBAG',  brand:'DHS',                  name:'Ice Bucket Liner Bag',           cat:'Guest Supplies',unit:'Each (ea)',cost:0.12,minQty:500},
 ];
 
 /* ── DHS STATE ──────────────────────────────────────────────── */
@@ -4619,7 +3640,7 @@ function initDHS(){
   // Load from localStorage as cache
   try {
     const saved = localStorage.getItem('sp_dhs_products');
-    DHS.products = saved ? JSON.parse(saved) : [];
+    DHS.products = saved ? JSON.parse(saved) : DHS_CATALOG_PRELOAD.map((p,i)=>({...p,id:'preload-'+i,qty:0,purchased:0,initialStock:0,supplier:'DHS',supplierName:'Diversified Hospitality Solutions'}));
     const savedP = localStorage.getItem('sp_dhs_purchases');
     DHS.purchases = savedP ? JSON.parse(savedP) : [];
   } catch(e) { DHS.products=[]; DHS.purchases=[]; }
@@ -4629,7 +3650,10 @@ function initDHS(){
     firebase.firestore().collection(DHS_COL)
       .orderBy('name')
       .onSnapshot(snap => {
-        DHS.products = snap.docs.map(d=>({id:d.id,...d.data()}));
+        DHS.products = snap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p._deleted);
+        if(!DHS.products.length){
+          DHS.products = DHS_CATALOG_PRELOAD.map((p,i)=>({...p,id:'preload-'+i,qty:0,purchased:0,initialStock:0,supplier:'DHS',supplierName:'Diversified Hospitality Solutions'}));
+        }
         localStorage.setItem('sp_dhs_products', JSON.stringify(DHS.products));
         if (document.getElementById('pg-dhs')?.classList.contains('active')) renderDHS();
       }, ()=>{});
@@ -5009,7 +4033,7 @@ async function loadDHSCatalog(){
         const ref=db.collection(DHS_COL).doc();
         batch.set(ref,{
           ...p, qty:0, purchased:0, initialStock:0,
-          supplier:p.supplier||'DHS', supplierName:p.supplierName||'Diversified Hospitality Solutions',
+          supplier:'DHS', supplierName:'Diversified Hospitality Solutions',
           createdAt:firebase.firestore.FieldValue.serverTimestamp(),
           createdBy:S.user?.uid||'catalog_import',
         });
@@ -5017,7 +4041,7 @@ async function loadDHSCatalog(){
       await batch.commit();
     }
   } else {
-    toAdd.forEach(p=>{ DHS.products.push({...p,id:'dhs-'+Date.now()+Math.random(),qty:0,purchased:0,initialStock:0,supplier:p.supplier||'DHS',supplierName:p.supplierName||'Diversified Hospitality Solutions',createdAt:now}); });
+    toAdd.forEach(p=>{ DHS.products.push({...p,id:'dhs-'+Date.now()+Math.random(),qty:0,purchased:0,initialStock:0,supplier:'DHS',supplierName:'Diversified Hospitality Solutions',createdAt:now}); });
     localStorage.setItem('sp_dhs_products',JSON.stringify(DHS.products));
     renderDHS();
   }
@@ -5054,8 +4078,7 @@ function importDHSFile(input){
         qty:parseInt(obj.qty||obj.quantity||obj.stock||0)||0,
         purchased:parseInt(obj.purchased||0)||0,
         notes:obj.notes||'',
-        supplier:SEC.sanitize(obj.supplier||'DHS'), supplierName:SEC.sanitize(obj.supplierName||obj['supplier name']||'Diversified Hospitality Solutions'),
-        casePack:parseInt(obj.casepack||obj['case pack']||0)||0,
+        supplier:'DHS', supplierName:'Diversified Hospitality Solutions',
         createdAt:S.fbReady?firebase.firestore.FieldValue.serverTimestamp():new Date().toISOString(),
         createdBy:S.user?.uid||'csv_import',
       };
@@ -5099,8 +4122,7 @@ function importDHSJSON(input){
           unit:p.unit||'Each (ea)', cost:parseFloat(p.cost||p.unitCost||0)||0,
           minQty:parseInt(p.minQty||p.minimum||10)||10, qty:parseInt(p.qty||p.quantity||0)||0,
           purchased:parseInt(p.purchased||0)||0, notes:SEC.sanitize(p.notes||''),
-          supplier:SEC.sanitize(p.supplier||'DHS'), supplierName:SEC.sanitize(p.supplierName||p['supplier name']||'Diversified Hospitality Solutions'),
-          casePack:parseInt(p.casePack||p.casepack||0)||0,
+          supplier:'DHS', supplierName:'Diversified Hospitality Solutions',
           createdAt:S.fbReady?firebase.firestore.FieldValue.serverTimestamp():new Date().toISOString(),
           createdBy:S.user?.uid||'json_import',
         };

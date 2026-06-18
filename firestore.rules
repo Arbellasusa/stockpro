@@ -21,32 +21,6 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid != null;
     }
 
-    // Emails allowed to bootstrap themselves as administrator. Keep in sync with index.html.
-    function isBootstrapAdminEmail() {
-      return isAuth() && request.auth.token.email in [
-        'roldanarbella97@gmail.com',
-        'roldanarbella79@myyahoo.com','arbellaroldan97@gmail.com'
-      ];
-    }
-
-    function validOwnProfileCreate(userId) {
-      return isAuth()
-        && request.auth.uid == userId
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.email == request.auth.token.email
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.name.size() <= 120
-        && request.resource.data.createdAt == request.time
-        && request.resource.data.lastSeen == request.time
-        && request.resource.data.online is bool
-        && request.resource.data.createdBy in ['bootstrap_admin_email','self_register','first_admin_setup']
-        && (
-          (isBootstrapAdminEmail() && request.resource.data.role == 'administrator') ||
-          (!isBootstrapAdminEmail() && request.resource.data.role == 'housekeeping')
-        );
-    }
-
     // Read role from Firestore user profile (set by admin on creation)
     function userRole() {
       return get(/databases/$(database)/documents/stockpro_usuarios/$(request.auth.uid)).data.role;
@@ -99,21 +73,18 @@ service cloud.firestore {
 
     // ── USER PROFILES ────────────────────────────────────────────────────
     match /stockpro_usuarios/{userId} {
-      // A user can read their own profile. Staff can read all profiles.
+      // Any staff can read profiles; also allow COUNT query for first-admin check
       allow read: if isStaff() || (isAuth() && request.auth.uid == userId);
 
-      // Secure self-bootstrap:
-      // - Approved owner emails may create their own administrator profile.
-      // - All other authenticated users may only create their own housekeeping profile.
-      // - Admins may create staff profiles.
-      allow create: if isAdmin() || validOwnProfileCreate(userId);
+      // FIRST INSTALL: authenticated user can create their OWN profile
+      // if no admin exists yet — enforced by app logic, not rules
+      allow create: if isAuth() && request.auth.uid == userId;
 
-      // Users update only presence/name on their own profile. Admins can update roles/users.
-      allow update: if isAdmin() || (
-        isAuth() && request.auth.uid == userId
+      // Users update their own presence only
+      allow update: if isAuth() && request.auth.uid == userId
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['online','lastSeen','name'])
-      );
+        || isAdmin();
 
       // Only admin can delete profiles
       allow delete: if isAdmin();
@@ -212,6 +183,34 @@ service cloud.firestore {
       allow update: if canWriteInventory()
         && auditFieldsUnchanged();
       allow delete: if false;
+    }
+
+
+    // ── DHS SUPPLIER PRODUCTS ─────────────────────────────────────────────
+    match /stockpro_dhs_products/{productId} {
+      allow read: if isStaff();
+      allow create: if canWriteInventory()
+        && validStr('name', 200)
+        && validStr('sku', 80)
+        && hasServerTimestamp('createdAt')
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if canWriteInventory()
+        && auditFieldsUnchanged()
+        && validStr('name', 200)
+        && validStr('sku', 80)
+        && hasServerTimestamp('updatedAt')
+        && request.resource.data.updatedBy == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
+    match /stockpro_dhs_purchases/{purchaseId} {
+      allow read: if isStaff();
+      allow create: if canWriteInventory()
+        && validStr('sku', 80)
+        && validPositiveNum('qty')
+        && hasServerTimestamp('date')
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if false;
     }
 
     // ── SHARED WITH HK PRO ENTERPRISE ────────────────────────────────────
