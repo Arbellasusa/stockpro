@@ -5689,6 +5689,12 @@ const DHS = {
   purchases:   [],
   currentCat:  'All',
   editingId:   null,
+  _initialized: false,
+  _fbReadyAtInit: null,
+  _seeding: false,
+  _seedDisabled: false,
+  _seedErrorShown: false,
+  _unsubs: [],
 };
 const DHS_COL = 'stockpro_dhs_products';
 const DHS_PUR = 'stockpro_dhs_purchases';
@@ -5696,6 +5702,22 @@ const DHS_PUR = 'stockpro_dhs_purchases';
 /* ── INIT DHS ───────────────────────────────────────────────── */
 function initDHS(){
   console.log('🏨 [DHS] initDHS() llamado — fbReady='+S.fbReady);
+
+  // Evita crear varios listeners y varios intentos de carga. Esta era la causa
+  // de los avisos repetidos "permission-denied" en pantalla.
+  if (DHS._initialized && DHS._fbReadyAtInit === S.fbReady) {
+    if(document.getElementById('pg-dhs')?.classList.contains('active')) renderDHS();
+    return;
+  }
+
+  // Si cambió el estado de Firebase, cerramos listeners anteriores.
+  if (DHS._unsubs && DHS._unsubs.length) {
+    DHS._unsubs.forEach(fn => { try { fn && fn(); } catch(e){} });
+    DHS._unsubs = [];
+  }
+  DHS._initialized = true;
+  DHS._fbReadyAtInit = S.fbReady;
+
   // Load from localStorage as cache
   try {
     const saved = localStorage.getItem('sp_dhs_products');
@@ -5708,31 +5730,48 @@ function initDHS(){
     console.warn('⚠️ [DHS] Error leyendo localStorage:', e);
   }
 
+  // Siempre muestra catálogo local si no hay datos todavía.
+  if(DHS.products.length === 0){
+    DHS.products = DHS_CATALOG_PRELOAD.map((p,i)=>({...p, id:'preload-'+i, qty:0}));
+    localStorage.setItem('sp_dhs_products', JSON.stringify(DHS.products));
+  }
+
   // Subscribe to Firestore if available
   if (S.fbReady) {
     console.log('🔥 [DHS] Suscribiendo a Firestore colección:', DHS_COL);
-    _fbDb.collection(DHS_COL)
+
+    const unsubProducts = _fbDb.collection(DHS_COL)
       .orderBy('name')
       .onSnapshot(snap => {
-        DHS.products = snap.docs.map(d=>({id:d.id,...d.data()}));
-        console.log(`✅ [DHS] Firestore snapshot → ${DHS.products.length} productos DHS`);
-        localStorage.setItem('sp_dhs_products', JSON.stringify(DHS.products));
-        // Auto-seed catalog if completely empty, but show the preload immediately.
-        if(DHS.products.length === 0){
-          console.log('🌱 [DHS] Catálogo Firestore vacío — mostrando precarga local y sembrando en segundo plano...');
-          DHS.products = DHS_CATALOG_PRELOAD.map((p,i)=>({...p, id:'preload-'+i, qty:0}));
+        // Si Firestore está vacío se conserva la precarga local para que la lista no desaparezca.
+        if (!snap.empty) {
+          DHS.products = snap.docs.map(d=>({id:d.id,...d.data()}));
+          console.log(`✅ [DHS] Firestore snapshot → ${DHS.products.length} productos DHS`);
           localStorage.setItem('sp_dhs_products', JSON.stringify(DHS.products));
           if(document.getElementById('pg-dhs')?.classList.contains('active')) renderDHS();
-          autoSeedDHSCatalog();
-        } else {
-          if(document.getElementById('pg-dhs')?.classList.contains('active')) renderDHS();
+          return;
         }
+
+        console.log('🌱 [DHS] Firestore DHS vacío — usando precarga local.');
+        if(!DHS.products.length){
+          DHS.products = DHS_CATALOG_PRELOAD.map((p,i)=>({...p, id:'preload-'+i, qty:0}));
+          localStorage.setItem('sp_dhs_products', JSON.stringify(DHS.products));
+        }
+        if(document.getElementById('pg-dhs')?.classList.contains('active')) renderDHS();
+
+        // Sembrar en nube solo una vez. Si las reglas lo niegan, se desactiva
+        // para que no salga el aviso repetido constantemente.
+        if(!DHS._seeding && !DHS._seedDisabled) autoSeedDHSCatalog();
       }, (err)=>{
         console.error('❌ [DHS] Error en onSnapshot de productos:', err.code, err.message);
-        // Render from localStorage cache if Firestore fails
+        if(!DHS.products.length){
+          DHS.products = DHS_CATALOG_PRELOAD.map((p,i)=>({...p, id:'preload-'+i, qty:0}));
+          localStorage.setItem('sp_dhs_products', JSON.stringify(DHS.products));
+        }
         if(document.getElementById('pg-dhs')?.classList.contains('active')) renderDHS();
       });
-    _fbDb.collection(DHS_PUR)
+
+    const unsubPurchases = _fbDb.collection(DHS_PUR)
       .orderBy('date','desc').limit(100)
       .onSnapshot(snap => {
         DHS.purchases = snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -5741,25 +5780,42 @@ function initDHS(){
       }, (err)=>{
         console.warn('⚠️ [DHS] Error en onSnapshot de compras:', err.code, err.message);
       });
+
+    DHS._unsubs.push(unsubProducts, unsubPurchases);
   } else {
     console.warn('⚠️ [DHS] Firebase no listo — usando solo localStorage');
-    if(DHS.products.length === 0){
-      // Offline fallback: load preload catalog into memory only
-      DHS.products = DHS_CATALOG_PRELOAD.map((p,i)=>({...p, id:'local-'+i}));
-      console.log(`🌱 [DHS] Offline: catálogo precargado en memoria → ${DHS.products.length} productos`);
-    }
     if(document.getElementById('pg-dhs')?.classList.contains('active')) renderDHS();
   }
 }
 
 async function autoSeedDHSCatalog(){
   if(!S.fbReady){ console.warn('[DHS] autoSeed: Firebase no listo'); return; }
+  if(DHS._seeding || DHS._seedDisabled){ return; }
+
+  DHS._seeding = true;
   const db = _fbDb;
-  // Check again to avoid race condition
-  const existing = await db.collection(DHS_COL).limit(1).get().catch(()=>null);
-  if(existing && !existing.empty){ console.log('[DHS] autoSeed: ya hay productos, cancelando'); renderDHS(); return; }
-  console.log(`🌱 [DHS] autoSeed: cargando ${DHS_CATALOG_PRELOAD.length} productos al catálogo...`);
+
   try {
+    // Check again to avoid race condition
+    const existing = await db.collection(DHS_COL).limit(1).get().catch((e)=>{
+      if(e && e.code === 'permission-denied') DHS._seedDisabled = true;
+      return null;
+    });
+
+    if(existing && !existing.empty){
+      console.log('[DHS] autoSeed: ya hay productos, cancelando');
+      DHS._seeding = false;
+      renderDHS();
+      return;
+    }
+
+    if(DHS._seedDisabled){
+      console.warn('[DHS] autoSeed desactivado: reglas Firestore no permiten leer/escribir DHS.');
+      DHS._seeding = false;
+      return;
+    }
+
+    console.log(`🌱 [DHS] autoSeed: cargando ${DHS_CATALOG_PRELOAD.length} productos al catálogo...`);
     const BATCH_SIZE = 400;
     for(let i=0; i<DHS_CATALOG_PRELOAD.length; i+=BATCH_SIZE){
       const batch = db.batch();
@@ -5774,7 +5830,9 @@ async function autoSeedDHSCatalog(){
       await batch.commit();
     }
     console.log(`✅ [DHS] autoSeed completado — ${DHS_CATALOG_PRELOAD.length} productos cargados`);
-    showAlert(`🏨 Catálogo DHS cargado automáticamente — ${DHS_CATALOG_PRELOAD.length} productos`, 'success');
+    if(!DHS._seedErrorShown){
+      showAlert(`🏨 Catálogo DHS cargado automáticamente — ${DHS_CATALOG_PRELOAD.length} productos`, 'success');
+    }
   } catch(e) {
     console.error('❌ [DHS] autoSeed error:', e);
     if(!DHS.products.length){
@@ -5782,7 +5840,20 @@ async function autoSeedDHSCatalog(){
       localStorage.setItem('sp_dhs_products', JSON.stringify(DHS.products));
       renderDHS();
     }
-    showAlert('Catálogo DHS visible localmente. Revisa reglas Firestore para guardar en nube: '+(e.code||e.message), 'warn');
+
+    // Importante: NO mostrar toast repetido. El catálogo local sigue funcionando.
+    if(e && e.code === 'permission-denied'){
+      DHS._seedDisabled = true;
+      if(!DHS._seedErrorShown){
+        console.warn('⚠️ DHS visible localmente. Publica las reglas Firestore incluidas para guardar en nube.');
+        DHS._seedErrorShown = true;
+      }
+    } else if(!DHS._seedErrorShown){
+      showAlert('DHS trabaja localmente. No se pudo guardar en nube: '+(e.code||e.message), 'warn');
+      DHS._seedErrorShown = true;
+    }
+  } finally {
+    DHS._seeding = false;
   }
 }
 

@@ -38,22 +38,12 @@ const COLS = {
   AUDIT:     'stockpro_audit',
   SNAPSHOTS: 'stockpro_snapshots',
   BACKUPS:   'stockpro_backups',
-  // DHS Supplier module
-  DHS_PROD:  'stockpro_dhs_products',
-  DHS_PUR:   'stockpro_dhs_purchases',
 };
 
 // Role definitions and permissions matrix
 const ROLE_PERMS = {
-  administrator:     { read:true,  writeInv:true,  writeMov:true,  writeUsers:true,  readAudit:true  },
+  administrator:     { read:true,  writeInv:true,  writeMov:true,  writeUsers:true, readAudit:true  },
   warehouse_manager: { read:true,  writeInv:true,  writeMov:true,  writeUsers:false, readAudit:false },
   supervisor:        { read:true,  writeInv:false, writeMov:true,  writeUsers:false, readAudit:false },
   housekeeping:      { read:true,  writeInv:false, writeMov:false, writeUsers:false, readAudit:false },
 };
-
-// Bootstrap admin emails — these are allowed to self-assign administrator role
-// on first profile creation AND to self-repair role if incorrectly set to housekeeping.
-const BOOTSTRAP_ADMIN_EMAILS_CONFIG = [
-  'roldanarbella97@gmail.com',
-  'roldanarbella79@myyahoo.com',
-];

@@ -2,12 +2,12 @@
  * STOCKPRO v2 — ADMIN SETUP SCRIPT
  * ─────────────────────────────────────────────────────────────
  * Run this ONCE in your browser console after logging in as admin
- * to create or repair user profiles with correct roles in Firestore.
+ * to create user profiles with correct roles in Firestore.
  *
  * HOW TO RUN:
  * 1. Open https://arbellasusa.github.io/stockpro in Chrome
- * 2. Log in with your admin account (roldanarbella97@gmail.com)
- * 3. Open DevTools → Console (F12)
+ * 2. Log in with your admin account
+ * 3. Open DevTools → Console
  * 4. Paste and run this script
  */
 
@@ -18,10 +18,10 @@ const TEAM_MEMBERS = [
     name:  'Arbella Roldan',
     role:  'administrator',    // Full access
   },
-  // ── Add more team members below ─────────────────────────────────────────
-  // { email: 'manager@hydehousenhotel.com',  name: 'Warehouse Manager', role: 'warehouse_manager' },
-  // { email: 'super@hydehousenhotel.com',    name: 'Supervisor',        role: 'supervisor' },
-  // { email: 'hk1@hydehousenhotel.com',      name: 'Housekeeping 1',   role: 'housekeeping' },
+  // Add more team members:
+  // { email: 'manager@hotelarbellas.com',  name: 'Warehouse Manager', role: 'warehouse_manager' },
+  // { email: 'super@hotelarbellas.com',    name: 'Supervisor Name',   role: 'supervisor' },
+  // { email: 'hk1@hotelarbellas.com',      name: 'Housekeeping 1',    role: 'housekeeping' },
 ];
 
 // ── Roles reference ─────────────────────────────────────────────────────────
@@ -32,10 +32,8 @@ const TEAM_MEMBERS = [
 
 // ── Run setup ──────────────────────────────────────────────────────────────
 async function setupUserProfiles() {
-  console.log('🔧 [SETUP] StockPro Admin Setup Script iniciado...');
-
   if (!window.firebase || !firebase.firestore) {
-    console.error('❌ [SETUP] Firebase no cargado. Verifica que estés en la app de StockPro.');
+    console.error('❌ Firebase not loaded. Make sure you are logged in.');
     return;
   }
 
@@ -44,72 +42,41 @@ async function setupUserProfiles() {
   const currentUser = auth.currentUser;
 
   if (!currentUser) {
-    console.error('❌ [SETUP] No hay sesión activa. Inicia sesión primero.');
+    console.error('❌ Not logged in. Log in first.');
     return;
   }
 
-  console.log(`👤 [SETUP] Usuario actual: ${currentUser.email} (uid: ${currentUser.uid})`);
+  console.log('🔧 Setting up user profiles...');
 
-  // ── 1. Repair or create profile for current user ──────────────────────────
-  const matchedMember = TEAM_MEMBERS.find(
-    m => m.email.toLowerCase() === currentUser.email.toLowerCase()
-  );
-
-  if (matchedMember) {
-    const ref = db.collection('stockpro_usuarios').doc(currentUser.uid);
-    const snap = await ref.get();
-
-    if (snap.exists) {
-      const data = snap.data();
-      console.log(`📋 [SETUP] Perfil existente → role actual: "${data.role}"`);
-      if (data.role !== matchedMember.role) {
-        console.log(`🔧 [SETUP] Reparando rol: "${data.role}" → "${matchedMember.role}"`);
-        await ref.update({
-          role: matchedMember.role,
-          _roleRepairedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          _roleRepairedBy: 'admin_setup_script',
-        });
-        console.log(`✅ [SETUP] Rol reparado → ${matchedMember.role}`);
-      } else {
-        console.log(`✅ [SETUP] Rol ya es correcto → ${data.role}`);
-      }
-    } else {
-      console.log(`🆕 [SETUP] Creando perfil para ${matchedMember.email} → role: ${matchedMember.role}`);
-      await ref.set({
+  // Find current user in team list and set their profile
+  for (const member of TEAM_MEMBERS) {
+    if (member.email.toLowerCase() === currentUser.email.toLowerCase()) {
+      // Create/update profile for current user (we have their UID)
+      await db.collection('stockpro_usuarios').doc(currentUser.uid).set({
         uid:       currentUser.uid,
-        email:     matchedMember.email,
-        name:      matchedMember.name,
-        role:      matchedMember.role,
+        email:     member.email,
+        name:      member.name,
+        role:      member.role,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        createdBy: 'admin_setup_script',
-        online:    true,
-        lastSeen:  firebase.firestore.FieldValue.serverTimestamp(),
-      });
-      console.log(`✅ [SETUP] Perfil creado → ${matchedMember.email} | role: ${matchedMember.role}`);
+        setupBy:   'admin_setup_script',
+      }, { merge: true });
+      console.log(`✅ Profile created for ${member.email} → role: ${member.role}`);
     }
-  } else {
-    console.warn(`⚠️ [SETUP] Email "${currentUser.email}" no encontrado en TEAM_MEMBERS.`);
-    console.warn('   Agrega este email al array TEAM_MEMBERS arriba y vuelve a ejecutar.');
   }
 
-  // ── 2. Instructions for other team members ───────────────────────────────
+  // For other team members, you need their UIDs
+  // They must log in first, then you can run this command:
+  // db.collection('stockpro_usuarios').doc('THEIR_UID').set({ role: 'warehouse_manager', ... })
+
   console.log('');
-  console.log('────────────────────────────────────────────');
-  console.log('📋 PRÓXIMOS PASOS PARA OTROS MIEMBROS DEL EQUIPO:');
-  console.log('1. Cada miembro debe iniciar sesión en StockPro al menos una vez.');
-  console.log('2. Ve a Firebase Console → Firestore → stockpro_usuarios');
-  console.log('3. Busca su documento (filtra por email) y asigna el role correcto:');
-  console.log('   Roles válidos: administrator, warehouse_manager, supervisor, housekeeping');
+  console.log('📋 NEXT STEPS:');
+  console.log('1. Have each team member log in to StockPro');
+  console.log('2. Go to Firebase Console → Firestore → stockpro_usuarios');
+  console.log('3. Find their document (by email) and set the correct role');
+  console.log('   Valid roles: administrator, warehouse_manager, supervisor, housekeeping');
   console.log('');
-  console.log('💡 O ejecuta este script MIENTRAS ESTÁS logueado como admin');
-  console.log('   y agrega sus UIDs manualmente así:');
-  console.log('   db.collection("stockpro_usuarios").doc("SU_UID").set({');
-  console.log('     uid:"SU_UID", email:"su@email.com", name:"Nombre",');
-  console.log('     role:"warehouse_manager",');
-  console.log('     createdAt: firebase.firestore.FieldValue.serverTimestamp()');
-  console.log('   })');
-  console.log('────────────────────────────────────────────');
-  console.log('✅ [SETUP] Script completado.');
+  console.log('🔐 FIRESTORE RULES are live — anonymous access is blocked.');
+  console.log('✅ Setup complete!');
 }
 
 setupUserProfiles();
