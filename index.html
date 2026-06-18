@@ -4205,6 +4205,69 @@ function doSearch(q){
 /* ── KEYBOARD ── */
 document.addEventListener('keydown', e=>{ if(e.key==='Escape'){closeSearch();closeItemModal();closeMovModal();closeDeliveryModal();closeRptModal();closeDetail();} });
 
+
+function fallbackOffline(){
+  S.fbReady = false;
+  console.warn('[APP] Running in offline/demo mode');
+  try {
+    const saved = localStorage.getItem('sp_items');
+    S.items = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(SEED));
+    const sm  = localStorage.getItem('sp_movements');  S.movements  = sm  ? JSON.parse(sm)  : [];
+    const sd  = localStorage.getItem('sp_deliveries'); S.deliveries = sd  ? JSON.parse(sd)  : [];
+  } catch(e) {
+    S.items = JSON.parse(JSON.stringify(SEED));
+    S.movements = []; S.deliveries = [];
+  }
+  showLogin();
+}
+
+/* ── MISSING CORE FUNCTIONS — required by startup and offline mode ── */
+
+function startClock(){
+  function tick(){
+    const now = new Date();
+    const dateEl = document.getElementById('hdr-date');
+    const timeEl = document.getElementById('hdr-time');
+    if(dateEl) dateEl.textContent = now.toLocaleDateString(
+      LANG==='en'?'en-US':'es-MX',
+      {weekday:'short',month:'short',day:'numeric',year:'numeric'}
+    );
+    if(timeEl) timeEl.textContent = now.toLocaleTimeString(
+      LANG==='en'?'en-US':'es-MX',
+      {hour:'2-digit',minute:'2-digit',second:'2-digit'}
+    );
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+async function updatePresence(online){
+  if(!S.fbReady || !S.user || !_fbDb) return;
+  try {
+    const ref = _fbDb.collection(COLS.USR).doc(S.user.uid);
+    await ref.set({
+      name:     S.user.name,
+      email:    S.user.email,
+      online,
+      lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    if(online){
+      window.addEventListener('beforeunload', () =>
+        ref.update({ online: false }).catch(()=>{})
+      );
+    }
+  } catch(e){ console.warn('[PRESENCE] update failed:', e.code); }
+}
+
+function saveLocal(){
+  try {
+    localStorage.setItem('sp_items',      JSON.stringify(S.items));
+    localStorage.setItem('sp_movements',  JSON.stringify(S.movements));
+    localStorage.setItem('sp_deliveries', JSON.stringify(S.deliveries));
+  } catch(e){ console.warn('[LOCAL] saveLocal failed:', e); }
+}
+
+
 /* ── INITIAL LANG APPLY ── */
 applyLang();
 startClock();
