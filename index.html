@@ -1317,7 +1317,7 @@ async function writeAudit(action, data={}) {
   // Write to Firestore audit log
   if (S.fbReady) {
     try {
-      await firebase.firestore().collection(COLS.AUDIT).add(entry);
+      await _fbDb.collection(COLS.AUDIT).add(entry);
     } catch(e) {
       // Silently fail — don't break user flow for audit errors
     }
@@ -1364,7 +1364,7 @@ async function createCloudBackup() {
       totalValue:  S.items.reduce((s,i)=>s+(i.qty||0)*(i.price||0),0).toFixed(2),
       items:       S.items.map(i=>({...i})),
     };
-    await firebase.firestore().collection(COLS.BACKUPS).add(backup);
+    await _fbDb.collection(COLS.BACKUPS).add(backup);
     writeAudit('BACKUP_CREATED', { itemCount: S.items.length });
     showAlert('✅ Backup creado en Firebase', 'success');
   } catch(e) {
@@ -1559,687 +1559,525 @@ function isBootstrapAdminEmail(email){
   return BOOTSTRAP_ADMIN_EMAILS.includes(String(email||'').trim().toLowerCase());
 }
 
+/* ═══════════════════════════════════════════════════════════
+   STOCKPRO v2 — AUTHENTICATION & APP BOOTSTRAP
+   Clean rebuild — no enablePersistence race, no duplicate listeners
+   ═══════════════════════════════════════════════════════════ */
+
+/* ─── Firebase instance references (module-level) ─── */
+let _fbApp  = null;
+let _fbDb   = null;
+let _fbAuth = null;
+
+/* ─── startApp: initialize Firebase, register auth listener ─── */
 async function startApp(){
   setLang(LANG);
   startClock();
   showLogin();
-
-  console.log('[APP] startApp() — checking Firebase SDK...');
+  console.log('[APP] startApp()');
 
   if (!window.firebase) {
-    console.error('[APP] Firebase SDK not loaded — falling back to offline');
-    showErr('Firebase no disponible. Verifica tu conexión a internet y recarga la página.');
+    console.error('[APP] Firebase SDK missing');
+    showErr('Firebase no cargó. Verifica conexión y recarga la página.');
     fallbackOffline();
     return;
   }
 
   try {
-    const app  = firebase.apps.length ? firebase.apps[0] : firebase.initializeApp(FB_CFG);
-    const db   = firebase.firestore(app);
-    const auth = firebase.auth(app);
+    _fbApp  = firebase.apps.length ? firebase.apps[0] : firebase.initializeApp(FB_CFG);
+    _fbAuth = firebase.auth(_fbApp);
+    _fbDb   = firebase.firestore(_fbApp);
 
-    // Enable Firestore offline persistence (survives page refresh, background, etc.)
+    // Auth persistence — keeps session across refreshes
     try {
-      await db.enablePersistence({ synchronizeTabs: true });
-      console.log('[APP] Firestore persistence enabled');
-    } catch(persistErr) {
-      if (persistErr.code === 'failed-precondition') {
-        console.warn('[APP] Persistence unavailable — multiple tabs open');
-      } else if (persistErr.code === 'unimplemented') {
-        console.warn('[APP] Persistence not supported in this browser');
-      } else {
-        console.warn('[APP] Persistence error:', persistErr.code);
+      await _fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+    } catch(pe){ console.warn('[APP] Auth persistence warn:', pe.code); }
+
+    S.fbReady = true;
+    console.log('[APP] Firebase ready ✓');
+
+    // Register the one-and-only auth state listener
+    _fbAuth.onAuthStateChanged(onAuthChanged);
+
+  } catch(err) {
+    console.error('[APP] Firebase init failed:', err);
+    showErr('Error iniciando Firebase: ' + err.message);
+    fallbackOffline();
+  }
+}
+
+/* ─── Auth state change handler ─── */
+async function onAuthChanged(fbUser) {
+  console.log('[AUTH] onAuthChanged — user:', fbUser ? fbUser.email : 'null');
+  _resetLoginBtn();
+
+  if (!fbUser) {
+    // Signed out
+    detachListeners();
+    S.user = null;
+    showLogin();
+    _maybeShowRecovery();
+    return;
+  }
+
+  // ── User is signed in — load or create Firestore profile ──
+  const email          = (fbUser.email || '').trim().toLowerCase();
+  const isBootstrap    = isBootstrapAdminEmail(email);
+  const userRef        = _fbDb.collection(COLS.USR).doc(fbUser.uid);
+
+  try {
+    let snap = await userRef.get();
+    console.log('[AUTH] Profile exists:', snap.exists, '| bootstrap:', isBootstrap);
+
+    if (!snap.exists) {
+      // First time — create profile
+      const role = isBootstrap ? 'administrator' : 'housekeeping';
+      await userRef.set({
+        uid:       fbUser.uid,
+        email,
+        name:      fbUser.displayName || email.split('@')[0],
+        role,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        createdBy: isBootstrap ? 'bootstrap' : 'self_register',
+        online:    true,
+        lastSeen:  firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      snap = await userRef.get();
+      console.log('[AUTH] Profile created → role:', role);
+      showAlert(isBootstrap ? '⭐ Administrador activado' : '👤 Perfil creado', isBootstrap ? 'success' : 'info');
+    } else {
+      // Profile exists — ensure bootstrap admin always has admin role
+      const existingRole = (snap.data()||{}).role;
+      if (isBootstrap && existingRole !== 'administrator') {
+        console.warn('[AUTH] Fixing role:', existingRole, '→ administrator');
+        try {
+          await userRef.update({ role:'administrator', _roleFix: firebase.firestore.FieldValue.serverTimestamp() });
+          snap = await userRef.get();
+          showAlert('⭐ Rol de administrador restaurado', 'success');
+        } catch(e) {
+          // If update fails try set+merge
+          await userRef.set({ role:'administrator', _roleFix: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true});
+          snap = await userRef.get();
+        }
       }
     }
 
-    try { await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch(e) { console.warn('[APP] Auth persistence:', e.message); }
-    S.fbReady  = true;
-    console.log('✅ [APP] Firebase initialized — project: hk-pro-housekeeping');
+    const profile = snap.data() || {};
+    const role    = profile.role || (isBootstrap ? 'administrator' : 'housekeeping');
 
-    // Safety: if onAuthStateChanged hasn't fired in 8 seconds, run diagnostics
-    const authTimeout = setTimeout(() => {
-      if (!S.user) {
-        console.warn('[APP] ⚠️ onAuthStateChanged did not fire in 8s — check network/Firebase');
-        runDiagnostics();
+    S.user = {
+      uid:      fbUser.uid,
+      email:    fbUser.email,
+      name:     fbUser.displayName || profile.name || email.split('@')[0],
+      initials: (fbUser.displayName || fbUser.email || 'U')[0].toUpperCase(),
+      role,
+    };
+    console.log('[AUTH] ✅ Logged in —', email, '| role:', role);
+
+    // Non-blocking presence update
+    userRef.update({ online:true, lastSeen:firebase.firestore.FieldValue.serverTimestamp(), name:S.user.name }).catch(()=>{});
+
+    // Boot the app
+    attachListeners();
+    hideLogin();
+    document.getElementById('app').classList.remove('hidden');
+    showApp();
+    applyRoleUI();
+    scheduleDailyBackup();
+    writeAudit('LOGIN', { method:'firebase' });
+
+  } catch(err) {
+    console.error('[AUTH] Profile error:', err.code, err.message);
+
+    // permission-denied usually means rules are not deployed yet
+    // For bootstrap admin: try emergency write with no rules check needed
+    if (err.code === 'permission-denied' && isBootstrap) {
+      console.warn('[AUTH] permission-denied for bootstrap — trying emergency profile write');
+      try {
+        await _fbDb.collection(COLS.USR).doc(fbUser.uid).set({
+          uid: fbUser.uid, email,
+          name: fbUser.displayName || email.split('@')[0],
+          role: 'administrator',
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          createdBy: 'emergency',
+          online: true,
+          lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        // Re-trigger auth state
+        console.log('[AUTH] Emergency profile written — reloading');
+        await fbUser.reload();
+        return; // onAuthChanged will fire again
+      } catch(e2) {
+        console.error('[AUTH] Emergency write also failed:', e2.code);
       }
-    }, 8000);
-    // Store timeout ID so we can clear it on successful login
-    S._authTimeout = authTimeout;
+    }
 
-    auth.onAuthStateChanged(async user => {
-      const btn = document.getElementById('l-btn');
-      // Restore button without destroying its <span> child
-      if (btn) {
-        btn.disabled = false;
-        if (!btn.querySelector('span') || btn.innerHTML.includes('animation:spin')) {
-          btn.innerHTML = '<span data-i="signin">' + t('signin') + '</span>';
+    const msg = err.code === 'permission-denied'
+      ? 'Firestore Rules bloquean el acceso.\n\nSolución: Ve a Firebase Console → Firestore Database → Rules → pega las reglas actualizadas → Publish.\n\nError: ' + err.code
+      : 'Error cargando perfil: ' + (err.message || err.code);
+
+    showErr(msg);
+    await _fbAuth.signOut().catch(()=>{});
+    showLogin();
+  }
+}
+
+/* ─── doLogin: handle sign-in button ─── */
+async function doLogin(){
+  const emailRaw = (document.getElementById('l-email').value || '').trim();
+  const email    = emailRaw.toLowerCase();
+  const pass     = (document.getElementById('l-pass').value  || '');
+  document.getElementById('l-err').classList.add('hidden');
+
+  if (!email) { showErr('Ingresa tu correo electrónico'); return; }
+  if (!pass)  { showErr('Ingresa tu contraseña');          return; }
+  if (pass.length < 6) { showErr('La contraseña debe tener mínimo 6 caracteres'); return; }
+
+  _setBtnLoading(true);
+  console.log('[LOGIN] Attempting sign-in for:', email, '| fbReady:', S.fbReady);
+
+  // ── Offline / demo mode ──
+  if (!S.fbReady) {
+    S.user = {
+      uid:'demo', email,
+      name: email.split('@')[0],
+      initials: email[0].toUpperCase(),
+      role: isBootstrapAdminEmail(email) ? 'administrator' : 'warehouse_manager',
+    };
+    hideLogin();
+    document.getElementById('app').classList.remove('hidden');
+    showApp(); applyRoleUI();
+    _setBtnLoading(false);
+    showAlert('⚠️ Modo sin conexión — datos locales', 'warn');
+    return;
+  }
+
+  try {
+    await _fbAuth.signInWithEmailAndPassword(email, pass);
+    // onAuthChanged handles everything from here
+    console.log('[LOGIN] signIn call OK — waiting for onAuthChanged');
+  } catch(err) {
+    console.error('[LOGIN]', err.code, err.message);
+    _setBtnLoading(false);
+
+    // Auto-create for bootstrap admin if account missing
+    if (isBootstrapAdminEmail(email) &&
+        (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential')) {
+      console.log('[LOGIN] Bootstrap admin missing in Auth — auto-creating');
+      _setBtnLoading(true, 'Creando cuenta...');
+      try {
+        await _fbAuth.createUserWithEmailAndPassword(email, pass);
+        return; // onAuthChanged continues
+      } catch(ce) {
+        _setBtnLoading(false);
+        if (ce.code === 'auth/email-already-in-use') {
+          showErr('La cuenta existe pero la contraseña es incorrecta.\n\nUsa "Olvidé mi contraseña" para restablecerla.');
+        } else if (ce.code === 'auth/operation-not-allowed') {
+          showErr('Activa Email/Password en Firebase Console → Authentication → Sign-in method.');
+        } else {
+          showErr('Error creando cuenta: ' + ce.message);
         }
-      }
-
-      if (!user) {
-        console.log('[AUTH] onAuthStateChanged → no user, showing login');
-        detachListeners();
-        S.user = null;
-        showLogin();
-        checkFirstAdminNeeded();
         return;
       }
-
-      try {
-        const email = String(user.email || '').trim().toLowerCase();
-        const bootstrapAdmin = isBootstrapAdminEmail(email);
-        console.log(`🔐 [AUTH] onAuthStateChanged → uid=${user.uid} email=${email} bootstrapAdmin=${bootstrapAdmin}`);
-
-        const userRef = db.collection(COLS.USR).doc(user.uid);
-        let profileDoc = await userRef.get();
-        console.log(`📋 [PROFILE] Perfil existe en Firestore: ${profileDoc.exists}`);
-
-        if (!profileDoc.exists) {
-          // IMPORTANT: Do NOT query all admins here. With secure rules, a user without
-          // a Firestore profile cannot query other users yet. Create only own profile.
-          const assignedRole = bootstrapAdmin ? 'administrator' : 'housekeeping';
-          console.log(`🆕 [PROFILE] Creando perfil nuevo → role=${assignedRole}`);
-          const newProfile = {
-            uid:       user.uid,
-            email:     email,
-            name:      user.displayName || email.split('@')[0] || 'Usuario',
-            role:      assignedRole,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            createdBy: bootstrapAdmin ? 'bootstrap_admin_email' : 'self_register',
-            online:    true,
-            lastSeen:  firebase.firestore.FieldValue.serverTimestamp(),
-          };
-
-          await userRef.set(newProfile);
-          profileDoc = await userRef.get();
-          showAlert(bootstrapAdmin ? '⭐ Administrador activado' : '👤 Perfil creado — rol housekeeping', bootstrapAdmin ? 'success' : 'info');
-          console.log(`✅ [PROFILE] Perfil creado → role=${assignedRole}`);
-        } else {
-          // Profile exists — but check if bootstrap admin is stuck as housekeeping
-          const existingRole = (profileDoc.data() || {}).role;
-          console.log(`📋 [PROFILE] Perfil cargado → role existente="${existingRole}"`);
-          if (bootstrapAdmin && existingRole !== 'administrator') {
-            console.warn(`⚠️ [ROLE-FIX] Bootstrap admin "${email}" tiene role="${existingRole}" — corrigiendo a "administrator"...`);
-            try {
-              await userRef.update({ role: 'administrator', _roleFixedAt: firebase.firestore.FieldValue.serverTimestamp() });
-              profileDoc = await userRef.get();
-              console.log(`✅ [ROLE-FIX] Role corregido a "administrator" para ${email}`);
-              showAlert('⭐ Rol de administrador restaurado automáticamente', 'success');
-            } catch(fixErr) {
-              console.error('❌ [ROLE-FIX] No se pudo corregir el rol vía update. Intentando set(merge)...', fixErr);
-              try {
-                await userRef.set({ role: 'administrator', _roleFixedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
-                profileDoc = await userRef.get();
-                console.log(`✅ [ROLE-FIX] Role corregido con set(merge) para ${email}`);
-                showAlert('⭐ Rol de administrador restaurado', 'success');
-              } catch(fixErr2) {
-                console.error('❌ [ROLE-FIX] Fallo crítico al corregir rol. Verifica las Firestore Rules.', fixErr2);
-                showAlert('⚠️ No se pudo restaurar el rol admin. Verifica Firestore Rules.', 'warn');
-              }
-            }
-          }
-        }
-
-        const profile = profileDoc.data() || {};
-        const resolvedRole = profile.role || (bootstrapAdmin ? 'administrator' : 'housekeeping');
-        console.log(`👤 [LOGIN] Sesión activa → email=${email} role=${resolvedRole}`);
-        S.user = {
-          uid:      user.uid,
-          email:    user.email,
-          name:     user.displayName || profile.name || user.email.split('@')[0],
-          initials: (user.displayName || user.email || 'U')[0].toUpperCase(),
-          role:     resolvedRole,
-        };
-
-        // Non-blocking presence update — never let this fail the login
-        userRef.update({
-          online:   true,
-          lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
-          name:     S.user.name,
-        }).catch(e => console.warn('[AUTH] Presence update failed (non-critical):', e.code));
-
-        if(S._authTimeout){ clearTimeout(S._authTimeout); S._authTimeout=null; }
-        console.log('[AUTH] ✅ Login complete — loading app for', email, 'role:', resolvedRole);
-        attachListeners();          // attach Firestore listeners first
-        hideLogin();                // then hide login screen
-        document.getElementById('app').classList.remove('hidden');
-        showApp();                  // render UI
-        applyRoleUI();
-        scheduleDailyBackup();
-        writeAudit('LOGIN', { method: 'firebase' });
-        updatePresence(true);
-
-      } catch(profileErr) {
-        console.error('[AUTH] ❌ Profile/login failed:', profileErr.code, profileErr.message);
-        // CRITICAL: determine if this is truly unrecoverable
-        if (profileErr.code === 'permission-denied') {
-          // Firestore rules blocked profile read — this means the user
-          // exists in Auth but not in Firestore, OR rules are not deployed.
-          // Check if this is a bootstrap admin and retry with set()
-          const authUser = firebase.auth().currentUser;
-          const emailCheck = String(authUser?.email||'').trim().toLowerCase();
-          if (isBootstrapAdminEmail(emailCheck)) {
-            console.warn('[AUTH] Permission denied on profile read — attempting emergency admin profile create...');
-            try {
-              const emergencyProfile = {
-                uid:       authUser.uid,
-                email:     emailCheck,
-                name:      authUser.displayName || emailCheck.split('@')[0],
-                role:      'administrator',
-                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                createdBy: 'emergency_recovery',
-                online:    true,
-                lastSeen:  firebase.firestore.FieldValue.serverTimestamp(),
-              };
-              await db.collection(COLS.USR).doc(authUser.uid).set(emergencyProfile);
-              S.user = { uid:authUser.uid, email:authUser.email, name:emergencyProfile.name, initials:emailCheck[0].toUpperCase(), role:'administrator' };
-              console.log('[AUTH] ✅ Emergency admin profile created');
-              attachListeners();
-              hideLogin();
-              document.getElementById('app').classList.remove('hidden');
-              showApp(); applyRoleUI(); scheduleDailyBackup();
-              writeAudit('LOGIN', { method: 'emergency_recovery' });
-              showAlert('⭐ Perfil de administrador creado automáticamente', 'success');
-              return;
-            } catch(emergencyErr) {
-              console.error('[AUTH] Emergency create also failed:', emergencyErr);
-              showErr('Las Firestore Rules están bloqueando el acceso. Despliega las reglas actualizadas en Firebase Console → Firestore → Rules y vuelve a intentarlo. Error: ' + emergencyErr.code);
-              await auth.signOut().catch(()=>{});
-              showLogin();
-              return;
-            }
-          }
-          showErr('Acceso bloqueado por Firestore Rules. Verifica que las reglas estén desplegadas correctamente en Firebase Console → Firestore Database → Rules.');
-        } else if (profileErr.code === 'unavailable' || profileErr.code === 'deadline-exceeded') {
-          showErr('🌐 Firebase no responde. Verifica tu conexión a internet e intenta de nuevo.');
-        } else {
-          showErr('Error al cargar perfil: ' + (profileErr.message || profileErr.code));
-        }
-        await auth.signOut().catch(()=>{});
-        showLogin();
-        const btn2 = document.getElementById('l-btn');
-        if(btn2){ btn2.disabled=false; btn2.innerHTML='<span data-i="signin">'+t('signin')+'</span>'; }
-      }
-    });
-
-  } catch(e) {
-    console.error('Firebase init error:', e);
-    showAlert('Firebase no disponible — modo offline', 'warn');
-    fallbackOffline();
-  }
-}
-
-function fallbackOffline(){
-  S.fbReady = false;
-  try {
-    const saved = localStorage.getItem('sp_items');
-    S.items = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(SEED));
-    const sm = localStorage.getItem('sp_movements'); S.movements = sm ? JSON.parse(sm) : [];
-    const sd = localStorage.getItem('sp_deliveries'); S.deliveries = sd ? JSON.parse(sd) : [];
-  } catch(e) {
-    S.items = JSON.parse(JSON.stringify(SEED));
-    S.movements = []; S.deliveries = [];
-  }
-  showLogin();
-}
-function saveLocal(){
-  localStorage.setItem('sp_items', JSON.stringify(S.items));
-  localStorage.setItem('sp_movements', JSON.stringify(S.movements));
-  localStorage.setItem('sp_deliveries', JSON.stringify(S.deliveries));
-}
-
-/* ── CLOCK ── */
-function startClock(){
-  function tick(){
-    const now = new Date();
-    const dateEl = document.getElementById('hdr-date');
-    const timeEl = document.getElementById('hdr-time');
-    if (dateEl) dateEl.textContent = now.toLocaleDateString(LANG==='en'?'en-US':'es-MX',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
-    if (timeEl) timeEl.textContent = now.toLocaleTimeString(LANG==='en'?'en-US':'es-MX',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  }
-  tick(); setInterval(tick, 1000);
-}
-
-/* ── AUTH ── */
-// showLogin/hideLogin defined below
-
-/* ════════════════════════════════════════════════════
-   RECOVERY MODE — First Admin + Diagnostics
-   ════════════════════════════════════════════════════ */
-
-async function checkFirstAdminNeeded(){
-  // Only show the recovery panel if we KNOW there are no admins.
-  // If Firestore blocks the query (rules deny unauthenticated reads),
-  // it almost certainly means rules are live → admin exists → hide panel.
-  // Showing the panel by default causes confusion on every normal login.
-  console.log('[RECOVERY] checkFirstAdminNeeded — fbReady:', S.fbReady);
-  if (!S.fbReady) {
-    // Firebase not yet ready — hide panel, let user just sign in
-    showRecovery(false);
-    return;
-  }
-  try {
-    const snap = await firebase.firestore()
-      .collection(COLS.USR).where('role','==','administrator').limit(1).get();
-    const noAdmin = snap.empty;
-    console.log('[RECOVERY] Admin exists:', !noAdmin);
-    showRecovery(noAdmin);
-  } catch(e) {
-    // Firestore blocked the query — rules are active, admin likely exists
-    console.log('[RECOVERY] Firestore blocked admin check (rules active) — hiding recovery panel:', e.code);
-    showRecovery(false); // ← KEY FIX: do NOT show recovery when rules block the query
-  }
-}
-
-function showRecovery(show){
-  const panel = document.getElementById('recovery-panel');
-  if (panel) panel.classList.toggle('show', show);
-}
-
-async function createFirstAdmin(){
-  console.log('[ADMIN-SETUP] createFirstAdmin() invoked');
-  const btn = document.querySelector('.btn-recovery');
-  const resetBtn = () => { if(btn){ btn.innerHTML='⭐ Crear primer administrador'; btn.disabled=false; } };
-
-  if (!S.fbReady) {
-    showAlert('⚠️ Firebase no está listo. Recarga la página e intenta de nuevo.','warn');
-    return;
-  }
-
-  const emailRaw = document.getElementById('l-email').value.trim();
-  const email    = emailRaw.toLowerCase();
-  const pass     = document.getElementById('l-pass').value;
-
-  if (!email){ showAlert('Ingresa tu email en el campo de arriba primero','warn'); return; }
-  if (!pass){  showAlert('Ingresa tu contraseña en el campo de arriba primero','warn'); return; }
-  if (pass.length < 6){ showAlert('La contraseña debe tener al menos 6 caracteres','warn'); return; }
-
-  if (!isBootstrapAdminEmail(email)) {
-    showAlert('❌ Este email no está autorizado como administrador.
-
-Emails autorizados: roldanarbella97@gmail.com','danger');
-    return;
-  }
-
-  if(btn){ btn.innerHTML='⏳ Configurando...'; btn.disabled=true; }
-
-  try {
-    console.log('[ADMIN-SETUP] Creating/signing in Firebase Auth for:', email);
-    let userCred;
-    try {
-      userCred = await firebase.auth().createUserWithEmailAndPassword(email, pass);
-      console.log('[ADMIN-SETUP] Auth account created:', userCred.user.uid);
-    } catch(authErr) {
-      if (authErr.code === 'auth/email-already-in-use') {
-        console.log('[ADMIN-SETUP] Auth account exists — signing in');
-        userCred = await firebase.auth().signInWithEmailAndPassword(email, pass);
-      } else {
-        throw authErr;
-      }
     }
 
-    const uid = userCred.user.uid;
-    console.log('[ADMIN-SETUP] UID:', uid, '— writing Firestore profile...');
-
-    await firebase.firestore().collection(COLS.USR).doc(uid).set({
-      uid,
-      email,
-      name:      userCred.user.displayName || email.split('@')[0],
-      role:      'administrator',
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      createdBy: 'first_admin_setup',
-      online:    true,
-      lastSeen:  firebase.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true }); // merge:true avoids overwriting if already exists
-
-    console.log('[ADMIN-SETUP] ✅ Admin profile written to Firestore');
-    showAlert('⭐ Administrador configurado. Iniciando sesión automáticamente...', 'success');
-    // onAuthStateChanged will fire and complete the login
-  } catch(e) {
-    console.error('[ADMIN-SETUP] ❌ Error:', e.code, e.message);
-    const msgs = {
-      'auth/weak-password':         '❌ Contraseña muy débil (mínimo 6 caracteres)',
-      'auth/invalid-email':         '❌ Email inválido',
-      'auth/operation-not-allowed': '❌ Activa Email/Password en Firebase Console → Authentication → Sign-in method',
-      'auth/network-request-failed':'❌ Sin conexión a internet',
-      'auth/wrong-password':        '❌ Contraseña incorrecta para este email ya existente',
-      'auth/invalid-credential':    '❌ Email o contraseña incorrectos',
-      'permission-denied':          '❌ Firestore Rules bloquearon la escritura. Despliega las reglas actualizadas.',
+    // Map error codes to clear Spanish messages
+    const E = {
+      'auth/user-not-found':        '❌ No existe una cuenta con este correo.',
+      'auth/wrong-password':        '❌ Contraseña incorrecta.',
+      'auth/invalid-credential':    '❌ Email o contraseña incorrectos. Verifica ambos.',
+      'auth/invalid-email':         '❌ El formato del correo no es válido.',
+      'auth/user-disabled':         '❌ Esta cuenta está deshabilitada.',
+      'auth/too-many-requests':     '⏳ Demasiados intentos. Espera unos minutos o usa "Olvidé mi contraseña".',
+      'auth/operation-not-allowed': '⚠️ Activa Email/Password en Firebase Console → Authentication → Sign-in method.',
+      'auth/network-request-failed':'🌐 Sin conexión a internet. Verifica tu red e intenta de nuevo.',
+      'auth/unauthorized-domain':   '⚠️ Dominio no autorizado.\n\nVe a Firebase Console → Authentication → Settings → Authorized domains → agrega: arbellasusa.github.io',
+      'auth/popup-blocked':         '⚠️ El navegador bloqueó el popup. Permite popups para este sitio.',
+      'auth/popup-closed-by-user':  'Login cancelado.',
     };
-    showAlert(msgs[e.code] || ('Error: ' + (e.message||e.code)), 'danger');
-    resetBtn();
+    showErr(E[err.code] || 'Error (' + err.code + '): ' + err.message);
   }
 }
 
-function toggleDiag(){
-  const panel = document.getElementById('diag-panel');
-  if (!panel) return;
-  const showing = panel.classList.contains('show');
-  if (!showing) runDiagnostics();
-  panel.classList.toggle('show', !showing);
+/* ─── Forgot password ─── */
+async function doForgotPassword(){
+  const email = (document.getElementById('l-email').value || '').trim().toLowerCase();
+  if (!email) { showErr('Ingresa tu correo primero, luego haz clic en "Olvidé mi contraseña"'); return; }
+  if (!S.fbReady) { showErr('Sin conexión a Firebase'); return; }
+  try {
+    await _fbAuth.sendPasswordResetEmail(email);
+    showAlert('📧 Correo de restablecimiento enviado a ' + email + '\n\nRevisa también tu carpeta de spam.', 'success');
+  } catch(e) {
+    const E = {
+      'auth/user-not-found': 'No existe cuenta con ese correo.',
+      'auth/invalid-email':  'Email inválido.',
+      'auth/too-many-requests': 'Demasiadas solicitudes. Intenta más tarde.',
+    };
+    showErr(E[e.code] || e.message);
+  }
 }
 
-async function runDiagnostics(){
-  const results = [];
-
-  // Firebase SDK loaded?
-  results.push({
-    label: 'Firebase SDK',
-    ok: !!window.firebase,
-    val: window.firebase ? '✓ Cargado' : '✗ No cargado'
+/* ─── Google login ─── */
+function doGoogleLogin(){
+  if (!S.fbReady || !window.firebase) { showErr('Firebase no disponible'); return; }
+  _fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(err => {
+    if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+      showErr(err.message);
+    }
   });
-
-  // Firebase initialized?
-  results.push({
-    label: 'Firebase Init',
-    ok: S.fbReady,
-    val: S.fbReady ? '✓ Conectado' : '✗ No inicializado'
-  });
-
-  // Firebase Auth?
-  let authOk = false;
-  try { authOk = !!firebase.auth().app; } catch(e){}
-  results.push({ label:'Firebase Auth', ok:authOk, val: authOk?'✓ Activo':'✗ Error' });
-
-  // Firestore accessible?
-  let fsOk = false;
-  // Also check if auth domain is correct
-  const authDomainOk = FB_CFG.authDomain && FB_CFG.authDomain.includes('hk-pro-housekeeping');
-  results.push({ label:'Auth Domain', ok:authDomainOk, val: authDomainOk?'✓ '+FB_CFG.authDomain:'✗ Incorrecto' });
-  // Check current URL domain
-  const currentDomain = window.location.hostname;
-  const isAllowedDomain = ['localhost','127.0.0.1','arbellasusa.github.io'].includes(currentDomain);
-  results.push({ label:'Dominio actual', ok:isAllowedDomain, val: isAllowedDomain?'✓ '+currentDomain:'⚠ '+currentDomain+' (agregar en Firebase Auth → Authorized domains)' });
-  if (S.fbReady) {
-    try {
-      await firebase.firestore().collection(COLS.USR)
-        .where('role','==','administrator').limit(1).get();
-      fsOk = true;
-    } catch(e) { fsOk = false; }
-  }
-  results.push({ label:'Firestore Rules', ok:fsOk, val: fsOk?'✓ Accesible':'⚠ Bloqueado (normal sin login)' });
-
-  // localStorage?
-  let lsOk = false;
-  try { localStorage.setItem('_test','1'); localStorage.removeItem('_test'); lsOk=true; } catch(e){}
-  results.push({ label:'localStorage', ok:lsOk, val: lsOk?'✓ Disponible':'✗ Bloqueado' });
-
-  // ZXing scanner?
-  results.push({ label:'Escáner ZXing', ok:!!window.ZXing, val: window.ZXing?'✓ Cargado':'⚠ No cargado' });
-
-  // jsPDF?
-  results.push({ label:'jsPDF', ok:!!window.jspdf, val: window.jspdf?'✓ Cargado':'⚠ No cargado (PDF limitado)' });
-
-  // ROLE_PERMS?
-  results.push({ label:'ROLE_PERMS', ok:typeof ROLE_PERMS!=='undefined', val: typeof ROLE_PERMS!=='undefined'?'✓ Definido':'✗ UNDEFINED' });
-
-  // User logged in?
-  const authUser = S.fbReady ? firebase.auth().currentUser : null;
-  results.push({ label:'Sesión activa', ok:!!authUser, val: authUser?'✓ '+authUser.email:'✗ Sin sesión' });
-
-  // Internet/Firestore connection?
-  const fsOnline = S._firestoreOnline === true;
-  const navOnline = navigator.onLine;
-  const connOk = fsOnline || navOnline;
-  const connVal = fsOnline ? '✓ Firestore Online' : (navOnline ? '✓ Navigator Online (Firestore pendiente)' : '✗ Offline');
-  results.push({ label:'Conexión', ok: connOk, val: connVal });
-  results.push({ label:'Firestore Activo', ok: fsOnline, val: fsOnline ? '✓ Confirmado por snapshot' : '✗ Sin snapshot recibido' });
-
-  // Render diagnostics
-  const el = document.getElementById('diag-rows');
-  if (el) {
-    el.innerHTML = results.map(r => `
-      <div class="diag-row">
-        <span class="lbl">${r.label}</span>
-        <span class="val ${r.ok?'diag-ok':'diag-err'}">${r.val}</span>
-      </div>`).join('');
-  }
 }
 
-// showLogin & hideLogin helpers
+/* ─── Logout ─── */
+function doLogout(){
+  if (!confirm('¿' + t('logout') + '?')) return;
+  writeAudit('LOGOUT', {});
+  updatePresence(false);
+  detachListeners();
+  S.user = null; S.items = []; S.movements = []; S.deliveries = [];
+  ['sp_items','sp_movements','sp_deliveries'].forEach(k => localStorage.removeItem(k));
+  if (S.fbReady && _fbAuth) _fbAuth.signOut();
+  document.getElementById('app').classList.add('hidden');
+  showLogin();
+  toggleMenu(true);
+}
+
+/* ─── showLogin / hideLogin / showErr ─── */
 function showLogin(){
   const l = document.getElementById('login');
   const a = document.getElementById('app');
   if (l) l.style.display = 'flex';
   if (a) a.classList.add('hidden');
-  // Always restore the sign-in button to a clean state
-  const btn = document.getElementById('l-btn');
-  if(btn){ btn.disabled=false; btn.innerHTML='<span data-i="signin">'+t('signin')+'</span>'; }
-  // Clear any previous errors
-  const errEl = document.getElementById('l-err');
-  if(errEl) errEl.classList.add('hidden');
-  console.log('[UI] showLogin()');
+  _resetLoginBtn();
+  document.getElementById('l-err')?.classList.add('hidden');
+  console.log('[UI] showLogin');
 }
 function hideLogin(){
   const l = document.getElementById('login');
   if (l) l.style.display = 'none';
-  console.log('[UI] hideLogin()');
+  console.log('[UI] hideLogin');
+}
+function showErr(msg){
+  const el = document.getElementById('l-err');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  console.warn('[LOGIN] Error shown:', msg.slice(0,80));
 }
 
-
-async function doLogin(){
-  const emailRaw = document.getElementById('l-email').value.trim();
-  const email = emailRaw.toLowerCase();
-  const pass  = document.getElementById('l-pass').value;
-  const errEl = document.getElementById('l-err');
-  errEl.classList.add('hidden');
-
-  if(!email){ showErr('Ingresa tu correo electrónico'); return; }
-  if(!pass){  showErr('Ingresa tu contraseña');          return; }
-  if(pass.length < 6){ showErr('La contraseña debe tener al menos 6 caracteres'); return; }
-
-  const btn = document.getElementById('l-btn');
-  const setBtnState = (loading, label) => {
-    btn.disabled = loading;
-    btn.innerHTML = loading
-      ? '<span style="display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>' + label + '</span>'
-      : '<span data-i="signin">' + label + '</span>';
-  };
-
-  console.log('[LOGIN] doLogin — email:', email, 'fbReady:', S.fbReady);
-  setBtnState(true, 'Verificando...');
-
-  // ── OFFLINE / DEMO MODE ──────────────────────────────────────
-  if (!S.fbReady){
-    console.warn('[LOGIN] Firebase not ready — entering offline/demo mode');
-    const offlineRole = isBootstrapAdminEmail(email) ? 'administrator' : 'warehouse_manager';
-    S.user = {
-      uid:      'demo-'+Date.now(),
-      email,
-      name:     email.split('@')[0],
-      initials: email[0].toUpperCase(),
-      role:     offlineRole,
-    };
-    hideLogin(); showApp(); applyRoleUI();
-    setBtnState(false, t('signin'));
-    showAlert('⚠️ Modo offline — datos no sincronizados con Firebase', 'warn');
-    return;
-  }
-
-  // ── FIREBASE AUTH ────────────────────────────────────────────
-  try {
-    console.log('[LOGIN] signInWithEmailAndPassword →', email);
-    await firebase.auth().signInWithEmailAndPassword(email, pass);
-    // ✅ onAuthStateChanged takes over from here — do NOT hide login or call showApp() here
-    console.log('[LOGIN] signIn call succeeded — waiting for onAuthStateChanged');
-    // Button stays disabled while onAuthStateChanged processes
-  } catch(err) {
-    console.error('[LOGIN] Error:', err.code, err.message);
-    setBtnState(false, t('signin'));
-
-    // ── Auto-recovery for bootstrap admin: create Auth user if missing ──
-    if (isBootstrapAdminEmail(email) && (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential')) {
-      console.log('[LOGIN] Bootstrap admin not found — attempting auto-create in Firebase Auth...');
-      setBtnState(true, 'Creando admin...');
-      try {
-        await firebase.auth().createUserWithEmailAndPassword(email, pass);
-        console.log('[LOGIN] Admin Auth account created — onAuthStateChanged will handle profile');
-        return; // onAuthStateChanged continues from here
-      } catch(createErr) {
-        console.error('[LOGIN] Admin auto-create failed:', createErr.code, createErr.message);
-        setBtnState(false, t('signin'));
-        if (createErr.code === 'auth/email-already-in-use') {
-          showErr('Este email ya existe en Firebase Authentication, pero la contraseña no coincide.
-
-Ve a Firebase Console → Authentication → encuentra el usuario → Reset password.');
-        } else if (createErr.code === 'auth/operation-not-allowed') {
-          showErr('Activa Email/Password en Firebase Console → Authentication → Sign-in method → Email/Password → Enable.');
-        } else {
-          showErr('Error al crear admin: ' + (createErr.message||createErr.code));
-        }
-        return;
-      }
-    }
-
-    // ── User-friendly error messages ─────────────────────────────
-    const msgs = {
-      'auth/user-not-found':        '❌ No existe una cuenta con este correo. ¿Olvidaste el email?',
-      'auth/wrong-password':        '❌ Contraseña incorrecta. Verifica que esté bien escrita.',
-      'auth/invalid-credential':    '❌ Email o contraseña incorrectos. Verifica ambos campos.',
-      'auth/invalid-email':         '❌ El formato del email no es válido.',
-      'auth/user-disabled':         '❌ Esta cuenta está deshabilitada. Contacta al administrador.',
-      'auth/too-many-requests':     '⏳ Demasiados intentos fallidos. Espera unos minutos o restablece tu contraseña.',
-      'auth/operation-not-allowed': '⚠️ Activa Email/Password en Firebase Console → Authentication → Sign-in method.',
-      'auth/network-request-failed':'🌐 Sin conexión a internet o Firebase bloqueado. Verifica tu red.',
-      'auth/unauthorized-domain':   '⚠️ Dominio no autorizado. Agrega arbellasusa.github.io en Firebase Console → Authentication → Settings → Authorized domains.',
-      'auth/popup-blocked':         '⚠️ El navegador bloqueó el popup. Permite popups para este sitio.',
-      'auth/cancelled-popup-request':'Login cancelado.',
-      'auth/popup-closed-by-user':  'Login cancelado — cerraste la ventana de login.',
-    };
-    showErr(msgs[err.code] || ('Error (' + err.code + '): ' + err.message));
-  }
-}
-
-async function doForgotPassword(){
-  const email = document.getElementById('l-email').value.trim().toLowerCase();
-  if(!email){ showErr('Ingresa tu email primero, luego haz clic en "Olvidé mi contraseña"'); return; }
-  if(!S.fbReady){ showErr('Firebase no disponible. Verifica tu conexión.'); return; }
-  try {
-    await firebase.auth().sendPasswordResetEmail(email);
-    showAlert('📧 Correo de restablecimiento enviado a ' + email + '\n\nRevisa también tu carpeta de spam.', 'success');
-    console.log('[AUTH] Password reset email sent to:', email);
-  } catch(e) {
-    const msgs = {
-      'auth/user-not-found': 'No existe ninguna cuenta con ese email.',
-      'auth/invalid-email':  'El formato del email no es válido.',
-      'auth/too-many-requests': 'Demasiadas solicitudes. Espera unos minutos.',
-    };
-    showErr(msgs[e.code] || 'Error: ' + e.message);
-  }
-}
-
-function doGoogleLogin(){
-  if(!S.fbReady||!window.firebase){ showErr('Firebase no disponible — usa email/contraseña'); return; }
-  firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(err=>{
-    showErr(err.message);
-    checkFirstAdminNeeded();
-  });
-}
-function doLogout(){
-  if(!confirm('¿'+t('logout')+'?')) return;
-  writeAudit('LOGOUT', {});
-  updatePresence(false);
-  detachListeners();
-  if(S.fbReady) firebase.auth().signOut();
-  // Clear sensitive data from memory
-  S.user = null; S.items = []; S.movements = []; S.deliveries = [];
-  // Clear sensitive localStorage keys on logout
-  ['sp_items','sp_movements','sp_deliveries'].forEach(k => localStorage.removeItem(k));
-  document.getElementById('app').classList.add('hidden');
-  showLogin();
-  toggleMenu(true);
-}
-function showErr(msg){ const el=document.getElementById('l-err'); el.textContent=msg; el.classList.remove('hidden'); }
-
+/* ─── showApp ─── */
 function showApp(){
   hideLogin();
   document.getElementById('app').classList.remove('hidden');
-  watchFirestoreConnectivity(); // Register browser connectivity listeners once
-  if(S.user){
-    document.getElementById('hdr-avatar').textContent = S.user.initials||'U';
+  _initConnectivityWatch();
+  if (S.user) {
+    document.getElementById('hdr-avatar').textContent    = S.user.initials || 'U';
     document.getElementById('hdr-user-name').textContent = S.user.name;
-    document.getElementById('hdr-user-role').textContent = t('roles')[S.user.role]||S.user.role;
-    document.getElementById('menu-uname').textContent = S.user.name;
-    document.getElementById('menu-uemail').textContent = S.user.email;
-    document.getElementById('menu-urole').textContent = t('roles')[S.user.role]||S.user.role;
+    document.getElementById('hdr-user-role').textContent = t('roles')[S.user.role] || S.user.role;
+    document.getElementById('menu-uname').textContent    = S.user.name;
+    document.getElementById('menu-uemail').textContent   = S.user.email;
+    document.getElementById('menu-urole').textContent    = t('roles')[S.user.role] || S.user.role;
   }
   setSyncOnline();
   renderDashboard();
   updateFbStats();
   applyRoleUI();
-  saveDailySnapshot(); // Save initial daily snapshot
+  saveDailySnapshot();
   initDHS();
 }
-function showProfile(){ showAlert(S.user?.name+' · '+S.user?.email, 'info'); }
+function showProfile(){ showAlert((S.user?.name||'') + ' · ' + (S.user?.email||''), 'info'); }
 
-/* ── FIREBASE LISTENERS ── */
-function attachListeners(){
-  if(!S.fbReady){ console.warn('⚠️ [LISTENERS] fbReady=false — listeners no adjuntados'); return; }
-  console.log('🔥 [LISTENERS] Adjuntando Firestore listeners...');
-  const db = firebase.firestore();
-  const u1 = db.collection(COLS.INV).orderBy('name').onSnapshot(snap=>{
-    S.items = snap.docs.map(d=>({id:d.id,...d.data()}));
-    console.log(`📦 [INV] Snapshot recibido → ${S.items.length} productos`);
-    if(!S.items.length) seedFirestore();
-    renderInventory(); renderDashboard(); checkAlerts(); setSyncOnline();
-  }, (err)=>{
-    console.error('❌ [INV] onSnapshot error:', err.code, err.message);
-    setSyncOffline();
-  });
-  const u2 = db.collection(COLS.MOV).orderBy('date','desc').limit(80).onSnapshot(snap=>{
-    S.movements = snap.docs.map(d=>({id:d.id,...d.data()}));
-    console.log(`🔄 [MOV] Snapshot recibido → ${S.movements.length} movimientos`);
-    renderMovements(); renderHistory();
-  },(err)=>{ console.warn('⚠️ [MOV] onSnapshot error:', err.code); });
-  const u3 = db.collection(COLS.DEL).orderBy('date','desc').limit(60).onSnapshot(snap=>{
-    S.deliveries = snap.docs.map(d=>({id:d.id,...d.data()}));
-    console.log(`🚚 [DEL] Snapshot recibido → ${S.deliveries.length} entregas`);
-    renderDeliveries(); updateDeliveryBadge();
-  },(err)=>{ console.warn('⚠️ [DEL] onSnapshot error:', err.code); });
-  S.unsubs=[u1,u2,u3];
-  console.log('✅ [LISTENERS] 3 listeners activos (inventario, movimientos, entregas)');
+/* ─── First-admin recovery panel ─── */
+async function _maybeShowRecovery(){
+  if (!S.fbReady) { showRecovery(false); return; }
+  try {
+    const snap = await _fbDb.collection(COLS.USR)
+      .where('role','==','administrator').limit(1).get();
+    showRecovery(snap.empty);
+  } catch(e) {
+    // Blocked by rules = rules are active = admin likely exists → hide
+    console.log('[RECOVERY] Query blocked (rules active) → hiding recovery panel');
+    showRecovery(false);
+  }
 }
-function detachListeners(){ S.unsubs.forEach(u=>{try{u();}catch(e){}}); S.unsubs=[]; }
+function showRecovery(show){
+  document.getElementById('recovery-panel')?.classList.toggle('show', show);
+}
+async function createFirstAdmin(){
+  const btn = document.querySelector('.btn-recovery');
+  const resetBtn = () => { if(btn){ btn.disabled=false; btn.textContent='⭐ Crear primer administrador'; } };
 
-async function seedFirestore(){
-  const db=firebase.firestore(); const batch=db.batch();
-  SEED.forEach(item=>{ const ref=db.collection(COLS.INV).doc(item.id); batch.set(ref,{...item,createdAt:firebase.firestore.FieldValue.serverTimestamp()}); });
-  await batch.commit(); showAlert(t('loading')+' — 12 productos cargados','info');
+  if (!S.fbReady) { showAlert('Firebase no está listo. Recarga la página.','warn'); return; }
+  const email = (document.getElementById('l-email').value || '').trim().toLowerCase();
+  const pass  = (document.getElementById('l-pass').value  || '');
+  if (!email) { showAlert('Ingresa tu email arriba primero','warn'); return; }
+  if (!pass || pass.length < 6) { showAlert('Ingresa una contraseña de al menos 6 caracteres','warn'); return; }
+  if (!isBootstrapAdminEmail(email)) {
+    showAlert('❌ Email no autorizado como admin.\nEmail autorizado: roldanarbella97@gmail.com','danger');
+    return;
+  }
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Configurando...'; }
+
+  try {
+    let cred;
+    try {
+      cred = await _fbAuth.createUserWithEmailAndPassword(email, pass);
+    } catch(ae) {
+      if (ae.code === 'auth/email-already-in-use') {
+        cred = await _fbAuth.signInWithEmailAndPassword(email, pass);
+      } else throw ae;
+    }
+    // Write admin profile
+    await _fbDb.collection(COLS.USR).doc(cred.user.uid).set({
+      uid: cred.user.uid, email,
+      name: cred.user.displayName || email.split('@')[0],
+      role: 'administrator',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      createdBy: 'first_admin_setup',
+      online: true,
+      lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    showAlert('⭐ Administrador configurado. Iniciando sesión...', 'success');
+    // onAuthChanged fires automatically
+  } catch(e) {
+    console.error('[ADMIN-SETUP]', e.code, e.message);
+    const E = {
+      'auth/weak-password':'Contraseña demasiado débil (min 6 chars)',
+      'auth/invalid-email':'Email inválido',
+      'auth/wrong-password':'Contraseña incorrecta para esa cuenta',
+      'auth/operation-not-allowed':'Activa Email/Password en Firebase Console → Authentication → Sign-in method',
+      'auth/network-request-failed':'Sin conexión',
+      'permission-denied':'Firestore Rules bloquean escritura. Despliega las reglas actualizadas.',
+    };
+    showAlert(E[e.code] || 'Error: ' + e.message, 'danger');
+    resetBtn();
+  }
 }
 
-async function updatePresence(online){
-  if(!S.fbReady||!S.user) return;
-  const ref=firebase.firestore().collection(COLS.USR).doc(S.user.uid);
-  await ref.set({name:S.user.name,email:S.user.email,online,lastSeen:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
-  if(online) window.addEventListener('beforeunload',()=>ref.update({online:false}));
+/* ─── Diagnostics ─── */
+function toggleDiag(){
+  const p = document.getElementById('diag-panel');
+  if (!p) return;
+  const show = !p.classList.contains('show');
+  if (show) runDiagnostics();
+  p.classList.toggle('show', show);
+}
+async function runDiagnostics(){
+  const results = [];
+  results.push({ label:'Firebase SDK',    ok:!!window.firebase,    val: window.firebase ? '✓ Cargado' : '✗ No cargado' });
+  results.push({ label:'Firebase Init',   ok:S.fbReady,            val: S.fbReady ? '✓ Inicializado' : '✗ No inicializado' });
+  results.push({ label:'Auth Domain',     ok:FB_CFG.authDomain?.includes('hk-pro'), val: FB_CFG.authDomain || '?' });
+  results.push({ label:'Dominio actual',  ok:['localhost','127.0.0.1','arbellasusa.github.io'].includes(location.hostname),
+                                           val: location.hostname });
+
+  let authOk = false;
+  try { authOk = !!_fbAuth?.app; } catch(e){}
+  results.push({ label:'Firebase Auth',   ok:authOk, val: authOk ? '✓ Activo' : '✗ Error' });
+
+  let fsOk = false;
+  if (S.fbReady && _fbDb) {
+    try { await _fbDb.collection('_ping').limit(1).get(); fsOk = true; } catch(e) { fsOk = e.code !== 'unavailable'; }
+  }
+  results.push({ label:'Firestore',       ok:fsOk, val: fsOk ? '✓ Accesible' : '✗ No accesible' });
+
+  const authUser = _fbAuth?.currentUser;
+  results.push({ label:'Sesión activa',   ok:!!authUser, val: authUser ? '✓ '+authUser.email : '✗ Sin sesión' });
+
+  const fsOnline  = S._firestoreOnline === true;
+  const navOnline = navigator.onLine;
+  results.push({ label:'Conexión',        ok:fsOnline||navOnline, val: fsOnline ? '✓ Firestore Online' : navOnline ? '✓ Navigator Online' : '✗ Offline' });
+  results.push({ label:'jsPDF',           ok:!!window.jspdf,      val: window.jspdf ? '✓ Cargado' : '⚠ No cargado' });
+  results.push({ label:'ROLE_PERMS',      ok:typeof ROLE_PERMS!=='undefined', val: typeof ROLE_PERMS!=='undefined' ? '✓ OK' : '✗ UNDEFINED' });
+
+  const el = document.getElementById('diag-rows');
+  if (el) el.innerHTML = results.map(r =>
+    `<div class="diag-row"><span class="lbl">${r.label}</span><span class="val ${r.ok?'diag-ok':'diag-err'}">${r.val}</span></div>`
+  ).join('');
 }
 
+/* ─── Sync status ─── */
 function setSyncOnline(){
-  // Mark ONLINE whenever Firestore snapshot arrives — independent of navigator.onLine
   S._firestoreOnline = true;
-  document.getElementById('hdr-status-dot').className='status-dot online';
-  document.getElementById('hdr-status-txt').textContent=t('online');
-  console.log('🟢 [CONN] Firestore ONLINE — conexión activa confirmada');
+  document.getElementById('hdr-status-dot').className = 'status-dot online';
+  document.getElementById('hdr-status-txt').textContent = t('online');
+  console.log('🟢 [CONN] Online');
 }
 function setSyncOffline(){
   S._firestoreOnline = false;
-  document.getElementById('hdr-status-dot').className='status-dot offline';
-  document.getElementById('hdr-status-txt').textContent=t('offline');
-  console.warn('🔴 [CONN] Firestore OFFLINE — sin respuesta del servidor');
+  document.getElementById('hdr-status-dot').className = 'status-dot offline';
+  document.getElementById('hdr-status-txt').textContent = t('offline');
+  console.warn('🔴 [CONN] Offline');
 }
-let _connListenersRegistered = false;
-function watchFirestoreConnectivity(){
-  if(_connListenersRegistered) return; // never register twice
-  _connListenersRegistered = true;
-  window.addEventListener('online', () => {
-    console.log('🌐 [CONN] navigator.online');
-    if(S.fbReady && S.user) setSyncOnline();
+
+let _connWatching = false;
+function _initConnectivityWatch(){
+  if (_connWatching) return;
+  _connWatching = true;
+  window.addEventListener('online',  () => { if(S.fbReady && S.user) setSyncOnline();  });
+  window.addEventListener('offline', () => { if(!S._firestoreOnline) setSyncOffline(); });
+}
+
+/* ─── Button helpers ─── */
+function _resetLoginBtn(){
+  const btn = document.getElementById('l-btn');
+  if (!btn) return;
+  btn.disabled = false;
+  btn.innerHTML = '<span data-i="signin">' + t('signin') + '</span>';
+}
+function _setBtnLoading(loading, label){
+  const btn = document.getElementById('l-btn');
+  if (!btn) return;
+  btn.disabled = loading;
+  if (loading) {
+    btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px">'
+      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin 1s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>'
+      + (label || 'Verificando...') + '</span>';
+  } else {
+    btn.innerHTML = '<span data-i="signin">' + t('signin') + '</span>';
+  }
+}
+
+/* ── FIREBASE LISTENERS ── */
+function attachListeners(){
+  if(!S.fbReady || !_fbDb){ console.warn('[LISTENERS] Firebase not ready'); return; }
+  console.log('[LISTENERS] Attaching Firestore listeners...');
+
+  const u1 = _fbDb.collection(COLS.INV).orderBy('name').onSnapshot(snap=>{
+    S.items = snap.docs.map(d=>({id:d.id,...d.data()}));
+    console.log('[INV] snapshot →', S.items.length, 'items');
+    if(!S.items.length) seedFirestore();
+    renderInventory(); renderDashboard(); checkAlerts(); setSyncOnline();
+  }, err=>{ console.error('[INV] snapshot error:', err.code); setSyncOffline(); });
+
+  const u2 = _fbDb.collection(COLS.MOV).orderBy('date','desc').limit(80).onSnapshot(snap=>{
+    S.movements = snap.docs.map(d=>({id:d.id,...d.data()}));
+    console.log('[MOV] snapshot →', S.movements.length);
+    renderMovements(); renderHistory();
+  }, err=>{ console.warn('[MOV] snapshot error:', err.code); });
+
+  const u3 = _fbDb.collection(COLS.DEL).orderBy('date','desc').limit(60).onSnapshot(snap=>{
+    S.deliveries = snap.docs.map(d=>({id:d.id,...d.data()}));
+    console.log('[DEL] snapshot →', S.deliveries.length);
+    renderDeliveries(); updateDeliveryBadge();
+  }, err=>{ console.warn('[DEL] snapshot error:', err.code); });
+
+  S.unsubs = [u1, u2, u3];
+  console.log('[LISTENERS] 3 listeners active');
+}
+function detachListeners(){
+  S.unsubs.forEach(u=>{ try{ u(); }catch(e){} });
+  S.unsubs = [];
+  console.log('[LISTENERS] Detached');
+}
+
+async function seedFirestore(){
+  if(!_fbDb) return;
+  const batch = _fbDb.batch();
+  SEED.forEach(item=>{
+    const ref = _fbDb.collection(COLS.INV).doc(item.id);
+    batch.set(ref, {...item, createdAt:firebase.firestore.FieldValue.serverTimestamp()});
   });
-  window.addEventListener('offline', () => {
-    console.warn('🌐 [CONN] navigator.offline');
-    if(!S._firestoreOnline) setSyncOffline();
-  });
-  console.log('[CONN] Connectivity listeners registered');
+  await batch.commit();
+  showAlert('12 productos de ejemplo cargados','info');
 }
 
 /* ── NAVIGATION ── */
@@ -2372,7 +2210,7 @@ async function adjQty(id,delta){
   const el=document.getElementById('dqty-'+id); if(el) el.textContent=newQty;
   showAlert(delta>0?'+1 '+item.unit:'-1 '+item.unit,'info');
   if(S.fbReady){
-    const db=firebase.firestore();
+    const db=_fbDb;
     await db.collection(COLS.INV).doc(id).update({qty:newQty,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),updatedBy:S.user?.email});
     await db.collection(COLS.MOV).add({productId:id,productName:item.name,type:delta>0?'ENTRADA':'SALIDA',qty:1,responsible:S.user?.name||'Usuario',reason:'Ajuste rápido',date:firebase.firestore.FieldValue.serverTimestamp()});
   } else { item.qty=newQty; saveLocal(); }
@@ -2387,7 +2225,7 @@ async function deleteItem(id){
   try {
     if (S.fbReady) {
       // Soft-delete: mark as archived instead of hard delete
-      await firebase.firestore().collection(COLS.INV).doc(id).update({
+      await _fbDb.collection(COLS.INV).doc(id).update({
         _deleted:      true,
         _deletedAt:    firebase.firestore.FieldValue.serverTimestamp(),
         _deletedBy:    S.user?.uid,
@@ -2465,7 +2303,7 @@ async function saveItem(){
 
   try {
     if (S.fbReady) {
-      const db = firebase.firestore();
+      const db = _fbDb;
       if (editId) {
         await db.collection(COLS.INV).doc(editId).update(data);
         await writeAudit('ITEM_UPDATED', { itemId:editId, name, qty, price });
@@ -2588,7 +2426,7 @@ async function saveMovement(){
 
   try {
     if (S.fbReady) {
-      const db    = firebase.firestore();
+      const db    = _fbDb;
       const batch = db.batch();
       batch.update(db.collection(COLS.INV).doc(productId), {
         qty: newQty,
@@ -2951,7 +2789,7 @@ async function saveDelivery(){
 
   // ── 5. Write to Firestore or localStorage ──
   if(S.fbReady){
-    const db=firebase.firestore(); const batch=db.batch();
+    const db=_fbDb; const batch=db.batch();
     batch.set(db.collection(COLS.DEL).doc(), delivery);
     _deliveryItems.forEach(item=>{
       const inv=S.items.find(i=>i.id===item.productId); if(!inv) return;
@@ -5629,7 +5467,7 @@ function initDHS(){
   // Subscribe to Firestore if available
   if (S.fbReady) {
     console.log('🔥 [DHS] Suscribiendo a Firestore colección:', DHS_COL);
-    firebase.firestore().collection(DHS_COL)
+    _fbDb.collection(DHS_COL)
       .orderBy('name')
       .onSnapshot(snap => {
         DHS.products = snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -5647,7 +5485,7 @@ function initDHS(){
         // Render from localStorage cache if Firestore fails
         if(document.getElementById('pg-dhs')?.classList.contains('active')) renderDHS();
       });
-    firebase.firestore().collection(DHS_PUR)
+    _fbDb.collection(DHS_PUR)
       .orderBy('date','desc').limit(100)
       .onSnapshot(snap => {
         DHS.purchases = snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -5669,7 +5507,7 @@ function initDHS(){
 
 async function autoSeedDHSCatalog(){
   if(!S.fbReady){ console.warn('[DHS] autoSeed: Firebase no listo'); return; }
-  const db = firebase.firestore();
+  const db = _fbDb;
   // Check again to avoid race condition
   const existing = await db.collection(DHS_COL).limit(1).get().catch(()=>null);
   if(existing && !existing.empty){ console.log('[DHS] autoSeed: ya hay productos, cancelando'); renderDHS(); return; }
@@ -5914,7 +5752,7 @@ async function saveDHSReceive(id){
   };
 
   if(S.fbReady){
-    const db=firebase.firestore(), batch=db.batch();
+    const db=_fbDb, batch=db.batch();
     batch.update(db.collection(DHS_COL).doc(id),{
       qty:newQty, cost, purchased:(p.purchased||0)+qty,
       updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
@@ -6005,7 +5843,7 @@ async function saveDHSProduct(){
 
   try {
     if(S.fbReady){
-      const db=firebase.firestore();
+      const db=_fbDb;
       if(editId){
         await db.collection(DHS_COL).doc(editId).update(data);
       } else {
@@ -6030,7 +5868,7 @@ async function saveDHSProduct(){
 async function deleteDHSProduct(id){
   if(!confirm('¿Eliminar este producto DHS?')) return;
   if(S.fbReady){
-    await firebase.firestore().collection(DHS_COL).doc(id).update({
+    await _fbDb.collection(DHS_COL).doc(id).update({
       _deleted:true, _deletedAt:firebase.firestore.FieldValue.serverTimestamp()
     });
   } else {
@@ -6056,7 +5894,7 @@ async function loadDHSCatalog(){
   const now = S.fbReady ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString();
 
   if(S.fbReady){
-    const db=firebase.firestore();
+    const db=_fbDb;
     const chunkSize=400; // Stay well under Firestore 500-op batch limit
     let loaded=0;
     for(let i=0;i<toAdd.length;i+=chunkSize){
@@ -6095,7 +5933,7 @@ function importDHSFile(input){
     const rows=lines.slice(1);
     let added=0,skipped=0;
     const existingSKUs=new Set(DHS.products.map(p=>p.sku));
-    const batch=S.fbReady?firebase.firestore().batch():null;
+    const batch=S.fbReady?_fbDb.batch():null;
     rows.forEach(row=>{
       const vals=row.split(',').map(v=>v.trim().replace(/^["']|["']$/g,''));
       const obj={};
@@ -6118,7 +5956,7 @@ function importDHSFile(input){
         createdAt:S.fbReady?firebase.firestore.FieldValue.serverTimestamp():new Date().toISOString(),
         createdBy:S.user?.uid||'csv_import',
       };
-      if(S.fbReady){ const ref=firebase.firestore().collection(DHS_COL).doc(); batch.set(ref,product); }
+      if(S.fbReady){ const ref=_fbDb.collection(DHS_COL).doc(); batch.set(ref,product); }
       else { product.id='dhs-'+Date.now()+Math.random(); DHS.products.push(product); }
       added++;
     });
@@ -6145,7 +5983,7 @@ function importDHSJSON(input){
       }
       const existingSKUs=new Set(DHS.products.map(p=>p.sku));
       let added=0,skipped=0;
-      const batch=S.fbReady?firebase.firestore().batch():null;
+      const batch=S.fbReady?_fbDb.batch():null;
       data.forEach(p=>{
         if(!p.sku&&!p.name){return;}
         const sku=p.sku||'DHS-'+Date.now()+Math.random();
@@ -6163,7 +6001,7 @@ function importDHSJSON(input){
           createdAt:S.fbReady?firebase.firestore.FieldValue.serverTimestamp():new Date().toISOString(),
           createdBy:S.user?.uid||'json_import',
         };
-        if(S.fbReady){const ref=firebase.firestore().collection(DHS_COL).doc();batch.set(ref,product);}
+        if(S.fbReady){const ref=_fbDb.collection(DHS_COL).doc();batch.set(ref,product);}
         else{product.id='dhs-'+Date.now()+Math.random();DHS.products.push(product);}
         added++;
       });

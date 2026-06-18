@@ -1,221 +1,162 @@
 rules_version = '2';
-// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 //  STOCKPRO v2 — FIRESTORE SECURITY RULES
-//  Hotel Arbellas · Plantation, FL
-//  Project: hk-pro-housekeeping
-//
-//  ARCHITECTURE:
-//  - Anonymous users:     READ NOTHING, WRITE NOTHING
-//  - Authenticated users: READ by role, WRITE only own scope
-//  - Admins:              Full read/write with audit trail
-//  - No client can delete audit logs or override server timestamps
-// ═══════════════════════════════════════════════════════════════════════════
+//  Hotel Arbellas · Plantation, FL · Project: hk-pro-housekeeping
+// ═══════════════════════════════════════════════════════════════
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── HELPER FUNCTIONS ─────────────────────────────────────────────────
+    // ── HELPER FUNCTIONS ─────────────────────────────────────
 
-    // Must be authenticated
     function isAuth() {
       return request.auth != null && request.auth.uid != null;
     }
 
-    // Emails allowed to bootstrap/create the first administrator profile.
-    function isBootstrapAdminEmail() {
+    // Bootstrap admin emails — allowed to self-create/repair admin profile
+    function isBootstrapEmail() {
       return isAuth() && request.auth.token.email in [
         'roldanarbella97@gmail.com',
         'roldanarbella79@myyahoo.com'
       ];
     }
 
-    function isOwnProfile(userId) {
+    function isOwnDoc(userId) {
       return isAuth() && request.auth.uid == userId;
     }
 
-    // Read role from Firestore user profile (set by admin on creation)
+    // Role from Firestore profile (server-side, unforgeable)
     function userRole() {
       return get(/databases/$(database)/documents/stockpro_usuarios/$(request.auth.uid)).data.role;
     }
 
-    // Role checks
-    function isAdmin()     { return isAuth() && userRole() == 'administrator'; }
-    function isManager()   { return isAuth() && userRole() == 'warehouse_manager'; }
-    function isSupervisor(){ return isAuth() && userRole() == 'supervisor'; }
-    function isHK()        { return isAuth() && userRole() == 'housekeeping'; }
+    function isAdmin()      { return isAuth() && userRole() == 'administrator'; }
+    function isManager()    { return isAuth() && userRole() == 'warehouse_manager'; }
+    function isSupervisor() { return isAuth() && userRole() == 'supervisor'; }
+    function isHK()         { return isAuth() && userRole() == 'housekeeping'; }
 
-    // Any authorized staff (all roles)
     function isStaff() {
       return isAuth() && userRole() in ['administrator','warehouse_manager','supervisor','housekeeping'];
     }
-
-    // Can write inventory (admin + warehouse manager only)
     function canWriteInventory() {
       return isAuth() && userRole() in ['administrator','warehouse_manager'];
     }
-
-    // Can register movements (admin + warehouse manager + supervisor)
     function canWriteMovements() {
       return isAuth() && userRole() in ['administrator','warehouse_manager','supervisor'];
     }
 
-    // Enforce server timestamp on write — prevents client time manipulation
     function hasServerTimestamp(field) {
       return request.resource.data[field] == request.time;
     }
-
-    // Enforce immutable audit fields — can't be changed after creation
     function auditFieldsUnchanged() {
       return !request.resource.data.diff(resource.data).affectedKeys()
                .hasAny(['createdAt','createdBy','_audit']);
     }
 
-    // Validate string is non-empty and under max length
-    function validStr(field, maxLen) {
-      return request.resource.data[field] is string &&
-             request.resource.data[field].size() > 0 &&
-             request.resource.data[field].size() <= maxLen;
-    }
-
-    // Validate positive number
-    function validPositiveNum(field) {
-      return request.resource.data[field] is number &&
-             request.resource.data[field] >= 0;
-    }
-
-    // ── USER PROFILES ────────────────────────────────────────────────────
+    // ── USER PROFILES ────────────────────────────────────────
     match /stockpro_usuarios/{userId} {
-      // Any staff can read profiles; also allow COUNT query for first-admin check
-      allow read: if isStaff() || (isAuth() && request.auth.uid == userId);
 
-      // Own profile creation only. Regular users can only self-register as
-      // housekeeping. Bootstrap admin emails can create their own admin profile.
-      allow create: if isOwnProfile(userId)
+      // KEY FIX: authenticated users can ALWAYS read their OWN profile document,
+      // even when it doesn't exist yet (get() returns false on exists check).
+      // This allows onAuthStateChanged to check profileDoc.exists safely.
+      allow read: if isOwnDoc(userId) || isStaff();
+
+      // New profile creation:
+      //   - Bootstrap emails → can create as 'administrator'
+      //   - Everyone else   → can only create as 'housekeeping'
+      allow create: if isOwnDoc(userId)
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.email == request.auth.token.email
         && (
           request.resource.data.role == 'housekeeping'
-          || (isBootstrapAdminEmail() && request.resource.data.role == 'administrator')
+          || (isBootstrapEmail() && request.resource.data.role == 'administrator')
         );
 
-      // Users update their own presence/name only.
-      // Bootstrap admin emails can also self-repair their role to 'administrator'.
-      // Full admin can manage all profiles.
-      allow update: if (
-          isOwnProfile(userId)
-          && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['online','lastSeen','name'])
-        )
-        || (
-          isOwnProfile(userId)
-          && isBootstrapAdminEmail()
-          && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['role','_roleFixedAt'])
-          && request.resource.data.role == 'administrator'
+      // Profile updates:
+      //   - Own presence/name only (online, lastSeen, name)
+      //   - Bootstrap admin can also self-repair role → 'administrator'
+      //   - Admin can update any profile
+      allow update: if isOwnDoc(userId) && (
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['online','lastSeen','name'])
+          ||
+          (isBootstrapEmail()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['role','_roleFix'])
+            && request.resource.data.role == 'administrator')
         )
         || isAdmin();
 
-      // Only admin can delete profiles
       allow delete: if isAdmin();
     }
 
-    // ── INVENTORY ────────────────────────────────────────────────────────
+    // ── INVENTORY ────────────────────────────────────────────
     match /stockpro_inventario/{itemId} {
-      // Any staff can read inventory
       allow read: if isStaff();
 
-      // Only warehouse manager or admin can create items
       allow create: if canWriteInventory()
-        && validStr('name', 200)
-        && validStr('sku', 50)
-        && validStr('barcode', 100)
-        && validPositiveNum('qty')
-        && validPositiveNum('price')
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.qty is number
+        && request.resource.data.qty >= 0
         && hasServerTimestamp('createdAt')
         && request.resource.data.createdBy == request.auth.uid;
 
-      // Update: manager/admin can update; housekeeping CANNOT
       allow update: if canWriteInventory()
         && auditFieldsUnchanged()
-        && validStr('name', 200)
-        && validPositiveNum('qty')
-        && validPositiveNum('price')
+        && request.resource.data.qty is number
+        && request.resource.data.qty >= 0
         && hasServerTimestamp('updatedAt')
         && request.resource.data.updatedBy == request.auth.uid;
 
-      // Only admin can delete (soft-delete preferred)
       allow delete: if isAdmin();
     }
 
-    // ── MOVEMENTS (APPEND-ONLY) ───────────────────────────────────────────
+    // ── MOVEMENTS (append-only) ───────────────────────────────
     match /stockpro_movimientos/{movId} {
-      // Any staff can read movements
-      allow read: if isStaff();
-
-      // Any authorized staff can create movement records
+      allow read:   if isStaff();
       allow create: if canWriteMovements()
         && request.resource.data.type in ['ENTRADA','SALIDA','AJUSTE']
-        && validStr('productName', 200)
-        && validPositiveNum('qty')
+        && request.resource.data.qty is number
         && request.resource.data.qty > 0
         && hasServerTimestamp('date')
         && request.resource.data.createdBy == request.auth.uid;
-
-      // NO updates or deletes — movements are immutable audit records
-      allow update: if false;
-      allow delete: if false;
+      allow update, delete: if false;
     }
 
-    // ── DELIVERIES ────────────────────────────────────────────────────────
+    // ── DELIVERIES ────────────────────────────────────────────
     match /stockpro_deliveries/{delId} {
-      // Staff can read deliveries
-      allow read: if isStaff();
-
-      // Manager, supervisor, or admin can create deliveries
+      allow read:   if isStaff();
       allow create: if canWriteMovements()
-        && validStr('roomNumber', 20)
-        && hasServerTimestamp('date')
+        && request.resource.data.roomNumber is string
         && request.resource.data.createdBy == request.auth.uid;
-
-      // No updates or deletes — deliveries are immutable records
-      allow update: if false;
-      allow delete: if false;
+      allow update, delete: if false;
     }
 
-    // ── AUDIT LOG (WRITE-ONCE) ────────────────────────────────────────────
+    // ── AUDIT LOG (write-once) ────────────────────────────────
     match /stockpro_audit/{logId} {
-      // Only admin can read audit logs
-      allow read: if isAdmin();
-
-      // Any staff can create audit entries (append-only)
+      allow read:   if isAdmin();
       allow create: if isStaff()
         && hasServerTimestamp('timestamp')
         && request.resource.data.uid == request.auth.uid;
-
-      // Audit logs can NEVER be modified or deleted
-      allow update: if false;
-      allow delete: if false;
+      allow update, delete: if false;
     }
 
-    // ── BACKUPS ───────────────────────────────────────────────────────────
+    // ── BACKUPS ───────────────────────────────────────────────
     match /stockpro_backups/{backupId} {
-      // Only admin can read or create backups
       allow read, create: if isAdmin();
       allow update, delete: if false;
     }
 
-    // ── DAILY SNAPSHOTS ───────────────────────────────────────────────────
+    // ── SNAPSHOTS ─────────────────────────────────────────────
     match /stockpro_snapshots/{snapId} {
-      allow read: if isStaff();
-      allow create: if canWriteInventory()
-        && hasServerTimestamp('savedAt');
-      allow update: if canWriteInventory()
-        && auditFieldsUnchanged();
+      allow read:   if isStaff();
+      allow create: if canWriteInventory() && hasServerTimestamp('savedAt');
+      allow update: if canWriteInventory() && auditFieldsUnchanged();
       allow delete: if false;
     }
 
-
-    // ── DHS SUPPLIER PRODUCTS ─────────────────────────────────────────────────
+    // ── DHS SUPPLIER ─────────────────────────────────────────
     match /stockpro_dhs_products/{id} {
       allow read:   if isStaff();
       allow create: if canWriteInventory()
@@ -226,20 +167,19 @@ service cloud.firestore {
     match /stockpro_dhs_purchases/{id} {
       allow read:   if isStaff();
       allow create: if canWriteInventory()
-        && hasServerTimestamp('date')
         && request.resource.data.createdBy == request.auth.uid;
       allow update, delete: if false;
     }
 
-    // ── SHARED WITH HK PRO ENTERPRISE ────────────────────────────────────
-    match /solicitudes/{id}       { allow read, write: if isStaff(); }
-    match /productosHydeHouse/{id}{ allow read: if isStaff(); allow write: if canWriteInventory(); }
-    match /incidencias/{id}       { allow read, write: if isStaff(); }
-    match /habitaciones/{id}      { allow read, write: if isStaff(); }
-    match /mensajes/{id}          { allow read, write: if isStaff(); }
-    match /usuarios/{id}          { allow read, write: if isStaff(); }
+    // ── SHARED (HK Pro Enterprise) ────────────────────────────
+    match /solicitudes/{id}        { allow read, write: if isStaff(); }
+    match /productosHydeHouse/{id} { allow read: if isStaff(); allow write: if canWriteInventory(); }
+    match /incidencias/{id}        { allow read, write: if isStaff(); }
+    match /habitaciones/{id}       { allow read, write: if isStaff(); }
+    match /mensajes/{id}           { allow read, write: if isStaff(); }
+    match /usuarios/{id}           { allow read, write: if isStaff(); }
 
-    // ── DEFAULT: DENY EVERYTHING ELSE ─────────────────────────────────────
+    // ── DEFAULT: DENY ALL ─────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
     }
