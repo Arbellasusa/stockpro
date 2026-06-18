@@ -73,19 +73,21 @@ service cloud.firestore {
 
     // ── USER PROFILES ────────────────────────────────────────────────────
     match /stockpro_usuarios/{userId} {
-      // Any staff can read user profiles (for display names, roles)
-      allow read: if isStaff();
+      // Any staff can read profiles; also allow COUNT query for first-admin check
+      allow read: if isStaff() || (isAuth() && request.auth.uid == userId);
 
-      // Users can update their own presence/lastSeen only
+      // FIRST INSTALL: authenticated user can create their OWN profile
+      // if no admin exists yet — enforced by app logic, not rules
+      allow create: if isAuth() && request.auth.uid == userId;
+
+      // Users update their own presence only
       allow update: if isAuth() && request.auth.uid == userId
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['online','lastSeen','name']);
+             .hasOnly(['online','lastSeen','name'])
+        || isAdmin();
 
-      // Only admin can create/delete user profiles
-      allow create, delete: if isAdmin();
-
-      // Admin can update anything
-      allow update: if isAdmin();
+      // Only admin can delete profiles
+      allow delete: if isAdmin();
     }
 
     // ── INVENTORY ────────────────────────────────────────────────────────

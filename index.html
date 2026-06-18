@@ -36,129 +36,7 @@
   --r:12px;--r2:8px;--r3:6px;
   --topbar:56px;--header:72px;--bottomnav:64px;
   --safe:env(safe-area-inset-bottom,0px);
-}<script>
-const FIRST_ADMIN_EMAIL = "roldanarbella97@gmail.com";
-
-const firebaseConfig = {
-  apiKey: "TU_API_KEY",
-  authDomain: "hk-pro-housekeeping.firebaseapp.com",
-  projectId: "hk-pro-housekeeping",
-  storageBucket: "hk-pro-housekeeping.appspot.com",
-  messagingSenderId: "TU_SENDER_ID",
-  appId: "TU_APP_ID"
-};
-
-firebase.initializeApp(firebaseConfig);
-
-const auth = firebase.auth();
-const db = firebase.firestore();
-
-const loginEmail = document.getElementById("email");
-const loginPassword = document.getElementById("password");
-const loginBtn = document.getElementById("loginBtn");
-const googleBtn = document.getElementById("googleLoginBtn");
-const errorBox = document.getElementById("loginError");
-
-function showError(msg) {
-  if (errorBox) {
-    errorBox.innerText = msg;
-    errorBox.style.display = "block";
-  }
-  console.error(msg);
 }
-
-function showApp() {
-  document.getElementById("loginScreen").style.display = "none";
-  document.getElementById("appScreen").style.display = "block";
-}
-
-function showLogin() {
-  document.getElementById("loginScreen").style.display = "block";
-  document.getElementById("appScreen").style.display = "none";
-}
-
-async function createFirstAdmin(user) {
-  const ref = db.collection("stockpro_usuarios").doc(user.uid);
-
-  await ref.set({
-    uid: user.uid,
-    email: user.email,
-    name: "Arbella Roldan",
-    role: "administrator",
-    status: "active",
-    permissions: {
-      inventory: true,
-      reports: true,
-      users: true,
-      audit: true,
-      admin: true
-    },
-    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
-
-  return true;
-}
-
-auth.onAuthStateChanged(async (user) => {
-  if (!user) {
-    showLogin();
-    return;
-  }
-
-  try {
-    const userRef = db.collection("stockpro_usuarios").doc(user.uid);
-    const snap = await userRef.get();
-
-    if (!snap.exists) {
-      if (user.email.toLowerCase() === FIRST_ADMIN_EMAIL.toLowerCase()) {
-        await createFirstAdmin(user);
-        alert("Administrador creado correctamente. La app se recargará.");
-        location.reload();
-        return;
-      } else {
-        await auth.signOut();
-        showError("Usuario autenticado, pero no autorizado para StockPro.");
-        return;
-      }
-    }
-
-    const profile = snap.data();
-
-    if (profile.status !== "active") {
-      await auth.signOut();
-      showError("Usuario inactivo o bloqueado.");
-      return;
-    }
-
-    window.stockproUser = profile;
-    showApp();
-
-  } catch (error) {
-    showError("Error de login: " + error.message);
-  }
-});
-
-loginBtn.addEventListener("click", async () => {
-  try {
-    await auth.signInWithEmailAndPassword(
-      loginEmail.value.trim(),
-      loginPassword.value.trim()
-    );
-  } catch (error) {
-    showError("Login error: " + error.message);
-  }
-});
-
-googleBtn.addEventListener("click", async () => {
-  try {
-    const provider = new firebase.auth.GoogleAuthProvider();
-    await auth.signInWithPopup(provider);
-  } catch (error) {
-    showError("Google login error: " + error.message);
-  }
-});
-</script>
 html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:16px;background:var(--bg);color:var(--text)}
 button{cursor:pointer;font-family:inherit}
 input,select,textarea{font-family:inherit;font-size:inherit}
@@ -518,6 +396,28 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 .cal-empty-day{text-align:center;padding:24px 16px;color:var(--text3);font-size:13px}
 .cal-snapshot-badge{background:#E6F9F1;border:1px solid #A7E3C8;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:600;color:#0E6B45}
 
+
+/* ── RECOVERY / FIRST ADMIN ──────────────────────────── */
+.recovery-panel{background:#FFF8E6;border:2px solid #F4A623;border-radius:var(--r);padding:16px;margin-top:14px;display:none}
+.recovery-panel.show{display:block}
+.recovery-panel h4{font-size:14px;font-weight:700;color:#7B4F00;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.recovery-panel p{font-size:12px;color:#7B4F00;margin-bottom:12px;line-height:1.5}
+.btn-recovery{width:100%;padding:12px;background:#F4A623;color:#1A2B4A;border:none;border-radius:var(--r2);font-size:14px;font-weight:700;margin-bottom:8px;cursor:pointer}
+.btn-recovery:active{background:#E8920F}
+.btn-recovery-ghost{width:100%;padding:10px;background:transparent;color:#B45309;border:1.5px solid #F4A623;border-radius:var(--r2);font-size:13px;font-weight:600;cursor:pointer}
+.diag-panel{background:#1A2B4A;border-radius:var(--r);padding:14px;margin-top:12px;display:none}
+.diag-panel.show{display:block}
+.diag-panel h4{color:#F4A623;font-size:13px;font-weight:700;margin-bottom:8px}
+.diag-row{display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)}
+.diag-row .lbl{color:rgba(255,255,255,.6)}
+.diag-row .val{font-weight:600}
+.diag-ok{color:#1FAD6E}.diag-err{color:#E5383B}.diag-warn{color:#F4A623}
+
+
+/* ── LOGIN DISPLAY FIX ─── */
+#login { display: flex; }
+#login.hidden-login { display: none !important; }
+
 </style>
 </head>
 <body>
@@ -538,7 +438,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 </div>
 
 <!-- LOGIN -->
-<div id="login" class="hidden">
+<div id="login">
   <div class="login-wrap">
     <div class="login-logo">
       <svg width="60" height="60" viewBox="0 0 64 64" fill="none">
@@ -563,12 +463,35 @@ input,select,textarea{font-family:inherit;font-size:inherit}
       <div class="fg"><label data-i="password">Contraseña</label><input type="password" id="l-pass" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <button class="btn-primary" id="l-btn" style="width:100%;margin-top:6px" onclick="doLogin()"><span data-i="signin">Iniciar sesión</span></button>
       <div id="l-err" class="err-msg hidden"></div>
+      <div style="text-align:center;margin-top:8px">
+        <button onclick="toggleDiag()" style="background:none;border:none;color:var(--blue2);font-size:12px;cursor:pointer;text-decoration:underline">
+          🔍 Diagnóstico del sistema
+        </button>
+      </div>
       <div class="divider" data-i="or">o</div>
       <button class="btn-google" onclick="doGoogleLogin()">
         <svg width="18" height="18" viewBox="0 0 18 18"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/><path d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.174 0 7.548 0 9s.348 2.826.957 4.039l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z" fill="#EA4335"/></svg>
         <span data-i="continue_google">Continuar con Google</span>
       </button>
       <div class="login-foot" data-i="team_access">Acceso para equipo de Hotel Arbellas</div>
+
+      <!-- RECOVERY / FIRST ADMIN PANEL -->
+      <div class="recovery-panel" id="recovery-panel">
+        <h4>🔧 ¿Primera instalación?</h4>
+        <p>No se detectó ningún administrador. Puedes crear el primer perfil de admin automáticamente.</p>
+        <button class="btn-recovery" onclick="createFirstAdmin()">
+          ⭐ Crear primer administrador
+        </button>
+        <button class="btn-recovery-ghost" onclick="toggleDiag()">
+          🔍 Ver diagnóstico del sistema
+        </button>
+      </div>
+
+      <!-- DIAGNOSTIC PANEL -->
+      <div class="diag-panel" id="diag-panel">
+        <h4>🔍 Diagnóstico StockPro</h4>
+        <div id="diag-rows"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -1069,10 +992,21 @@ const FB_CFG = {
   measurementId:     "G-LE47VEBJNY"
 };
 const COLS = {
-  INV:  'stockpro_inventario',
-  MOV:  'stockpro_movimientos',
-  DEL:  'stockpro_deliveries',
-  USR:  'stockpro_usuarios',
+  INV:       'stockpro_inventario',
+  MOV:       'stockpro_movimientos',
+  DEL:       'stockpro_deliveries',
+  USR:       'stockpro_usuarios',
+  AUDIT:     'stockpro_audit',
+  SNAPSHOTS: 'stockpro_snapshots',
+  BACKUPS:   'stockpro_backups',
+};
+
+// Role permissions matrix — defined here so SEC module always finds it
+const ROLE_PERMS = {
+  administrator:     { read:true, writeInv:true,  writeMov:true,  writeUsers:true,  readAudit:true  },
+  warehouse_manager: { read:true, writeInv:true,  writeMov:true,  writeUsers:false, readAudit:false },
+  supervisor:        { read:true, writeInv:false, writeMov:true,  writeUsers:false, readAudit:false },
+  housekeeping:      { read:true, writeInv:false, writeMov:false, writeUsers:false, readAudit:false },
 };
 
 
@@ -1372,6 +1306,23 @@ const S = {
 };
 
 /* ── INIT ── */
+// Global error handler — prevents blank screen on any JS error
+window.addEventListener('error', (e) => {
+  console.error('Global error:', e.error);
+  // If login screen is hidden and app failed, show login
+  const login = document.getElementById('login');
+  const app   = document.getElementById('app');
+  if (login && app) {
+    const loginHidden = login.classList.contains('hidden-login') || login.style.display==='none';
+    const appHidden   = app.classList.contains('hidden');
+    if (loginHidden && appHidden) {
+      // Both hidden = blank screen → recover
+      login.classList.remove('hidden-login');
+      login.style.display = 'flex';
+    }
+  }
+});
+
 window.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => {
     document.getElementById('splash').classList.add('out');
@@ -1385,58 +1336,135 @@ window.addEventListener('DOMContentLoaded', () => {
 async function startApp(){
   setLang(LANG);
   startClock();
-  if (!window.firebase){ fallbackOffline(); return; }
+
+  // ── Always show login screen first (safety net) ──────────────
+  showLogin();
+
+  // ── Run diagnostics in background ─────────────────────────────
+  setTimeout(runDiagnostics, 800);
+
+  if (!window.firebase) {
+    fallbackOffline();
+    return;
+  }
+
   try {
-    const app = firebase.apps.length ? firebase.apps[0] : firebase.initializeApp(FB_CFG);
-    const db = firebase.firestore(app);
+    const app  = firebase.apps.length ? firebase.apps[0] : firebase.initializeApp(FB_CFG);
+    const db   = firebase.firestore(app);
     const auth = firebase.auth(app);
-    S.fbReady = true;
+    S.fbReady  = true;
     console.log('✅ Firebase inicializado — hk-pro-housekeeping');
+
     auth.onAuthStateChanged(async user => {
       if (user) {
-        // Load role from Firestore — never trust client-side role claims
         try {
+          // ── Load role from Firestore ────────────────────────────
           const profileDoc = await firebase.firestore()
             .collection(COLS.USR).doc(user.uid).get();
-          const profile = profileDoc.exists ? profileDoc.data() : {};
-          const role = profile.role || 'housekeeping'; // default least-privilege
-          S.user = {
-            uid:      user.uid,
-            email:    user.email,
-            name:     user.displayName || profile.name || user.email.split('@')[0],
-            initials: (user.displayName||user.email)[0].toUpperCase(),
-            role,
-          };
-        } catch(e) {
-          // If profile fetch fails, assign minimum role
+
+          if (!profileDoc.exists) {
+            // ── NEW USER: no profile yet ─────────────────────────
+            // Check if ANY admin exists in system
+            const adminCheck = await firebase.firestore()
+              .collection(COLS.USR)
+              .where('role','==','administrator')
+              .limit(1).get();
+
+            if (adminCheck.empty) {
+              // ── FIRST ADMIN: auto-create with full access ───────
+              const adminProfile = {
+                uid:         user.uid,
+                email:       user.email,
+                name:        user.displayName || user.email.split('@')[0],
+                role:        'administrator',
+                createdAt:   firebase.firestore.FieldValue.serverTimestamp(),
+                createdBy:   'first_admin_auto',
+                online:      true,
+                lastSeen:    firebase.firestore.FieldValue.serverTimestamp(),
+              };
+              await firebase.firestore()
+                .collection(COLS.USR).doc(user.uid).set(adminProfile);
+              S.user = { ...adminProfile, initials: (user.email[0]||'A').toUpperCase() };
+              showAlert('⭐ Primer administrador creado automáticamente', 'success');
+            } else {
+              // ── NEW STAFF: create with minimum role ─────────────
+              const newProfile = {
+                uid:       user.uid,
+                email:     user.email,
+                name:      user.displayName || user.email.split('@')[0],
+                role:      'housekeeping',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                createdBy: 'self_register',
+                online:    true,
+                lastSeen:  firebase.firestore.FieldValue.serverTimestamp(),
+              };
+              await firebase.firestore()
+                .collection(COLS.USR).doc(user.uid).set(newProfile);
+              S.user = { ...newProfile, initials: (user.email[0]||'U').toUpperCase() };
+              showAlert('👤 Perfil creado — rol asignado por administrador', 'info');
+            }
+          } else {
+            // ── EXISTING USER: load profile ──────────────────────
+            const profile = profileDoc.data();
+            S.user = {
+              uid:      user.uid,
+              email:    user.email,
+              name:     user.displayName || profile.name || user.email.split('@')[0],
+              initials: (user.displayName || user.email)[0].toUpperCase(),
+              role:     profile.role || 'housekeeping',
+            };
+            // Update online status
+            firebase.firestore().collection(COLS.USR).doc(user.uid).update({
+              online: true, lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+            }).catch(()=>{});
+          }
+        } catch(profileErr) {
+          console.warn('Profile load failed:', profileErr.message);
+          // Graceful fallback: warehouse_manager (can at least use app)
           S.user = {
             uid:      user.uid,
             email:    user.email,
             name:     user.email.split('@')[0],
             initials: user.email[0].toUpperCase(),
-            role:     'housekeeping',
+            role:     'warehouse_manager',
           };
         }
+
+        hideLogin();
+        document.getElementById('app').classList.remove('hidden');
         showApp();
         attachListeners();
         applyRoleUI();
         scheduleDailyBackup();
-        writeAudit('LOGIN', { method: 'email' });
+        writeAudit('LOGIN', { method: 'firebase' });
         updatePresence(true);
+
       } else {
+        // ── NOT LOGGED IN ────────────────────────────────────────
         detachListeners();
         showLogin();
+        checkFirstAdminNeeded();
       }
     });
-  } catch(e) { console.error(e); fallbackOffline(); }
+
+  } catch(e) {
+    console.error('Firebase init error:', e);
+    showAlert('Firebase no disponible — modo offline', 'warn');
+    fallbackOffline();
+  }
 }
 
 function fallbackOffline(){
   S.fbReady = false;
-  const saved = localStorage.getItem('sp_items');
-  S.items = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(SEED));
-  const sm = localStorage.getItem('sp_movements'); S.movements = sm ? JSON.parse(sm) : [];
-  const sd = localStorage.getItem('sp_deliveries'); S.deliveries = sd ? JSON.parse(sd) : [];
+  try {
+    const saved = localStorage.getItem('sp_items');
+    S.items = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(SEED));
+    const sm = localStorage.getItem('sp_movements'); S.movements = sm ? JSON.parse(sm) : [];
+    const sd = localStorage.getItem('sp_deliveries'); S.deliveries = sd ? JSON.parse(sd) : [];
+  } catch(e) {
+    S.items = JSON.parse(JSON.stringify(SEED));
+    S.movements = []; S.deliveries = [];
+  }
   showLogin();
 }
 function saveLocal(){
@@ -1461,6 +1489,176 @@ function startClock(){
 function showLogin(){ document.getElementById('login').classList.remove('hidden'); }
 function hideLogin(){ document.getElementById('login').classList.add('hidden'); }
 
+/* ════════════════════════════════════════════════════
+   RECOVERY MODE — First Admin + Diagnostics
+   ════════════════════════════════════════════════════ */
+
+async function checkFirstAdminNeeded(){
+  if (!S.fbReady) { showRecovery(true); return; }
+  try {
+    const snap = await firebase.firestore()
+      .collection(COLS.USR).where('role','==','administrator').limit(1).get();
+    if (snap.empty) {
+      showRecovery(true);
+    } else {
+      showRecovery(false);
+    }
+  } catch(e) {
+    // Firestore rules may block this check for unauthenticated users
+    // Show recovery panel as safe fallback
+    showRecovery(true);
+  }
+}
+
+function showRecovery(show){
+  const panel = document.getElementById('recovery-panel');
+  if (panel) panel.classList.toggle('show', show);
+}
+
+async function createFirstAdmin(){
+  if (!S.fbReady) {
+    showAlert('Firebase requerido para crear administrador. Verifica conexión.','warn');
+    return;
+  }
+  const email = document.getElementById('l-email').value.trim();
+  const pass  = document.getElementById('l-pass').value;
+  if (!email || !pass) {
+    showAlert('Ingresa email y contraseña primero, luego haz clic aquí','warn');
+    return;
+  }
+  if (pass.length < 6) {
+    showAlert('La contraseña debe tener al menos 6 caracteres','warn');
+    return;
+  }
+
+  const btn = document.querySelector('.btn-recovery');
+  if (btn) { btn.textContent = '⏳ Creando...'; btn.disabled = true; }
+
+  try {
+    // Create Firebase Auth account
+    let userCred;
+    try {
+      userCred = await firebase.auth().createUserWithEmailAndPassword(email, pass);
+    } catch(authErr) {
+      if (authErr.code === 'auth/email-already-in-use') {
+        // User already exists in Auth — just sign them in
+        userCred = await firebase.auth().signInWithEmailAndPassword(email, pass);
+      } else {
+        throw authErr;
+      }
+    }
+
+    const uid = userCred.user.uid;
+
+    // Create admin profile in Firestore
+    await firebase.firestore().collection(COLS.USR).doc(uid).set({
+      uid, email,
+      name:      email.split('@')[0],
+      role:      'administrator',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      createdBy: 'first_admin_setup',
+      online:    true,
+      lastSeen:  firebase.firestore.FieldValue.serverTimestamp(),
+    });
+
+    showAlert('⭐ Administrador creado. Iniciando sesión...', 'success');
+    // Auth state change will trigger automatic login
+  } catch(e) {
+    const msgs = {
+      'auth/weak-password':        'Contraseña débil (mínimo 6 caracteres)',
+      'auth/invalid-email':        'Email inválido',
+      'auth/operation-not-allowed':'Activa Email/Password en Firebase Console → Authentication',
+      'auth/network-request-failed':'Sin conexión a internet',
+      'auth/wrong-password':       'Contraseña incorrecta para este email',
+    };
+    showAlert(msgs[e.code] || ('Error: ' + e.message), 'danger');
+    if (btn) { btn.textContent = '⭐ Crear primer administrador'; btn.disabled = false; }
+  }
+}
+
+function toggleDiag(){
+  const panel = document.getElementById('diag-panel');
+  if (!panel) return;
+  const showing = panel.classList.contains('show');
+  if (!showing) runDiagnostics();
+  panel.classList.toggle('show', !showing);
+}
+
+async function runDiagnostics(){
+  const results = [];
+
+  // Firebase SDK loaded?
+  results.push({
+    label: 'Firebase SDK',
+    ok: !!window.firebase,
+    val: window.firebase ? '✓ Cargado' : '✗ No cargado'
+  });
+
+  // Firebase initialized?
+  results.push({
+    label: 'Firebase Init',
+    ok: S.fbReady,
+    val: S.fbReady ? '✓ Conectado' : '✗ No inicializado'
+  });
+
+  // Firebase Auth?
+  let authOk = false;
+  try { authOk = !!firebase.auth().app; } catch(e){}
+  results.push({ label:'Firebase Auth', ok:authOk, val: authOk?'✓ Activo':'✗ Error' });
+
+  // Firestore accessible?
+  let fsOk = false;
+  if (S.fbReady) {
+    try {
+      await firebase.firestore().collection(COLS.USR)
+        .where('role','==','administrator').limit(1).get();
+      fsOk = true;
+    } catch(e) { fsOk = false; }
+  }
+  results.push({ label:'Firestore Rules', ok:fsOk, val: fsOk?'✓ Accesible':'⚠ Bloqueado (normal sin login)' });
+
+  // localStorage?
+  let lsOk = false;
+  try { localStorage.setItem('_test','1'); localStorage.removeItem('_test'); lsOk=true; } catch(e){}
+  results.push({ label:'localStorage', ok:lsOk, val: lsOk?'✓ Disponible':'✗ Bloqueado' });
+
+  // ZXing scanner?
+  results.push({ label:'Escáner ZXing', ok:!!window.ZXing, val: window.ZXing?'✓ Cargado':'⚠ No cargado' });
+
+  // jsPDF?
+  results.push({ label:'jsPDF', ok:!!window.jspdf, val: window.jspdf?'✓ Cargado':'⚠ No cargado (PDF limitado)' });
+
+  // ROLE_PERMS?
+  results.push({ label:'ROLE_PERMS', ok:typeof ROLE_PERMS!=='undefined', val: typeof ROLE_PERMS!=='undefined'?'✓ Definido':'✗ UNDEFINED' });
+
+  // User logged in?
+  const authUser = S.fbReady ? firebase.auth().currentUser : null;
+  results.push({ label:'Sesión activa', ok:!!authUser, val: authUser?'✓ '+authUser.email:'✗ Sin sesión' });
+
+  // Internet connection?
+  results.push({ label:'Conexión', ok:navigator.onLine, val: navigator.onLine?'✓ Online':'✗ Offline' });
+
+  // Render diagnostics
+  const el = document.getElementById('diag-rows');
+  if (el) {
+    el.innerHTML = results.map(r => `
+      <div class="diag-row">
+        <span class="lbl">${r.label}</span>
+        <span class="val ${r.ok?'diag-ok':'diag-err'}">${r.val}</span>
+      </div>`).join('');
+  }
+}
+
+// showLogin & hideLogin helpers
+function showLogin(){
+  document.getElementById('login').classList.remove('hidden-login');
+  document.getElementById('app').classList.add('hidden');
+}
+function hideLogin(){
+  document.getElementById('login').classList.add('hidden-login');
+}
+
+
 function doLogin(){
   const email = document.getElementById('l-email').value.trim();
   const pass  = document.getElementById('l-pass').value;
@@ -1478,8 +1676,11 @@ function doLogin(){
   });
 }
 function doGoogleLogin(){
-  if(!S.fbReady||!window.firebase){ showErr('Firebase no disponible'); return; }
-  firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(err=>showErr(err.message));
+  if(!S.fbReady||!window.firebase){ showErr('Firebase no disponible — usa email/contraseña'); return; }
+  firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(err=>{
+    showErr(err.message);
+    checkFirstAdminNeeded();
+  });
 }
 function doLogout(){
   if(!confirm('¿'+t('logout')+'?')) return;
