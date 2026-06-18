@@ -1,0 +1,31 @@
+STOCKPRO LOGIN FIX v2
+
+CAUSA CORREGIDA:
+La app intentaba consultar todos los usuarios para saber si existía un administrador antes de que el usuario tuviera perfil/rol en Firestore. Con reglas seguras, esa consulta se bloquea y el login queda atascado.
+
+ARCHIVOS A SUBIR A GITHUB:
+1. index.html
+2. firebase-config.js
+3. admin-setup.js
+4. SECURITY.md
+
+ARCHIVO A PEGAR EN FIREBASE:
+1. firestore.rules
+   Firebase Console > Firestore Database > Rules > Publish
+
+IMPORTANTE:
+- En Firebase Authentication > Sign-in method, activa Email/Password.
+- En Firebase Authentication > Settings > Authorized domains, agrega:
+  arbellasusa.github.io
+  localhost
+- Correos autorizados para primer administrador:
+  roldanarbella97@gmail.com
+  roldanarbella79@myyahoo.com
+
+PRUEBA:
+1. Sube los archivos a GitHub.
+2. Publica firestore.rules en Firebase.
+3. Abre la app en incógnito.
+4. Usa un correo admin autorizado.
+5. Si el usuario ya existe en Firebase Auth, usa su contraseña correcta.
+6. Si no existe, crea el usuario en Firebase Authentication o usa el botón de primera instalación.

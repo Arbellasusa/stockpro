@@ -1179,7 +1179,7 @@ const SEC = {
   sanitize(str) {
     if (typeof str !== 'string') return String(str||'');
     return str
-      .replace(/[<>'"&\\]/g, c => ({'<':'','>'':'','"':'','\'':'','&':'','\\':''}[c]))
+      .replace(/[<>'"&\\]/g, c => ({ '<':'', '>':'', '"':'', "'":'', '&':'', '\\':'' }[c]))
       .trim()
       .slice(0, 500); // hard max length
   },
@@ -1490,14 +1490,24 @@ window.addEventListener('DOMContentLoaded', () => {
   }, 1500);
 });
 
+
+// ── Bootstrap admin emails ─────────────────────────────────────
+// Only these emails are allowed to create themselves as administrator
+// during first setup / recovery. Everyone else starts as housekeeping.
+const BOOTSTRAP_ADMIN_EMAILS = [
+  'roldanarbella97@gmail.com',
+  'roldanarbella79@myyahoo.com',
+];
+function isBootstrapAdminEmail(email){
+  return BOOTSTRAP_ADMIN_EMAILS.includes(String(email||'').trim().toLowerCase());
+}
+
 async function startApp(){
   setLang(LANG);
   startClock();
 
-  // ── Always show login screen first (safety net) ──────────────
+  // Always show login first. Firebase auth state will open the app after profile is valid.
   showLogin();
-
-  // ── Run diagnostics in background ─────────────────────────────
   setTimeout(runDiagnostics, 800);
 
   if (!window.firebase) {
@@ -1509,83 +1519,60 @@ async function startApp(){
     const app  = firebase.apps.length ? firebase.apps[0] : firebase.initializeApp(FB_CFG);
     const db   = firebase.firestore(app);
     const auth = firebase.auth(app);
+    try { await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch(e) { console.warn('Auth persistence:', e.message); }
     S.fbReady  = true;
     console.log('✅ Firebase inicializado — hk-pro-housekeeping');
 
     auth.onAuthStateChanged(async user => {
-      if (user) {
-        try {
-          // ── Load role from Firestore ────────────────────────────
-          const profileDoc = await firebase.firestore()
-            .collection(COLS.USR).doc(user.uid).get();
+      const btn = document.getElementById('l-btn');
+      if (btn) { btn.disabled = false; btn.textContent = t('signin'); }
 
-          if (!profileDoc.exists) {
-            // ── NEW USER: no profile yet ─────────────────────────
-            // Check if ANY admin exists in system
-            const adminCheck = await firebase.firestore()
-              .collection(COLS.USR)
-              .where('role','==','administrator')
-              .limit(1).get();
+      if (!user) {
+        detachListeners();
+        showLogin();
+        checkFirstAdminNeeded();
+        return;
+      }
 
-            if (adminCheck.empty) {
-              // ── FIRST ADMIN: auto-create with full access ───────
-              const adminProfile = {
-                uid:         user.uid,
-                email:       user.email,
-                name:        user.displayName || user.email.split('@')[0],
-                role:        'administrator',
-                createdAt:   firebase.firestore.FieldValue.serverTimestamp(),
-                createdBy:   'first_admin_auto',
-                online:      true,
-                lastSeen:    firebase.firestore.FieldValue.serverTimestamp(),
-              };
-              await firebase.firestore()
-                .collection(COLS.USR).doc(user.uid).set(adminProfile);
-              S.user = { ...adminProfile, initials: (user.email[0]||'A').toUpperCase() };
-              showAlert('⭐ Primer administrador creado automáticamente', 'success');
-            } else {
-              // ── NEW STAFF: create with minimum role ─────────────
-              const newProfile = {
-                uid:       user.uid,
-                email:     user.email,
-                name:      user.displayName || user.email.split('@')[0],
-                role:      'housekeeping',
-                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                createdBy: 'self_register',
-                online:    true,
-                lastSeen:  firebase.firestore.FieldValue.serverTimestamp(),
-              };
-              await firebase.firestore()
-                .collection(COLS.USR).doc(user.uid).set(newProfile);
-              S.user = { ...newProfile, initials: (user.email[0]||'U').toUpperCase() };
-              showAlert('👤 Perfil creado — rol asignado por administrador', 'info');
-            }
-          } else {
-            // ── EXISTING USER: load profile ──────────────────────
-            const profile = profileDoc.data();
-            S.user = {
-              uid:      user.uid,
-              email:    user.email,
-              name:     user.displayName || profile.name || user.email.split('@')[0],
-              initials: (user.displayName || user.email)[0].toUpperCase(),
-              role:     profile.role || 'housekeeping',
-            };
-            // Update online status
-            firebase.firestore().collection(COLS.USR).doc(user.uid).update({
-              online: true, lastSeen: firebase.firestore.FieldValue.serverTimestamp()
-            }).catch(()=>{});
-          }
-        } catch(profileErr) {
-          console.warn('Profile load failed:', profileErr.message);
-          // Graceful fallback: warehouse_manager (can at least use app)
-          S.user = {
-            uid:      user.uid,
-            email:    user.email,
-            name:     user.email.split('@')[0],
-            initials: user.email[0].toUpperCase(),
-            role:     'warehouse_manager',
+      try {
+        const userRef = db.collection(COLS.USR).doc(user.uid);
+        let profileDoc = await userRef.get();
+
+        if (!profileDoc.exists) {
+          // IMPORTANT: Do NOT query all admins here. With secure rules, a user without
+          // a Firestore profile cannot query other users yet. Create only own profile.
+          const email = String(user.email || '').trim().toLowerCase();
+          const bootstrapAdmin = isBootstrapAdminEmail(email);
+          const newProfile = {
+            uid:       user.uid,
+            email:     email,
+            name:      user.displayName || email.split('@')[0] || 'Usuario',
+            role:      bootstrapAdmin ? 'administrator' : 'housekeeping',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            createdBy: bootstrapAdmin ? 'bootstrap_admin_email' : 'self_register',
+            online:    true,
+            lastSeen:  firebase.firestore.FieldValue.serverTimestamp(),
           };
+
+          await userRef.set(newProfile);
+          profileDoc = await userRef.get();
+          showAlert(bootstrapAdmin ? '⭐ Administrador activado' : '👤 Perfil creado — rol housekeeping', bootstrapAdmin ? 'success' : 'info');
         }
+
+        const profile = profileDoc.data() || {};
+        S.user = {
+          uid:      user.uid,
+          email:    user.email,
+          name:     user.displayName || profile.name || user.email.split('@')[0],
+          initials: (user.displayName || user.email || 'U')[0].toUpperCase(),
+          role:     profile.role || 'housekeeping',
+        };
+
+        userRef.update({
+          online: true,
+          lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
+          name: S.user.name,
+        }).catch(()=>{});
 
         hideLogin();
         document.getElementById('app').classList.remove('hidden');
@@ -1596,11 +1583,14 @@ async function startApp(){
         writeAudit('LOGIN', { method: 'firebase' });
         updatePresence(true);
 
-      } else {
-        // ── NOT LOGGED IN ────────────────────────────────────────
-        detachListeners();
+      } catch(profileErr) {
+        console.error('Profile/login failed:', profileErr);
+        await auth.signOut().catch(()=>{});
         showLogin();
-        checkFirstAdminNeeded();
+        const msg = profileErr.code === 'permission-denied'
+          ? 'Login bloqueado por reglas Firestore. Sube las reglas corregidas y verifica el perfil en stockpro_usuarios.'
+          : ('No se pudo cargar/crear el perfil: ' + (profileErr.message || profileErr));
+        showErr(msg);
       }
     });
 
@@ -1684,6 +1674,10 @@ async function createFirstAdmin(){
   }
   if (pass.length < 6) {
     showAlert('La contraseña debe tener al menos 6 caracteres','warn');
+    return;
+  }
+  if (!isBootstrapAdminEmail(email)) {
+    showAlert('Este email no está autorizado para crear el primer administrador. Usa el correo admin autorizado.','danger');
     return;
   }
 
@@ -1818,23 +1812,39 @@ function hideLogin(){
 }
 
 
-function doLogin(){
+async function doLogin(){
   const email = document.getElementById('l-email').value.trim();
   const pass  = document.getElementById('l-pass').value;
   const errEl = document.getElementById('l-err');
   errEl.classList.add('hidden');
   if(!email||!pass){ showErr('Completa todos los campos'); return; }
-  const btn = document.getElementById('l-btn'); btn.disabled=true; btn.textContent=t('loading');
+  const btn = document.getElementById('l-btn');
+  btn.disabled=true; btn.textContent=t('loading');
+
   if (!S.fbReady){
     S.user={uid:'demo-'+Date.now(),email,name:email.split('@')[0],initials:email[0].toUpperCase(),role:'warehouse_manager'};
     hideLogin(); showApp(); applyRoleUI();
     btn.disabled=false; btn.textContent=t('signin'); return;
   }
-  firebase.auth().signInWithEmailAndPassword(email, pass).catch(err => {
-    const msgs={'auth/user-not-found':'Usuario no encontrado','auth/wrong-password':'Contraseña incorrecta','auth/invalid-email':'Email inválido','auth/too-many-requests':'Demasiados intentos'};
-    showErr(msgs[err.code]||err.message); btn.disabled=false; btn.textContent=t('signin');
-  });
+
+  try {
+    await firebase.auth().signInWithEmailAndPassword(email, pass);
+    // onAuthStateChanged will continue login after Firestore profile loads.
+  } catch(err) {
+    const msgs={
+      'auth/user-not-found':'Usuario no encontrado en Firebase Authentication',
+      'auth/wrong-password':'Contraseña incorrecta',
+      'auth/invalid-credential':'Usuario o contraseña incorrectos',
+      'auth/invalid-email':'Email inválido',
+      'auth/too-many-requests':'Demasiados intentos. Espera unos minutos.',
+      'auth/operation-not-allowed':'Activa Email/Password en Firebase Authentication',
+      'auth/network-request-failed':'Sin conexión o Firebase bloqueado por el navegador',
+    };
+    showErr(msgs[err.code]||err.message);
+    btn.disabled=false; btn.textContent=t('signin');
+  }
 }
+
 function doGoogleLogin(){
   if(!S.fbReady||!window.firebase){ showErr('Firebase no disponible — usa email/contraseña'); return; }
   firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(err=>{
