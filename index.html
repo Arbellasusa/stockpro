@@ -250,6 +250,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 .sig-canvas.signed{border-color:var(--blue);background:#f0f7ff}
 .sig-canvas.error{border-color:var(--red);background:#fff8f8;animation:shakeSig .3s}
 @keyframes shakeSig{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .sig-wrap{position:relative;border-radius:var(--r2);overflow:hidden}
 .sig-label{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
 .sig-name-field{width:100%;border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;margin-bottom:4px;background:var(--surface)}
@@ -505,9 +506,12 @@ input,select,textarea{font-family:inherit;font-size:inherit}
       <div class="fg"><label data-i="password">Contraseña</label><input type="password" id="l-pass" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <button class="btn-primary" id="l-btn" style="width:100%;margin-top:6px" onclick="doLogin()"><span data-i="signin">Iniciar sesión</span></button>
       <div id="l-err" class="err-msg hidden"></div>
-      <div style="text-align:center;margin-top:8px">
-        <button onclick="toggleDiag()" style="background:none;border:none;color:var(--blue2);font-size:12px;cursor:pointer;text-decoration:underline">
-          🔍 Diagnóstico del sistema
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;flex-wrap:wrap;gap:4px">
+        <button onclick="doForgotPassword()" style="background:none;border:none;color:var(--blue2);font-size:12px;cursor:pointer;text-decoration:underline">
+          🔑 Olvidé mi contraseña
+        </button>
+        <button onclick="toggleDiag()" style="background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;text-decoration:underline">
+          🔍 Diagnóstico
         </button>
       </div>
       <div class="divider" data-i="or">o</div>
@@ -1558,12 +1562,13 @@ function isBootstrapAdminEmail(email){
 async function startApp(){
   setLang(LANG);
   startClock();
-
-  // Always show login first. Firebase auth state will open the app after profile is valid.
   showLogin();
-  setTimeout(runDiagnostics, 800);
+
+  console.log('[APP] startApp() — checking Firebase SDK...');
 
   if (!window.firebase) {
+    console.error('[APP] Firebase SDK not loaded — falling back to offline');
+    showErr('Firebase no disponible. Verifica tu conexión a internet y recarga la página.');
     fallbackOffline();
     return;
   }
@@ -1572,16 +1577,49 @@ async function startApp(){
     const app  = firebase.apps.length ? firebase.apps[0] : firebase.initializeApp(FB_CFG);
     const db   = firebase.firestore(app);
     const auth = firebase.auth(app);
-    try { await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch(e) { console.warn('Auth persistence:', e.message); }
+
+    // Enable Firestore offline persistence (survives page refresh, background, etc.)
+    try {
+      await db.enablePersistence({ synchronizeTabs: true });
+      console.log('[APP] Firestore persistence enabled');
+    } catch(persistErr) {
+      if (persistErr.code === 'failed-precondition') {
+        console.warn('[APP] Persistence unavailable — multiple tabs open');
+      } else if (persistErr.code === 'unimplemented') {
+        console.warn('[APP] Persistence not supported in this browser');
+      } else {
+        console.warn('[APP] Persistence error:', persistErr.code);
+      }
+    }
+
+    try { await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch(e) { console.warn('[APP] Auth persistence:', e.message); }
     S.fbReady  = true;
-    console.log('✅ Firebase inicializado — hk-pro-housekeeping');
+    console.log('✅ [APP] Firebase initialized — project: hk-pro-housekeeping');
+
+    // Safety: if onAuthStateChanged hasn't fired in 8 seconds, run diagnostics
+    const authTimeout = setTimeout(() => {
+      if (!S.user) {
+        console.warn('[APP] ⚠️ onAuthStateChanged did not fire in 8s — check network/Firebase');
+        runDiagnostics();
+      }
+    }, 8000);
+    // Store timeout ID so we can clear it on successful login
+    S._authTimeout = authTimeout;
 
     auth.onAuthStateChanged(async user => {
       const btn = document.getElementById('l-btn');
-      if (btn) { btn.disabled = false; btn.textContent = t('signin'); }
+      // Restore button without destroying its <span> child
+      if (btn) {
+        btn.disabled = false;
+        if (!btn.querySelector('span') || btn.innerHTML.includes('animation:spin')) {
+          btn.innerHTML = '<span data-i="signin">' + t('signin') + '</span>';
+        }
+      }
 
       if (!user) {
+        console.log('[AUTH] onAuthStateChanged → no user, showing login');
         detachListeners();
+        S.user = null;
         showLogin();
         checkFirstAdminNeeded();
         return;
@@ -1653,29 +1691,74 @@ async function startApp(){
           role:     resolvedRole,
         };
 
+        // Non-blocking presence update — never let this fail the login
         userRef.update({
-          online: true,
+          online:   true,
           lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
-          name: S.user.name,
-        }).catch(()=>{});
+          name:     S.user.name,
+        }).catch(e => console.warn('[AUTH] Presence update failed (non-critical):', e.code));
 
-        hideLogin();
+        if(S._authTimeout){ clearTimeout(S._authTimeout); S._authTimeout=null; }
+        console.log('[AUTH] ✅ Login complete — loading app for', email, 'role:', resolvedRole);
+        attachListeners();          // attach Firestore listeners first
+        hideLogin();                // then hide login screen
         document.getElementById('app').classList.remove('hidden');
-        showApp();
-        attachListeners();
+        showApp();                  // render UI
         applyRoleUI();
         scheduleDailyBackup();
         writeAudit('LOGIN', { method: 'firebase' });
         updatePresence(true);
 
       } catch(profileErr) {
-        console.error('Profile/login failed:', profileErr);
+        console.error('[AUTH] ❌ Profile/login failed:', profileErr.code, profileErr.message);
+        // CRITICAL: determine if this is truly unrecoverable
+        if (profileErr.code === 'permission-denied') {
+          // Firestore rules blocked profile read — this means the user
+          // exists in Auth but not in Firestore, OR rules are not deployed.
+          // Check if this is a bootstrap admin and retry with set()
+          const authUser = firebase.auth().currentUser;
+          const emailCheck = String(authUser?.email||'').trim().toLowerCase();
+          if (isBootstrapAdminEmail(emailCheck)) {
+            console.warn('[AUTH] Permission denied on profile read — attempting emergency admin profile create...');
+            try {
+              const emergencyProfile = {
+                uid:       authUser.uid,
+                email:     emailCheck,
+                name:      authUser.displayName || emailCheck.split('@')[0],
+                role:      'administrator',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                createdBy: 'emergency_recovery',
+                online:    true,
+                lastSeen:  firebase.firestore.FieldValue.serverTimestamp(),
+              };
+              await db.collection(COLS.USR).doc(authUser.uid).set(emergencyProfile);
+              S.user = { uid:authUser.uid, email:authUser.email, name:emergencyProfile.name, initials:emailCheck[0].toUpperCase(), role:'administrator' };
+              console.log('[AUTH] ✅ Emergency admin profile created');
+              attachListeners();
+              hideLogin();
+              document.getElementById('app').classList.remove('hidden');
+              showApp(); applyRoleUI(); scheduleDailyBackup();
+              writeAudit('LOGIN', { method: 'emergency_recovery' });
+              showAlert('⭐ Perfil de administrador creado automáticamente', 'success');
+              return;
+            } catch(emergencyErr) {
+              console.error('[AUTH] Emergency create also failed:', emergencyErr);
+              showErr('Las Firestore Rules están bloqueando el acceso. Despliega las reglas actualizadas en Firebase Console → Firestore → Rules y vuelve a intentarlo. Error: ' + emergencyErr.code);
+              await auth.signOut().catch(()=>{});
+              showLogin();
+              return;
+            }
+          }
+          showErr('Acceso bloqueado por Firestore Rules. Verifica que las reglas estén desplegadas correctamente en Firebase Console → Firestore Database → Rules.');
+        } else if (profileErr.code === 'unavailable' || profileErr.code === 'deadline-exceeded') {
+          showErr('🌐 Firebase no responde. Verifica tu conexión a internet e intenta de nuevo.');
+        } else {
+          showErr('Error al cargar perfil: ' + (profileErr.message || profileErr.code));
+        }
         await auth.signOut().catch(()=>{});
         showLogin();
-        const msg = profileErr.code === 'permission-denied'
-          ? 'Login bloqueado por reglas Firestore. Sube las reglas corregidas y verifica el perfil en stockpro_usuarios.'
-          : ('No se pudo cargar/crear el perfil: ' + (profileErr.message || profileErr));
-        showErr(msg);
+        const btn2 = document.getElementById('l-btn');
+        if(btn2){ btn2.disabled=false; btn2.innerHTML='<span data-i="signin">'+t('signin')+'</span>'; }
       }
     });
 
@@ -1725,19 +1808,26 @@ function startClock(){
    ════════════════════════════════════════════════════ */
 
 async function checkFirstAdminNeeded(){
-  if (!S.fbReady) { showRecovery(true); return; }
+  // Only show the recovery panel if we KNOW there are no admins.
+  // If Firestore blocks the query (rules deny unauthenticated reads),
+  // it almost certainly means rules are live → admin exists → hide panel.
+  // Showing the panel by default causes confusion on every normal login.
+  console.log('[RECOVERY] checkFirstAdminNeeded — fbReady:', S.fbReady);
+  if (!S.fbReady) {
+    // Firebase not yet ready — hide panel, let user just sign in
+    showRecovery(false);
+    return;
+  }
   try {
     const snap = await firebase.firestore()
       .collection(COLS.USR).where('role','==','administrator').limit(1).get();
-    if (snap.empty) {
-      showRecovery(true);
-    } else {
-      showRecovery(false);
-    }
+    const noAdmin = snap.empty;
+    console.log('[RECOVERY] Admin exists:', !noAdmin);
+    showRecovery(noAdmin);
   } catch(e) {
-    // Firestore rules may block this check for unauthenticated users
-    // Show recovery panel as safe fallback
-    showRecovery(true);
+    // Firestore blocked the query — rules are active, admin likely exists
+    console.log('[RECOVERY] Firestore blocked admin check (rules active) — hiding recovery panel:', e.code);
+    showRecovery(false); // ← KEY FIX: do NOT show recovery when rules block the query
   }
 }
 
@@ -1747,36 +1837,41 @@ function showRecovery(show){
 }
 
 async function createFirstAdmin(){
+  console.log('[ADMIN-SETUP] createFirstAdmin() invoked');
+  const btn = document.querySelector('.btn-recovery');
+  const resetBtn = () => { if(btn){ btn.innerHTML='⭐ Crear primer administrador'; btn.disabled=false; } };
+
   if (!S.fbReady) {
-    showAlert('Firebase requerido para crear administrador. Verifica conexión.','warn');
-    return;
-  }
-  const email = document.getElementById('l-email').value.trim();
-  const pass  = document.getElementById('l-pass').value;
-  if (!email || !pass) {
-    showAlert('Ingresa email y contraseña primero, luego haz clic aquí','warn');
-    return;
-  }
-  if (pass.length < 6) {
-    showAlert('La contraseña debe tener al menos 6 caracteres','warn');
-    return;
-  }
-  if (!isBootstrapAdminEmail(email)) {
-    showAlert('Este email no está autorizado para crear el primer administrador. Usa el correo admin autorizado.','danger');
+    showAlert('⚠️ Firebase no está listo. Recarga la página e intenta de nuevo.','warn');
     return;
   }
 
-  const btn = document.querySelector('.btn-recovery');
-  if (btn) { btn.textContent = '⏳ Creando...'; btn.disabled = true; }
+  const emailRaw = document.getElementById('l-email').value.trim();
+  const email    = emailRaw.toLowerCase();
+  const pass     = document.getElementById('l-pass').value;
+
+  if (!email){ showAlert('Ingresa tu email en el campo de arriba primero','warn'); return; }
+  if (!pass){  showAlert('Ingresa tu contraseña en el campo de arriba primero','warn'); return; }
+  if (pass.length < 6){ showAlert('La contraseña debe tener al menos 6 caracteres','warn'); return; }
+
+  if (!isBootstrapAdminEmail(email)) {
+    showAlert('❌ Este email no está autorizado como administrador.
+
+Emails autorizados: roldanarbella97@gmail.com','danger');
+    return;
+  }
+
+  if(btn){ btn.innerHTML='⏳ Configurando...'; btn.disabled=true; }
 
   try {
-    // Create Firebase Auth account
+    console.log('[ADMIN-SETUP] Creating/signing in Firebase Auth for:', email);
     let userCred;
     try {
       userCred = await firebase.auth().createUserWithEmailAndPassword(email, pass);
+      console.log('[ADMIN-SETUP] Auth account created:', userCred.user.uid);
     } catch(authErr) {
       if (authErr.code === 'auth/email-already-in-use') {
-        // User already exists in Auth — just sign them in
+        console.log('[ADMIN-SETUP] Auth account exists — signing in');
         userCred = await firebase.auth().signInWithEmailAndPassword(email, pass);
       } else {
         throw authErr;
@@ -1784,30 +1879,35 @@ async function createFirstAdmin(){
     }
 
     const uid = userCred.user.uid;
+    console.log('[ADMIN-SETUP] UID:', uid, '— writing Firestore profile...');
 
-    // Create admin profile in Firestore
     await firebase.firestore().collection(COLS.USR).doc(uid).set({
-      uid, email,
-      name:      email.split('@')[0],
+      uid,
+      email,
+      name:      userCred.user.displayName || email.split('@')[0],
       role:      'administrator',
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       createdBy: 'first_admin_setup',
       online:    true,
       lastSeen:  firebase.firestore.FieldValue.serverTimestamp(),
-    });
+    }, { merge: true }); // merge:true avoids overwriting if already exists
 
-    showAlert('⭐ Administrador creado. Iniciando sesión...', 'success');
-    // Auth state change will trigger automatic login
+    console.log('[ADMIN-SETUP] ✅ Admin profile written to Firestore');
+    showAlert('⭐ Administrador configurado. Iniciando sesión automáticamente...', 'success');
+    // onAuthStateChanged will fire and complete the login
   } catch(e) {
+    console.error('[ADMIN-SETUP] ❌ Error:', e.code, e.message);
     const msgs = {
-      'auth/weak-password':        'Contraseña débil (mínimo 6 caracteres)',
-      'auth/invalid-email':        'Email inválido',
-      'auth/operation-not-allowed':'Activa Email/Password en Firebase Console → Authentication',
-      'auth/network-request-failed':'Sin conexión a internet',
-      'auth/wrong-password':       'Contraseña incorrecta para este email',
+      'auth/weak-password':         '❌ Contraseña muy débil (mínimo 6 caracteres)',
+      'auth/invalid-email':         '❌ Email inválido',
+      'auth/operation-not-allowed': '❌ Activa Email/Password en Firebase Console → Authentication → Sign-in method',
+      'auth/network-request-failed':'❌ Sin conexión a internet',
+      'auth/wrong-password':        '❌ Contraseña incorrecta para este email ya existente',
+      'auth/invalid-credential':    '❌ Email o contraseña incorrectos',
+      'permission-denied':          '❌ Firestore Rules bloquearon la escritura. Despliega las reglas actualizadas.',
     };
-    showAlert(msgs[e.code] || ('Error: ' + e.message), 'danger');
-    if (btn) { btn.textContent = '⭐ Crear primer administrador'; btn.disabled = false; }
+    showAlert(msgs[e.code] || ('Error: ' + (e.message||e.code)), 'danger');
+    resetBtn();
   }
 }
 
@@ -1843,6 +1943,13 @@ async function runDiagnostics(){
 
   // Firestore accessible?
   let fsOk = false;
+  // Also check if auth domain is correct
+  const authDomainOk = FB_CFG.authDomain && FB_CFG.authDomain.includes('hk-pro-housekeeping');
+  results.push({ label:'Auth Domain', ok:authDomainOk, val: authDomainOk?'✓ '+FB_CFG.authDomain:'✗ Incorrecto' });
+  // Check current URL domain
+  const currentDomain = window.location.hostname;
+  const isAllowedDomain = ['localhost','127.0.0.1','arbellasusa.github.io'].includes(currentDomain);
+  results.push({ label:'Dominio actual', ok:isAllowedDomain, val: isAllowedDomain?'✓ '+currentDomain:'⚠ '+currentDomain+' (agregar en Firebase Auth → Authorized domains)' });
   if (S.fbReady) {
     try {
       await firebase.firestore().collection(COLS.USR)
@@ -1895,10 +2002,18 @@ function showLogin(){
   const a = document.getElementById('app');
   if (l) l.style.display = 'flex';
   if (a) a.classList.add('hidden');
+  // Always restore the sign-in button to a clean state
+  const btn = document.getElementById('l-btn');
+  if(btn){ btn.disabled=false; btn.innerHTML='<span data-i="signin">'+t('signin')+'</span>'; }
+  // Clear any previous errors
+  const errEl = document.getElementById('l-err');
+  if(errEl) errEl.classList.add('hidden');
+  console.log('[UI] showLogin()');
 }
 function hideLogin(){
   const l = document.getElementById('login');
   if (l) l.style.display = 'none';
+  console.log('[UI] hideLogin()');
 }
 
 
@@ -1908,59 +2023,108 @@ async function doLogin(){
   const pass  = document.getElementById('l-pass').value;
   const errEl = document.getElementById('l-err');
   errEl.classList.add('hidden');
-  if(!email||!pass){ showErr('Completa todos los campos'); return; }
-  if(pass.length < 6){ showErr('La contraseña debe tener al menos 6 caracteres'); return; }
-  const btn = document.getElementById('l-btn');
-  btn.disabled=true; btn.textContent=t('loading');
 
+  if(!email){ showErr('Ingresa tu correo electrónico'); return; }
+  if(!pass){  showErr('Ingresa tu contraseña');          return; }
+  if(pass.length < 6){ showErr('La contraseña debe tener al menos 6 caracteres'); return; }
+
+  const btn = document.getElementById('l-btn');
+  const setBtnState = (loading, label) => {
+    btn.disabled = loading;
+    btn.innerHTML = loading
+      ? '<span style="display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>' + label + '</span>'
+      : '<span data-i="signin">' + label + '</span>';
+  };
+
+  console.log('[LOGIN] doLogin — email:', email, 'fbReady:', S.fbReady);
+  setBtnState(true, 'Verificando...');
+
+  // ── OFFLINE / DEMO MODE ──────────────────────────────────────
   if (!S.fbReady){
-    S.user={uid:'demo-'+Date.now(),email,name:email.split('@')[0],initials:email[0].toUpperCase(),role:'warehouse_manager'};
+    console.warn('[LOGIN] Firebase not ready — entering offline/demo mode');
+    const offlineRole = isBootstrapAdminEmail(email) ? 'administrator' : 'warehouse_manager';
+    S.user = {
+      uid:      'demo-'+Date.now(),
+      email,
+      name:     email.split('@')[0],
+      initials: email[0].toUpperCase(),
+      role:     offlineRole,
+    };
     hideLogin(); showApp(); applyRoleUI();
-    btn.disabled=false; btn.textContent=t('signin'); return;
+    setBtnState(false, t('signin'));
+    showAlert('⚠️ Modo offline — datos no sincronizados con Firebase', 'warn');
+    return;
   }
 
+  // ── FIREBASE AUTH ────────────────────────────────────────────
   try {
+    console.log('[LOGIN] signInWithEmailAndPassword →', email);
     await firebase.auth().signInWithEmailAndPassword(email, pass);
-    // onAuthStateChanged will continue login after Firestore profile loads.
+    // ✅ onAuthStateChanged takes over from here — do NOT hide login or call showApp() here
+    console.log('[LOGIN] signIn call succeeded — waiting for onAuthStateChanged');
+    // Button stays disabled while onAuthStateChanged processes
   } catch(err) {
-    console.error('Login error:', err.code, err.message);
+    console.error('[LOGIN] Error:', err.code, err.message);
+    setBtnState(false, t('signin'));
 
-    // Professional recovery: if this is an authorized administrator email and
-    // the Auth user does not exist, create it automatically. This avoids the
-    // common Firebase issue where the admin profile exists in Firestore but
-    // the email/password user was never created in Authentication.
-    if (isBootstrapAdminEmail(email) && ['auth/user-not-found','auth/invalid-credential'].includes(err.code)) {
+    // ── Auto-recovery for bootstrap admin: create Auth user if missing ──
+    if (isBootstrapAdminEmail(email) && (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential')) {
+      console.log('[LOGIN] Bootstrap admin not found — attempting auto-create in Firebase Auth...');
+      setBtnState(true, 'Creando admin...');
       try {
-        btn.textContent = 'Creando admin...';
         await firebase.auth().createUserWithEmailAndPassword(email, pass);
-        // onAuthStateChanged will create/repair the administrator profile.
-        return;
+        console.log('[LOGIN] Admin Auth account created — onAuthStateChanged will handle profile');
+        return; // onAuthStateChanged continues from here
       } catch(createErr) {
-        console.error('Admin auto-create failed:', createErr.code, createErr.message);
+        console.error('[LOGIN] Admin auto-create failed:', createErr.code, createErr.message);
+        setBtnState(false, t('signin'));
         if (createErr.code === 'auth/email-already-in-use') {
-          showErr('El correo existe en Firebase Authentication, pero la contraseña no coincide. Cambia/restablece la contraseña en Firebase Console → Authentication.');
+          showErr('Este email ya existe en Firebase Authentication, pero la contraseña no coincide.
+
+Ve a Firebase Console → Authentication → encuentra el usuario → Reset password.');
         } else if (createErr.code === 'auth/operation-not-allowed') {
-          showErr('Activa Email/Password en Firebase Console → Authentication → Sign-in method.');
+          showErr('Activa Email/Password en Firebase Console → Authentication → Sign-in method → Email/Password → Enable.');
         } else {
-          showErr(createErr.message || 'No se pudo crear el administrador.');
+          showErr('Error al crear admin: ' + (createErr.message||createErr.code));
         }
-        btn.disabled=false; btn.textContent=t('signin');
         return;
       }
     }
 
-    const msgs={
-      'auth/user-not-found':'Usuario no encontrado. Si es el primer administrador, usa el correo autorizado y vuelve a presionar Sign in.',
-      'auth/wrong-password':'Contraseña incorrecta',
-      'auth/invalid-credential':'Usuario o contraseña incorrectos. Si el usuario existe, restablece la contraseña en Firebase.',
-      'auth/invalid-email':'Email inválido',
-      'auth/too-many-requests':'Demasiados intentos. Espera unos minutos.',
-      'auth/operation-not-allowed':'Activa Email/Password en Firebase Authentication',
-      'auth/network-request-failed':'Sin conexión o Firebase bloqueado por el navegador',
-      'auth/unauthorized-domain':'Agrega arbellasusa.github.io en Firebase Authentication → Settings → Authorized domains',
+    // ── User-friendly error messages ─────────────────────────────
+    const msgs = {
+      'auth/user-not-found':        '❌ No existe una cuenta con este correo. ¿Olvidaste el email?',
+      'auth/wrong-password':        '❌ Contraseña incorrecta. Verifica que esté bien escrita.',
+      'auth/invalid-credential':    '❌ Email o contraseña incorrectos. Verifica ambos campos.',
+      'auth/invalid-email':         '❌ El formato del email no es válido.',
+      'auth/user-disabled':         '❌ Esta cuenta está deshabilitada. Contacta al administrador.',
+      'auth/too-many-requests':     '⏳ Demasiados intentos fallidos. Espera unos minutos o restablece tu contraseña.',
+      'auth/operation-not-allowed': '⚠️ Activa Email/Password en Firebase Console → Authentication → Sign-in method.',
+      'auth/network-request-failed':'🌐 Sin conexión a internet o Firebase bloqueado. Verifica tu red.',
+      'auth/unauthorized-domain':   '⚠️ Dominio no autorizado. Agrega arbellasusa.github.io en Firebase Console → Authentication → Settings → Authorized domains.',
+      'auth/popup-blocked':         '⚠️ El navegador bloqueó el popup. Permite popups para este sitio.',
+      'auth/cancelled-popup-request':'Login cancelado.',
+      'auth/popup-closed-by-user':  'Login cancelado — cerraste la ventana de login.',
     };
-    showErr(msgs[err.code]||err.message);
-    btn.disabled=false; btn.textContent=t('signin');
+    showErr(msgs[err.code] || ('Error (' + err.code + '): ' + err.message));
+  }
+}
+
+async function doForgotPassword(){
+  const email = document.getElementById('l-email').value.trim().toLowerCase();
+  if(!email){ showErr('Ingresa tu email primero, luego haz clic en "Olvidé mi contraseña"'); return; }
+  if(!S.fbReady){ showErr('Firebase no disponible. Verifica tu conexión.'); return; }
+  try {
+    await firebase.auth().sendPasswordResetEmail(email);
+    showAlert('📧 Correo de restablecimiento enviado a ' + email + '\n\nRevisa también tu carpeta de spam.', 'success');
+    console.log('[AUTH] Password reset email sent to:', email);
+  } catch(e) {
+    const msgs = {
+      'auth/user-not-found': 'No existe ninguna cuenta con ese email.',
+      'auth/invalid-email':  'El formato del email no es válido.',
+      'auth/too-many-requests': 'Demasiadas solicitudes. Espera unos minutos.',
+    };
+    showErr(msgs[e.code] || 'Error: ' + e.message);
   }
 }
 
@@ -2063,16 +2227,19 @@ function setSyncOffline(){
   document.getElementById('hdr-status-txt').textContent=t('offline');
   console.warn('🔴 [CONN] Firestore OFFLINE — sin respuesta del servidor');
 }
+let _connListenersRegistered = false;
 function watchFirestoreConnectivity(){
-  // Secondary browser-level signals — Firestore onSnapshot drives primary status
+  if(_connListenersRegistered) return; // never register twice
+  _connListenersRegistered = true;
   window.addEventListener('online', () => {
-    console.log('🌐 [CONN] navigator.online disparado');
+    console.log('🌐 [CONN] navigator.online');
     if(S.fbReady && S.user) setSyncOnline();
   });
   window.addEventListener('offline', () => {
-    console.warn('🌐 [CONN] navigator.offline disparado');
+    console.warn('🌐 [CONN] navigator.offline');
     if(!S._firestoreOnline) setSyncOffline();
   });
+  console.log('[CONN] Connectivity listeners registered');
 }
 
 /* ── NAVIGATION ── */
