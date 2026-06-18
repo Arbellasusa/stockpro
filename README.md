@@ -1,88 +1,6 @@
-# StockPro PWA — Instrucciones de Despliegue
+# StockPro v2 — Hotel Arbellas
 
-## 🚀 Opción 1: GitHub Pages (Gratis, Recomendado)
-
-### Paso 1 — Subir a GitHub
-1. Ve a https://github.com/new
-2. Crea un repositorio llamado `stockpro` (público)
-3. Sube todos los archivos de esta carpeta
-
-```bash
-git init
-git add .
-git commit -m "StockPro PWA v1.0"
-git remote add origin https://github.com/TU_USUARIO/stockpro.git
-git push -u origin main
-```
-
-### Paso 2 — Activar GitHub Pages
-1. Ve a Settings → Pages
-2. Source: `Deploy from a branch`
-3. Branch: `main` → `/ (root)`
-4. Clic en **Save**
-
-Tu app estará en: `https://TU_USUARIO.github.io/stockpro`
-
----
-
-## 📱 Instalar en iPhone 13 Pro Max
-
-1. Abre Safari (debe ser Safari, no Chrome)
-2. Ve a la URL de tu app
-3. Toca el botón **Compartir** (rectángulo con flecha ↑)
-4. Selecciona **"Agregar a pantalla de inicio"**
-5. Escribe "StockPro" y toca **Agregar**
-
-✅ La app aparece como ícono en tu pantalla de inicio, igual que una app nativa.
-
----
-
-## 🔥 Opción 2: Firebase Hosting (Con base de datos en tiempo real)
-
-### Prerrequisitos
-- Node.js instalado
-- Firebase CLI: `npm install -g firebase-tools`
-
-### Crear proyecto Firebase
-1. Ve a https://console.firebase.google.com
-2. Crea nuevo proyecto: `stockpro-hydehouuse`
-3. Activa **Firestore Database** (modo de prueba)
-4. Activa **Authentication** → Email/Password + Google
-
-### Desplegar
-```bash
-firebase login
-firebase init hosting
-# Selecciona tu proyecto
-# Public directory: . (punto)
-# Single page app: No
-firebase deploy
-```
-
-Tu app estará en: `https://stockpro-hydehouuse.web.app`
-
-### Configurar Firebase en la app
-1. Abre la app → Exportar → Configurar Firebase
-2. Ingresa los datos de tu proyecto (los encuentras en Firebase Console → Project Settings)
-3. Clic en "Conectar"
-
----
-
-## 🔒 Reglas de Seguridad Firestore
-
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /inventario/{itemId} {
-      allow read, write: if request.auth != null;
-    }
-    match /movimientos/{movId} {
-      allow read, write: if request.auth != null;
-    }
-  }
-}
-```
+Sistema de gestión de inventario de almacén con escáner de códigos de barras, sincronización Firebase en tiempo real y soporte PWA para iPhone/Android.
 
 ---
 
@@ -90,45 +8,113 @@ service cloud.firestore {
 
 ```
 stockpro/
-├── index.html          # App principal
-├── manifest.json       # PWA manifest
-├── sw.js              # Service Worker (modo offline)
-├── css/
-│   └── app.css        # Estilos
-├── js/
-│   └── app.js         # Lógica de la app
-└── icons/
-    ├── icon-192.png   # Ícono para iPhone
-    └── icon-512.png   # Ícono splash
+├── index.html          ← App completa (CSS + JS inline — un solo archivo)
+├── manifest.json       ← PWA manifest (íconos, nombre, colores)
+├── sw.js               ← Service Worker (caché offline)
+├── icon-192.png        ← Ícono app (192×192)
+├── icon-512.png        ← Ícono splash (512×512)
+├── icon.svg            ← Ícono vectorial
+├── firebase-config.js  ← Configuración Firebase (seguro para GitHub)
+├── firestore.rules     ← Reglas de seguridad (deploy en Firebase Console)
+├── admin-setup.js      ← Script setup primer administrador (consola del browser)
+├── hotel_products_by_supplier.csv  ← Catálogo de productos hoteleros
+├── supplier_list.csv               ← Lista de proveedores
+├── SECURITY.md         ← Arquitectura de seguridad
+├── SETUP.md            ← Guía de activación Firebase
+└── README.md           ← Este archivo
 ```
+
+---
+
+## 🚀 Despliegue en GitHub Pages (Recomendado)
+
+### Paso 1 — Subir a GitHub
+
+```bash
+git init
+git add .
+git commit -m "StockPro v2 — Hotel Arbellas"
+git remote add origin https://github.com/arbellasusa/stockpro.git
+git push -u origin main
+```
+
+### Paso 2 — Activar GitHub Pages
+
+1. Settings → Pages
+2. Source: `Deploy from a branch`
+3. Branch: `main` → `/ (root)`
+4. Clic en **Save**
+
+URL: **https://arbellasusa.github.io/stockpro**
+
+---
+
+## 🔥 Configuración Firebase (OBLIGATORIO para login)
+
+### 1. Firebase Console → Authentication
+- Sign-in method → **Email/Password: Activar** ✅
+- Sign-in method → **Google: Activar** ✅ (opcional)
+- Settings → Authorized domains → Agregar: `arbellasusa.github.io`
+
+### 2. Firebase Console → Firestore Database → Rules
+Pegar el contenido de `firestore.rules` → **Publish**
+
+### 3. Primer administrador
+Abre la app → inicia sesión con `roldanarbella97@gmail.com` → el sistema crea el perfil de administrador automáticamente.
+
+Si hay problemas, abre DevTools (F12) → Console → pega y ejecuta `admin-setup.js`.
+
+---
+
+## 📱 Instalar en iPhone (Safari)
+
+1. Abre **Safari** → ve a la URL de la app
+2. Toca **Compartir** (ícono ↑)
+3. Selecciona **"Agregar a pantalla de inicio"**
+4. Nombre: **StockPro** → **Agregar**
+
+La app aparece como ícono nativo en tu pantalla de inicio.
 
 ---
 
 ## ✨ Funcionalidades
 
-- ✅ Escáner de códigos de barras con cámara del iPhone (EAN-13, UPC, QR, Code 128)
-- ✅ Inventario completo con 12 productos pre-cargados de Hotel Arbellas
-- ✅ Registro de movimientos (entradas, salidas, ajustes)
-- ✅ Reportes con gráficas de stock por categoría
-- ✅ Alertas automáticas de stock bajo y sin stock
-- ✅ Exportar a CSV, JSON, PDF
-- ✅ Búsqueda global en tiempo real
-- ✅ Modo offline (Service Worker)
-- ✅ Instalable en iPhone como app nativa (PWA)
-- ✅ Login con email/contraseña o Google
-- ✅ Datos guardados localmente (localStorage)
-- ✅ Compatible con Firebase para sincronización en tiempo real
+- ✅ Login Firebase con email/contraseña o Google
+- ✅ Roles: Administrator, Warehouse Manager, Supervisor, Housekeeping
+- ✅ Inventario en tiempo real (Firestore onSnapshot)
+- ✅ Escáner de códigos de barras (EAN-13, UPC, QR, Code 128)
+- ✅ 153 productos hoteleros precargados (H2O Therapy, Lysol, Tide, Tork, etc.)
+- ✅ Módulo DHS Supplier (Diversified Hospitality Solutions)
+- ✅ Entregas con firmas digitales y PDF profesional
+- ✅ Movimientos de inventario (entradas, salidas, ajustes)
+- ✅ Reportes con PDF descargable
+- ✅ Dashboard con métricas en tiempo real
+- ✅ Alertas automáticas de stock bajo / sin stock
+- ✅ Exportar CSV, JSON, PDF
+- ✅ Modo offline con Service Worker
+- ✅ Instalable como app nativa (PWA)
+- ✅ Compatible: iPhone Safari, Android Chrome, iPad, Desktop
 
 ---
 
-## 🛠️ Credenciales de demo
+## 🔒 Seguridad
 
-Email: cualquiera  
-Contraseña: cualquiera
+- Firebase Authentication: sesiones persistentes
+- Firestore Security Rules: acceso por rol, servidor (no cliente)
+- Bootstrap admin: `roldanarbella97@gmail.com` y `roldanarbella79@myyahoo.com`
+- API Key pública segura (protección por Rules, no por secreto)
 
-O usa el botón **"Continuar con Google"** para acceso rápido.
+Ver `SECURITY.md` para arquitectura completa.
 
 ---
 
-**Hotel Arbellas — Hollywood, Florida**  
-Desarrollado con StockPro PWA
+## 🛠️ Credenciales de prueba (modo demo)
+
+Si Firebase no está configurado, la app funciona en modo offline:
+- Email: cualquier email
+- Contraseña: cualquier contraseña (mín. 6 caracteres)
+- Datos se guardan en localStorage
+
+---
+
+**Hotel Arbellas · Plantation, Florida · StockPro v2 · © 2026**

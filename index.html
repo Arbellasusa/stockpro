@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="StockPro">
 <title>StockPro v2 — Hotel Arbellas</title>
 <link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 <!-- Firebase -->
 <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-app-compat.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-auth-compat.min.js"></script>
@@ -1538,6 +1539,13 @@ window.addEventListener('error', (e) => {
 });
 
 window.addEventListener('DOMContentLoaded', () => {
+  // Register Service Worker for PWA offline support
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('[SW] Registered — scope:', reg.scope))
+      .catch(err => console.warn('[SW] Registration failed:', err));
+  }
+
   setTimeout(() => {
     document.getElementById('splash').classList.add('out');
     setTimeout(() => {
@@ -3985,12 +3993,9 @@ async function downloadDeliveryPDF(delivery){
     y+=9;
 
     const sigDefs = [
-      { key:'warehouse',    label:'ENTREGADO POR
-DELIVERED BY',   name: data.deliveredBy?.name||'—',  role: data.deliveredBy?.role||'Almacenero'    },
-      { key:'housekeeping', label:'RECIBIDO POR
-RECEIVED BY',     name: data.housekeeping||'—',        role: data.hkRole||'Housekeeping'              },
-      { key:'supervisor',   label:'AUTORIZADO POR
-AUTHORIZED BY', name: data.supervisor||'—',          role: data.supRole||'Supervisor'               },
+      { key:'warehouse',    label1:'ENTREGADO POR', label2:'DELIVERED BY',   name: data.deliveredBy?.name||'—',  role: data.deliveredBy?.role||'Almacenero'   },
+      { key:'housekeeping', label1:'RECIBIDO POR',  label2:'RECEIVED BY',    name: data.housekeeping||'—',        role: data.hkRole||'Housekeeping'            },
+      { key:'supervisor',   label1:'AUTORIZADO POR',label2:'AUTHORIZED BY',  name: data.supervisor||'—',          role: data.supRole||'Supervisor'             },
     ];
 
     const boxW = (CW-8)/3;
@@ -4012,11 +4017,9 @@ AUTHORIZED BY', name: data.supervisor||'—',          role: data.supRole||'Supe
       doc.roundedRect(bx, by, boxW, 9, 2, 2, 'F');
       doc.rect(bx, by+6, boxW, 3, 'F');
       doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(6.5);
-      const labelLines = sd.label.split('
-');
-      doc.text(labelLines[0], bx+boxW/2, by+4, {align:'center'});
+      doc.text(sd.label1, bx+boxW/2, by+4, {align:'center'});
       doc.setTextColor(180,200,255); doc.setFontSize(5.5);
-      doc.text(labelLines[1]||'', bx+boxW/2, by+7.5, {align:'center'});
+      doc.text(sd.label2||'', bx+boxW/2, by+7.5, {align:'center'});
 
       // Signature image area
       const imgArea = {x:bx+2, y:by+10, w:boxW-4, h:28};
