@@ -804,6 +804,113 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 /* Also fix .prop-list to have proper max-height and scroll */
 .prop-list { flex: 1; overflow-y: auto; padding: 0 14px 8px; -webkit-overflow-scrolling: touch; max-height: 45vh; }
 
+
+/* ── DASHBOARD PROPERTY SWITCHER WIDGET ── */
+.dash-prop-widget {
+  margin: 10px 12px 4px;
+  background: linear-gradient(135deg, var(--navy) 0%, #1a3060 100%);
+  border-radius: 16px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid rgba(255,255,255,.08);
+  box-shadow: 0 4px 16px rgba(0,0,0,.18);
+  flex-shrink: 0;
+}
+.dash-prop-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+.dash-prop-icon {
+  width: 40px; height: 40px;
+  border-radius: 11px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; flex-shrink: 0;
+  background: rgba(255,255,255,.1);
+}
+.dash-prop-info { min-width: 0; }
+.dash-prop-name {
+  font-size: 15px; font-weight: 800; color: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dash-prop-sub {
+  font-size: 11px; color: rgba(255,255,255,.55);
+  margin-top: 1px; white-space: nowrap;
+}
+.dash-prop-inv-count {
+  font-size: 10px; color: var(--accent);
+  font-weight: 700; margin-top: 3px;
+}
+.dash-prop-switch-btn {
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 10px;
+  color: #fff; font-size: 12px; font-weight: 700;
+  padding: 7px 12px;
+  white-space: nowrap; flex-shrink: 0;
+  display: flex; align-items: center; gap: 5px;
+  transition: background .15s;
+}
+.dash-prop-switch-btn:active { background: rgba(255,255,255,.22); }
+
+/* Inline property chips in dashboard */
+.dash-prop-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 0 12px 2px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+.dash-prop-chips::-webkit-scrollbar { display: none; }
+.dash-prop-chip {
+  flex-shrink: 0;
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 12px; font-weight: 700;
+  border: 1.5px solid;
+  white-space: nowrap;
+  transition: all .15s;
+  display: flex; align-items: center; gap: 5px;
+}
+.dash-prop-chip.active {
+  color: var(--navy);
+}
+.dash-prop-chip:not(.active) {
+  background: transparent;
+  color: var(--text2);
+  border-color: var(--border);
+}
+.dash-prop-chip:not(.active):active {
+  background: var(--surface2);
+}
+
+/* Loading state overlay */
+.dash-inv-loading {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px 4px;
+  font-size: 12px;
+  color: var(--text3);
+}
+.dash-inv-loading.show { display: flex; }
+.spin {
+  width: 14px; height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin .6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 </style>
 </head>
 <body>
@@ -1014,6 +1121,33 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 
     <!-- DASHBOARD -->
     <div class="page active" id="pg-dashboard">
+
+      <!-- ── PROPERTY SWITCHER WIDGET ── -->
+      <div class="dash-prop-widget" id="dash-prop-widget">
+        <div class="dash-prop-left">
+          <div class="dash-prop-icon" id="dash-prop-icon">🏨</div>
+          <div class="dash-prop-info">
+            <div class="dash-prop-name" id="dash-prop-name">Hotel Arbellas</div>
+            <div class="dash-prop-sub" id="dash-prop-sub">Hotel · Plantation, FL</div>
+            <div class="dash-prop-inv-count" id="dash-prop-inv-count">📦 Cargando inventario…</div>
+          </div>
+        </div>
+        <button class="dash-prop-switch-btn" onclick="openDashPropPicker()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          Cambiar
+        </button>
+      </div>
+
+      <!-- ── INSTITUTION CHIPS (quick switch) ── -->
+      <div class="dash-prop-chips" id="dash-prop-chips"></div>
+
+      <!-- ── LOADING INDICATOR ── -->
+      <div class="dash-inv-loading" id="dash-inv-loading">
+        <div class="spin"></div>
+        <span id="dash-inv-loading-txt">Cargando inventario…</span>
+      </div>
+
+      <!-- ── METRICS GRID ── -->
       <div class="dash-grid" id="dash-grid"></div>
       <div class="section-lbl" data-i="low_stock_alert">⚠️ Alertas de stock</div>
       <div id="dash-alerts"></div>
@@ -2142,6 +2276,7 @@ function attachListeners(){
   const db = firebase.firestore();
   const u1 = db.collection(getPropInvCol()).orderBy('name').onSnapshot(snap=>{
     S.items = snap.docs.map(d=>({id:d.id,...d.data()}));
+      try{ onInventoryLoaded(); }catch(e){}
     if(!S.items.length) seedFirestore();
     renderInventory(); renderDashboard(); checkAlerts(); setSyncOnline();
   }, ()=>setSyncOffline());
@@ -2211,6 +2346,113 @@ function getStatus(item){
 }
 
 /* ── DASHBOARD ── */
+
+/* ════════════════════════════════════════════════════════════
+   DASHBOARD PROPERTY SWITCHER WIDGET
+   ════════════════════════════════════════════════════════════ */
+
+/* ── Render the widget in dashboard ── */
+function renderDashPropWidget() {
+  const p = PROP.active || PROP.list[0];
+  if (!p) return;
+
+  // Main widget
+  const iconEl  = document.getElementById('dash-prop-icon');
+  const nameEl  = document.getElementById('dash-prop-name');
+  const subEl   = document.getElementById('dash-prop-sub');
+  const countEl = document.getElementById('dash-prop-inv-count');
+
+  if (iconEl)  iconEl.textContent  = p.emoji || '🏨';
+  if (nameEl)  nameEl.textContent  = p.name;
+  if (subEl)   subEl.textContent   = p.type + (p.city ? ' · ' + p.city : '');
+  if (countEl) {
+    const cnt = S.items ? S.items.length : 0;
+    const val = S.items ? S.items.reduce((s,i)=>s+(i.qty||0)*(i.price||0),0) : 0;
+    countEl.textContent = cnt > 0
+      ? '📦 ' + cnt + ' productos · $' + val.toFixed(0)
+      : '📦 Sin productos — importa o agrega';
+  }
+
+  // Update widget accent color
+  const widget = document.getElementById('dash-prop-widget');
+  if (widget && p.color) {
+    widget.style.background =
+      'linear-gradient(135deg, ' + p.color + 'DD 0%, ' + p.color + '99 100%)';
+  }
+
+  // Chips — quick-switch row
+  renderDashPropChips();
+}
+
+/* ── Render institution chips ── */
+function renderDashPropChips() {
+  const el = document.getElementById('dash-prop-chips');
+  if (!el || PROP.list.length < 2) {
+    if (el) el.innerHTML = '';
+    return;
+  }
+
+  el.innerHTML = PROP.list.map(p => {
+    const isActive = p.id === (PROP.active ? PROP.active.id : '');
+    const bg  = isActive ? (p.color || 'var(--blue)') : 'transparent';
+    const col = isActive ? '#fff' : 'var(--text2)';
+    const bdr = isActive ? (p.color || 'var(--blue)') : 'var(--border)';
+    return '<button class="dash-prop-chip' + (isActive ? ' active' : '') + '"'
+      + ' data-propid="' + p.id + '"'
+      + ' style="background:' + bg + ';color:' + col + ';border-color:' + bdr + '"'
+      + ' onclick="dashSwitchProp(this.dataset.propid)">'
+      + (p.emoji || '\u{1F3E8}') + ' ' + p.name
+      + '</button>';
+  }).join('');
+}
+
+/* ── Quick switch from chip ── */
+function dashSwitchProp(id) {
+  if (PROP.active && PROP.active.id === id) return; // already active
+
+  // Show loading state
+  const loadEl = document.getElementById('dash-inv-loading');
+  const loadTxt = document.getElementById('dash-inv-loading-txt');
+  const newProp = PROP.list.find(p => p.id === id);
+  if (loadEl) loadEl.classList.add('show');
+  if (loadTxt && newProp) loadTxt.textContent = 'Cargando ' + newProp.name + '…';
+
+  // Switch property
+  PROP.list.forEach(p => p.active = (p.id === id));
+  PROP.active = PROP.list.find(p => p.id === id) || PROP.list[0];
+  propSave();
+  applyActiveProperty();
+
+  // Clear inventory and reload
+  S.items = [];
+  renderInventory();
+  renderDashboard();
+  renderDashPropWidget();
+
+  // Reconnect Firestore to new collection
+  try { attachListeners(); } catch(e) {}
+
+  // Hide loading after brief delay
+  setTimeout(function() {
+    if (loadEl) loadEl.classList.remove('show');
+    renderDashPropWidget(); // refresh count after data loads
+  }, 1500);
+
+  showAlert('✅ ' + (PROP.active ? PROP.active.name : '') + ' — inventario cargando…', 'success');
+}
+
+/* ── Open full property picker (shows all institutions) ── */
+function openDashPropPicker() {
+  openPropertySheet();
+}
+
+/* ── Called after Firestore inventory loads — refresh chip/count ── */
+function onInventoryLoaded() {
+  renderDashPropWidget();
+  const loadEl = document.getElementById('dash-inv-loading');
+  if (loadEl) loadEl.classList.remove('show');
+}
+
 function renderDashboard(){
   const now = new Date();
   const todayStr = now.toISOString().slice(0,10);
@@ -2239,6 +2481,8 @@ function renderDashboard(){
   S.items.filter(i=>!i.qty||i.qty<=0).forEach(i=>alerts.push(`<div class="alert-box danger" style="margin:6px 12px;border-radius:var(--r2)">🚨 <div><strong>${i.name}</strong> — ${t('out_of_stock')}</div></div>`));
   S.items.filter(i=>i.qty>0&&i.qty<(i.minQty||10)).forEach(i=>alerts.push(`<div class="alert-box warn" style="margin:6px 12px;border-radius:var(--r2)">⚠️ <div><strong>${i.name}</strong> — ${i.qty}/${i.minQty||10} ${i.unit}</div></div>`));
   document.getElementById('dash-alerts').innerHTML = alerts.length ? alerts.join('') : `<div class="alert-box success" style="margin:6px 12px">✅ <span>Todo el inventario en nivel adecuado</span></div>`;
+  // Refresh prop widget with current inventory count
+  renderDashPropWidget();
 }
 
 /* ── INVENTORY ── */
@@ -5061,6 +5305,8 @@ function applyActiveProperty(){
     const invCount = S.items ? S.items.length : 0;
     propSubEl.textContent = p.emoji + ' ' + p.type + (p.city ? ' · ' + p.city : '') + (invCount > 0 ? ' · ' + invCount + ' prods.' : '');
   }
+  // Refresh dashboard widget
+  try{ renderDashPropWidget(); }catch(e){}
   // Menu footer version string
   const menuVer = document.getElementById('menu-version-txt');
   if(menuVer) menuVer.innerHTML = "Arbella'sStock WMS · "+p.name+'<br>© 2026 · '+(p.city||'')+'  · Todos los derechos reservados';
