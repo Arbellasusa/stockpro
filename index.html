@@ -626,48 +626,27 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 
 /* Property switcher overlay */
 .prop-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,.6);
-  z-index: 600; display: none; align-items: flex-end; justify-content: center;
+  position: fixed; inset: 0; background: rgba(0,0,0,.55);
+  z-index: 600; display: none; align-items: flex-end;
 }
 .prop-overlay.open { display: flex; }
-/* Selector sheet — compact, shows all institutions */
 .prop-sheet {
-  background: var(--surface); border-radius: 22px 22px 0 0;
-  width: 100%; max-width: 540px;
-  max-height: 80vh; display: flex; flex-direction: column;
-  padding-bottom: calc(env(safe-area-inset-bottom,0px) + 12px);
-  animation: slideUp .25s cubic-bezier(.4,0,.2,1);
-  overflow: hidden;
+  background: var(--surface); border-radius: 20px 20px 0 0;
+  width: 100%; max-height: 90vh; display: flex; flex-direction: column;
+  padding-bottom: calc(16px + var(--safe));
+  animation: slideUp .28s cubic-bezier(.4,0,.2,1);
 }
 @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+
 .prop-sheet-hdr {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 18px 10px; border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+  padding: 16px 18px 12px; border-bottom: 1px solid var(--border);
 }
-.prop-sheet-hdr h3 { font-size: 16px; font-weight: 800; }
+.prop-sheet-hdr h3 { font-size: 17px; font-weight: 700; }
 .prop-sheet-close {
   background: var(--surface2); border: none; width: 30px; height: 30px;
   border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  color: var(--text3); font-size: 18px; line-height: 1;
-}
-/* Add-institution modal (separate full modal) */
-.prop-add-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,.6);
-  z-index: 700; display: none; align-items: flex-end; justify-content: center;
-}
-.prop-add-overlay.open { display: flex; }
-.prop-add-sheet {
-  background: var(--surface); border-radius: 22px 22px 0 0;
-  width: 100%; max-width: 540px;
-  max-height: 92vh; display: flex; flex-direction: column;
-  padding-bottom: calc(env(safe-area-inset-bottom,0px) + 12px);
-  animation: slideUp .25s cubic-bezier(.4,0,.2,1);
-  overflow: hidden;
-}
-.prop-add-body {
-  flex: 1; overflow-y: auto; padding: 14px 16px;
-  -webkit-overflow-scrolling: touch;
+  color: var(--text3); font-size: 16px;
 }
 
 /* Current property card */
@@ -696,7 +675,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
   padding: 10px 16px 6px; font-size: 11px; font-weight: 700;
   color: var(--text3); text-transform: uppercase; letter-spacing: .06em;
 }
-.prop-list { flex: 1; overflow-y: auto; padding: 0 14px 8px; -webkit-overflow-scrolling: touch; max-height: 55vh; }
+.prop-list { flex: 1; overflow-y: auto; padding: 0 16px; }
 .prop-item {
   display: flex; align-items: center; gap: 12px;
   padding: 12px 14px; background: var(--surface2); border-radius: var(--r2);
@@ -802,6 +781,28 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 .rpt-import-result.err { background:#FEF2F2; border:1.5px solid #FCA5A5; color:#991B1B; }
 .rpt-field-map { display:grid; grid-template-columns:1fr auto 1fr; gap:8px; align-items:center; margin:6px 12px; font-size:12px; }
 .rpt-field-map select { padding:7px 8px; border:1.5px solid var(--border,#E2E8F0); border-radius:8px; font-size:12px; background:var(--surface2,#F8FAFC); }
+
+
+/* ── PROP ADD SHEET (second panel) ── */
+.prop-add-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.65);
+  z-index: 700; display: none; align-items: flex-end; justify-content: center;
+}
+.prop-add-overlay.open { display: flex; }
+.prop-add-sheet {
+  background: var(--surface); border-radius: 22px 22px 0 0;
+  width: 100%; max-width: 540px;
+  max-height: 92vh; display: flex; flex-direction: column;
+  padding-bottom: calc(env(safe-area-inset-bottom,0px) + 10px);
+  animation: slideUp .25s cubic-bezier(.4,0,.2,1);
+  overflow: hidden;
+}
+.prop-add-body {
+  flex: 1; overflow-y: auto; padding: 14px 16px;
+  -webkit-overflow-scrolling: touch;
+}
+/* Also fix .prop-list to have proper max-height and scroll */
+.prop-list { flex: 1; overflow-y: auto; padding: 0 14px 8px; -webkit-overflow-scrolling: touch; max-height: 45vh; }
 
 </style>
 </head>
@@ -1566,7 +1567,10 @@ input,select,textarea{font-family:inherit;font-size:inherit}
           Imprimir / Print
         </button>
       </div>
-
+      <button class="btn-secondary" onclick="printReport()" style="width:100%;font-size:13px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Imprimir / Print
+      </button>
     </div>
   </div>
 </div>
@@ -1823,6 +1827,17 @@ const ROLE_LEVELS = {
   supervisor:       2,
   housekeeping:     1,
 };
+
+/* ── MULTI-PROPERTY INVENTORY NAMESPACE ── */
+function getPropInvCol(){
+  var pid = (PROP && PROP.active) ? PROP.active.id : 'prop_default';
+  return pid === 'prop_default' ? COLS.INV : COLS.INV + '_' + pid;
+}
+function getPropMovCol(){
+  var pid = (PROP && PROP.active) ? PROP.active.id : 'prop_default';
+  return pid === 'prop_default' ? COLS.MOV : COLS.MOV + '_' + pid;
+}
+
 
 /* ── MULTI-PROPERTY INVENTORY NAMESPACE ── */
 function getPropInvCol(){
@@ -5057,27 +5072,28 @@ function applyActiveProperty(){
 }
 
 /* ── OPEN / CLOSE SHEET ── */
+
+/* ── PROP ADD MODAL OPEN/CLOSE ── */
+function openAddPropModal(editId){
+  if(editId){ editPropItem(editId); }
+  else { resetPropForm(); document.getElementById('prop-add-title').textContent = '➕ Nueva institución'; }
+  var el=document.getElementById('prop-add-overlay');
+  if(el) el.classList.add('open');
+}
+function closePropAddModal(){
+  var el=document.getElementById('prop-add-overlay');
+  if(el) el.classList.remove('open');
+}
+
 function openPropertySheet(){
   propLoad();
   renderPropCurrentCard();
   renderPropList();
-  document.getElementById('prop-overlay').classList.add('open');
+  var el=document.getElementById('prop-overlay');
+  if(el) el.classList.add('open');
 }
 function closePropSheet(){
   document.getElementById('prop-overlay').classList.remove('open');
-}
-function openAddPropModal(editId){
-  // If editing, load data; otherwise reset
-  if(editId){
-    editPropItem(editId);
-  } else {
-    resetPropForm();
-    document.getElementById('prop-add-title').textContent = '➕ Nueva institución';
-  }
-  document.getElementById('prop-add-overlay').classList.add('open');
-}
-function closePropAddModal(){
-  document.getElementById('prop-add-overlay').classList.remove('open');
 }
 
 /* ── RENDER CURRENT CARD ── */
@@ -5176,8 +5192,10 @@ function editPropItem(id){
   });
 
   // Open the add/edit modal
-  document.getElementById('prop-add-title').textContent = '✏️ Editar institución';
-  document.getElementById('prop-add-overlay').classList.add('open');
+  var eEl=document.getElementById('prop-add-overlay');
+  if(eEl) eEl.classList.add('open');
+  var tt=document.getElementById('prop-add-title');
+  if(tt) tt.textContent='✏️ Editar institución';
 }
 
 /* ── RESET FORM ── */
@@ -5255,7 +5273,6 @@ function savePropForm(){
 
   propSave();
   closePropAddModal();
-  // If we just edited the currently active property, re-apply branding immediately
   var nowActive = PROP.list.find(function(p){ return p.active; });
   if(nowActive){ PROP.active = nowActive; applyActiveProperty(); }
   renderPropCurrentCard();
@@ -5744,23 +5761,22 @@ function rptShowResult(msg, type){
      PROPERTY / HOTEL SWITCHER SHEET
 ═══════════════════════════════════════ -->
 <!-- ═══════════════════════════════════════
-     SHEET 1: INSTITUTION SELECTOR (slide-up)
-═══════════════════════════════════════ -->
+     SHEET 1: SELECT INSTITUTION (slide-up)
+════════════════════════════════════════ -->
 <div class="prop-overlay" id="prop-overlay" onclick="if(event.target===this)closePropSheet()">
   <div class="prop-sheet">
-
     <div class="prop-sheet-hdr">
-      <h3>🏨 Hotel / Empresa</h3>
+      <h3>🏨 Hotel / Empresa — WMS</h3>
       <button class="prop-sheet-close" onclick="closePropSheet()">✕</button>
     </div>
 
-    <!-- Active institution card -->
-    <div class="prop-current" id="prop-current-card" style="margin:12px;border-radius:14px;flex-shrink:0">
+    <!-- Active card -->
+    <div class="prop-current" id="prop-current-card" style="margin:12px 14px;border-radius:14px;flex-shrink:0">
       <div class="prop-current-icon" id="prop-current-icon">🏨</div>
       <div class="prop-current-info">
         <div class="prop-current-name" id="prop-current-name">Hotel Arbellas</div>
         <div class="prop-current-type" id="prop-current-type">Hotel · Plantation, FL</div>
-        <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:2px">📦 Inventario activo</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:2px">📦 Inventario independiente activo</div>
       </div>
       <div class="prop-current-badge">ACTIVO</div>
     </div>
@@ -5769,34 +5785,32 @@ function rptShowResult(msg, type){
     <div class="prop-list-hdr" style="flex-shrink:0">Instituciones guardadas</div>
     <div class="prop-list" id="prop-list"></div>
 
-    <!-- Bottom action bar — always visible -->
-    <div style="padding:10px 16px;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:8px">
-      <button onclick="openAddPropModal()" style="flex:1;padding:12px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px">
+    <!-- Bottom bar — always visible -->
+    <div style="padding:10px 14px;border-top:1px solid var(--border);flex-shrink:0">
+      <button onclick="openAddPropModal()" style="width:100%;padding:13px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:7px">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Agregar institución
+        Agregar institución
       </button>
     </div>
-
   </div>
 </div>
 
 <!-- ═══════════════════════════════════════
      SHEET 2: ADD / EDIT INSTITUTION FORM
-═══════════════════════════════════════ -->
+════════════════════════════════════════ -->
 <div class="prop-add-overlay" id="prop-add-overlay" onclick="if(event.target===this)closePropAddModal()">
   <div class="prop-add-sheet">
-
     <div class="prop-sheet-hdr" style="flex-shrink:0">
-      <h3 id="prop-add-title">➕ Nueva institución</h3>
+      <h3 id="prop-add-title">➕ Nueva institución</h3>
       <button class="prop-sheet-close" onclick="closePropAddModal()">✕</button>
     </div>
 
     <div class="prop-add-body">
       <input type="hidden" id="prop-edit-id">
 
-      <!-- Emoji picker -->
+      <!-- Emoji -->
       <div style="margin-bottom:14px">
-        <div style="font-size:11px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Ícono</div>
+        <div style="font-size:11px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Ícono</div>
         <div style="display:flex;flex-wrap:wrap;gap:8px" id="prop-emoji-row">
           <button class="prop-emoji-btn active" data-emoji="🏨" onclick="selectPropEmoji(this)">🏨</button>
           <button class="prop-emoji-btn" data-emoji="🏩" onclick="selectPropEmoji(this)">🏩</button>
@@ -5819,10 +5833,10 @@ function rptShowResult(msg, type){
         <div class="fgrp"><label>Ciudad / Estado</label><input type="text" id="prop-city-inp" placeholder="Plantation, FL"></div>
       </div>
 
-      <!-- Type selector -->
+      <!-- Type -->
       <div style="margin-bottom:14px">
         <div style="font-size:11px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Tipo</div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        <div class="prop-type-row">
           <button class="prop-type-btn active" data-type="Hotel" onclick="selectPropType(this)">🏨<br>Hotel</button>
           <button class="prop-type-btn" data-type="Resort" onclick="selectPropType(this)">🏝️<br>Resort</button>
           <button class="prop-type-btn" data-type="Motel" onclick="selectPropType(this)">🏩<br>Motel</button>
@@ -5835,7 +5849,7 @@ function rptShowResult(msg, type){
         </div>
       </div>
 
-      <!-- Color picker -->
+      <!-- Color -->
       <div style="margin-bottom:14px">
         <div style="font-size:11px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Color</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap" id="prop-color-row">
@@ -5851,21 +5865,18 @@ function rptShowResult(msg, type){
       </div>
 
       <!-- Notes -->
-      <div class="fgrp" style="margin-bottom:14px">
-        <label>Notas</label>
-        <input type="text" id="prop-notes-inp" placeholder="Sucursal principal, 5 pisos…">
-      </div>
+      <div class="fgrp"><label>Notas</label><input type="text" id="prop-notes-inp" placeholder="Sede principal, 5 pisos…"></div>
     </div>
 
-    <!-- Save button — always visible at bottom -->
-    <div style="padding:10px 16px;border-top:1px solid var(--border);flex-shrink:0">
-      <button onclick="savePropForm()" style="width:100%;padding:14px;background:var(--blue);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:800">
-        💾 Guardar institución
+    <!-- Save — always visible -->
+    <div style="padding:10px 14px;border-top:1px solid var(--border);flex-shrink:0">
+      <button onclick="savePropForm()" style="width:100%;padding:14px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:800">
+        💾 Guardar institución
       </button>
     </div>
-
   </div>
 </div>
+
 
 <!-- ═══════════════════════════════════════
      USER MANAGER MODAL (Admin only)
