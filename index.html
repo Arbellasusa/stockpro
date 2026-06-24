@@ -950,6 +950,58 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 .im-suggest-name { font-size: 13px; font-weight: 600; flex: 1; }
 .im-suggest-sub  { font-size: 11px; color: var(--text3); }
 
+
+/* ── SUPPLIERS MODULE ── */
+.sup-page { display:flex; flex-direction:column; height:100%; }
+.sup-hero {
+  background: linear-gradient(135deg, #1FAD6E 0%, #0D8A50 100%);
+  padding: 16px 16px 14px; flex-shrink:0;
+}
+.sup-hero-row { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+.sup-hero-icon {
+  width:48px; height:48px; border-radius:14px;
+  background:rgba(255,255,255,.2); display:flex;
+  align-items:center; justify-content:center; font-size:26px; flex-shrink:0;
+}
+.sup-hero-title { color:#fff; }
+.sup-hero-title h3 { font-size:18px; font-weight:800; margin:0 0 2px; }
+.sup-hero-title p  { font-size:12px; opacity:.75; margin:0; }
+.sup-tabs { display:flex; border-bottom:2px solid rgba(255,255,255,.2); }
+.sup-tab {
+  padding:8px 14px; font-size:12px; font-weight:700; color:rgba(255,255,255,.6);
+  border-bottom:3px solid transparent; cursor:pointer; margin-bottom:-2px;
+}
+.sup-tab.active { color:#fff; border-bottom-color:#fff; }
+
+/* Supplier card */
+.sup-card {
+  background:#fff; border-radius:14px; padding:14px;
+  margin-bottom:8px; border:1.5px solid var(--border);
+  display:flex; align-items:flex-start; gap:12px;
+}
+.sup-card-icon {
+  width:44px; height:44px; border-radius:11px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:22px;
+}
+.sup-card-body { flex:1; min-width:0; }
+.sup-card-name { font-weight:800; font-size:14px; color:var(--text); }
+.sup-card-cat  { font-size:11px; color:var(--text3); margin-top:2px; }
+.sup-card-info { font-size:11px; color:var(--text2); margin-top:4px; }
+.sup-card-tags { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+.sup-tag {
+  font-size:10px; padding:2px 7px; border-radius:10px;
+  background:var(--surface2); color:var(--text2); font-weight:600;
+}
+.sup-card-actions { display:flex; flex-direction:column; gap:5px; flex-shrink:0; }
+.sup-stat-row {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
+  padding:10px 12px; background:rgba(255,255,255,.1);
+  border-radius:10px; margin-top:8px;
+}
+.sup-stat { text-align:center; }
+.sup-stat-val { font-size:18px; font-weight:800; color:#fff; }
+.sup-stat-lbl { font-size:10px; color:rgba(255,255,255,.65); margin-top:1px; }
+
 </style>
 </head>
 <body>
@@ -1133,7 +1185,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
       <div class="menu-sep"></div>
       <li class="menu-item dhs-item" data-p="dhs" onclick="navigate('dhs')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2z"/><path d="M12 6v6l4 2"/><path d="M8 12c0-2.2 1.8-4 4-4"/></svg>
-        <span>DHS Amenities</span>
+        <span>Suppliers</span>
         <span class="dhs-nav-badge" id="menu-dhs-badge" style="display:none">0</span>
       </li>
       <li class="menu-item" data-p="export" onclick="navigate('export')">
@@ -1377,8 +1429,42 @@ input,select,textarea{font-family:inherit;font-size:inherit}
     ═══════════════════════════════════════ -->
     <div class="page" id="pg-dhs">
 
-      <!-- Hero Banner -->
-      <div class="dhs-hero">
+      <!-- Suppliers Hero Banner -->
+      <div class="sup-hero">
+        <div class="sup-hero-row">
+          <div class="sup-hero-icon">🏢</div>
+          <div class="sup-hero-title">
+            <h3>Suppliers</h3>
+            <p>Suministradores · Gestión de proveedores</p>
+          </div>
+        </div>
+        <!-- Stats -->
+        <div class="sup-stat-row" id="sup-stats-row">
+          <div class="sup-stat"><div class="sup-stat-val" id="sup-total-count">0</div><div class="sup-stat-lbl">Suppliers</div></div>
+          <div class="sup-stat"><div class="sup-stat-val" id="sup-dhs-count">0</div><div class="sup-stat-lbl">Productos</div></div>
+          <div class="sup-stat"><div class="sup-stat-val" id="sup-cat-count">0</div><div class="sup-stat-lbl">Categorías</div></div>
+        </div>
+        <!-- Tabs -->
+        <div class="sup-tabs" style="margin-top:10px">
+          <div class="sup-tab active" onclick="supSwitchTab('sup-tab-list',this)">📋 Suppliers</div>
+          <div class="sup-tab" onclick="supSwitchTab('sup-tab-dhs',this)">🏨 DHS Catalog</div>
+          <div class="sup-tab" onclick="supSwitchTab('sup-tab-orders',this)">🛒 Compras</div>
+        </div>
+      </div>
+
+      <!-- TAB: SUPPLIERS LIST -->
+      <div id="sup-tab-list" style="flex:1;overflow-y:auto;padding:10px 12px">
+        <div id="sup-list-content"></div>
+        <button onclick="openSupplierModal()" style="width:100%;padding:12px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;margin-top:4px;display:flex;align-items:center;justify-content:center;gap:7px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Agregar Supplier
+        </button>
+      </div>
+
+      <!-- TAB: DHS CATALOG (original DHS content) -->
+      <div id="sup-tab-dhs" style="display:none;flex:1;overflow-y:auto">
+        <!-- DHS hero info moved here -->
+        <div class="dhs-hero" style="margin:0">
         <div class="dhs-logo-chip">
           <span class="dhs-acronym">DHS</span>
           <span class="dhs-sub">Supplier</span>
@@ -1517,6 +1603,8 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 
     </div><!-- /pg-dhs -->
 
+      </div><!-- /sup-tab-dhs -->
+      <div id="sup-tab-orders" style="display:none;flex:1;overflow-y:auto;padding:10px 12px"><div id="sup-orders-content"><div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Sin compras registradas aún.</div></div></div>
   </div><!-- /main -->
 
   <!-- BOTTOM NAV -->
@@ -1539,8 +1627,8 @@ input,select,textarea{font-family:inherit;font-size:inherit}
       <div class="nbadge hidden" id="nav-delivery-badge"></div>
     </button>
     <button class="nav-btn" data-p="dhs" onclick="navigate('dhs')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-      <span>DHS</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      <span>Suppliers</span>
       <div class="nbadge hidden" id="nav-dhs-badge"></div>
     </button>
     <button class="nav-btn" data-p="reports" onclick="navigate('reports')">
@@ -2489,7 +2577,8 @@ function renderDashPropChips() {
 }
 
 /* ── Quick switch from chip ── */
-function dashSwitchProp(id) {
+function dashSwitchProp(id){ propSwitchAndClose(id); }
+function dashSwitchPropFull(id) {
   if (PROP.active && PROP.active.id === id) return; // already active
 
   // Show loading state
@@ -5305,7 +5394,7 @@ function navigateDHS(page){
   document.querySelectorAll('.nav-btn,.menu-item').forEach(b=>b.classList.remove('active'));
   document.getElementById('pg-dhs').classList.add('active');
   document.querySelectorAll('[data-p="dhs"]').forEach(b=>b.classList.add('active'));
-  document.getElementById('page-title').textContent='DHS Amenities';
+  document.getElementById('page-title').textContent='Suppliers';
   toggleMenu(true);
   renderDHSPage();
   dhsAttachListeners();
@@ -5434,43 +5523,70 @@ function renderPropCurrentCard(){
 }
 
 /* ── RENDER SAVED LIST ── */
+
+function propSwitchAndClose(id){
+  // Switch property and reload inventory
+  PROP.list.forEach(function(p){ p.active = (p.id === id); });
+  PROP.active = PROP.list.find(function(p){ return p.id === id; }) || PROP.list[0];
+  propSave();
+  applyActiveProperty();
+  S.items = [];
+  if(typeof renderInventory === 'function') renderInventory();
+  if(typeof renderDashboard === 'function') renderDashboard();
+  if(typeof renderDashPropWidget === 'function') renderDashPropWidget();
+  try{ attachListeners(); }catch(e){}
+  renderPropCurrentCard();
+  renderPropList();
+  var name = PROP.active ? PROP.active.name : '';
+  showAlert('✅ ' + name + ' — inventario cargando…', 'success');
+  setTimeout(closePropSheet, 900);
+}
+
 function renderPropList(){
   var el = document.getElementById('prop-list');
   if(!el) return;
   if(!PROP.list || PROP.list.length === 0){
-    el.innerHTML = '<div style="text-align:center;padding:24px 16px;font-size:13px;color:var(--text3)">Sin instituciones. Toca + Agregar.</div>';
+    el.innerHTML = '<div style="text-align:center;padding:24px;font-size:13px;color:var(--text3)">Sin instituciones. Toca Agregar abajo.</div>';
     return;
   }
   var html = '';
-  PROP.list.forEach(function(p){
-    var isActive = PROP.active && p.id === PROP.active.id;
+  for(var pi=0; pi<PROP.list.length; pi++){
+    var p = PROP.list[pi];
+    var isAct = PROP.active && p.id === PROP.active.id;
     var col = p.color || '#1E4DB7';
-    var bgCard  = isActive ? col+'18' : 'var(--surface2)';
-    var bdrCard = isActive ? col+'66' : 'var(--border)';
-    html += '<div style="display:flex;align-items:center;gap:10px;padding:11px 14px;margin-bottom:8px;background:'+bgCard+';border:1.5px solid '+bdrCard+';border-radius:14px">';
-    html += '<div style="width:40px;height:40px;border-radius:11px;background:'+col+'22;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">'+( p.emoji||'\u{1F3E8}')+'</div>';
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:8px;';
+    html += 'background:' + (isAct ? col+'15' : 'var(--surface2)') + ';';
+    html += 'border:1.5px solid ' + (isAct ? col+'88' : 'var(--border)') + ';border-radius:14px">';
+    // Icon
+    html += '<div style="width:42px;height:42px;border-radius:11px;background:' + col + '22;';
+    html += 'display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">' + (p.emoji||'🏨') + '</div>';
+    // Info
     html += '<div style="flex:1;min-width:0">';
-    html += '<div style="font-weight:800;font-size:14px;color:'+(isActive?col:'var(--text)')+'">'+p.name+'</div>';
-    html += '<div style="font-size:11px;color:var(--text3);margin-top:1px">'+(p.type||'Hotel')+(p.city?' · '+p.city:'')+'</div>';
-    if(isActive){
-      html += '<div style="font-size:10px;font-weight:800;color:'+col+';margin-top:3px">✅ ACTIVA · INVENTARIO CARGADO</div>';
+    html += '<div style="font-weight:800;font-size:14px;color:' + (isAct ? col : 'var(--text)') + '">' + p.name + '</div>';
+    html += '<div style="font-size:11px;color:var(--text3)">' + (p.type||'Hotel') + (p.city ? ' · ' + p.city : '') + '</div>';
+    if(isAct){
+      html += '<div style="font-size:10px;font-weight:800;color:' + col + ';margin-top:2px">✅ ACTIVA · INVENTARIO CARGADO</div>';
     } else {
-      html += '<div style="font-size:10px;color:var(--text3);margin-top:3px">📦 Inventario independiente</div>';
+      html += '<div style="font-size:10px;color:var(--text3);margin-top:2px">📦 Inventario independiente</div>';
     }
     html += '</div>';
+    // Actions
     html += '<div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">';
-    if(isActive){
-      html += '<div style="background:'+col+';color:#fff;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:800;text-align:center">ACTIVA</div>';
+    if(isAct){
+      html += '<div style="background:' + col + ';color:#fff;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:800">ACTIVA</div>';
     } else {
-      html += '<button style="background:'+col+';color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer" onclick="dashSwitchProp(\''+p.id+'\');closePropSheet()">\u2705 Activar</button>';
+      html += '<button onclick="propSwitchAndClose(' + JSON.stringify(p.id) + ')" ';
+      html += 'style="background:' + col + ';color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">✅ Activar</button>';
     }
     html += '<div style="display:flex;gap:4px">';
-    html += '<button style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 8px;font-size:12px;cursor:pointer" onclick="openAddPropModal(\''+p.id+'\')">\u270f\ufe0f</button>';
-    if(!isActive){
-      html += '<button style="flex:1;background:#FDE8E8;border:none;border-radius:7px;padding:5px 8px;font-size:12px;cursor:pointer" onclick="deletePropItem(\''+p.id+'\')">\U0001f5d1</button>';
+    html += '<button onclick="openAddPropModal(' + JSON.stringify(p.id) + ')" ';
+    html += 'style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 8px;font-size:13px;cursor:pointer">✏️</button>';
+    if(!isAct){
+      html += '<button onclick="deletePropItem(' + JSON.stringify(p.id) + ')" ';
+      html += 'style="background:#FDE8E8;border:none;border-radius:7px;padding:5px 8px;font-size:13px;cursor:pointer">🗑</button>';
     }
     html += '</div></div></div>';
-  });
+  }
   el.innerHTML = html;
 }
 
@@ -6320,6 +6436,243 @@ async function invExecuteImport(){
   if(finp) finp.value='';
 }
 
+
+/* ════════════════════════════════════════════════════════════
+   SUPPLIERS MODULE — Full CRUD
+   Stored in localStorage: sp_suppliers
+   ════════════════════════════════════════════════════════════ */
+
+var _supEmoji = '🏢';
+
+// Load suppliers from localStorage + Firestore
+function loadSuppliers(){
+  try{ return JSON.parse(localStorage.getItem('sp_suppliers') || '[]'); }
+  catch(e){ return []; }
+}
+function saveSuppliers(list){
+  localStorage.setItem('sp_suppliers', JSON.stringify(list));
+  // Also push to Firestore if available
+  if(S.fbReady){
+    var batch = firebase.firestore().batch();
+    list.forEach(function(sup){
+      var ref = firebase.firestore().collection('stockpro_suppliers').doc(sup.id);
+      batch.set(ref, sup, {merge:true});
+    });
+    batch.commit().catch(function(e){ console.warn('Suppliers Firestore sync:', e.message); });
+  }
+}
+
+// Init built-in suppliers (DHS always present)
+function initDefaultSuppliers(){
+  var list = loadSuppliers();
+  if(list.length === 0){
+    list = [{
+      id: 'sup_dhs',
+      name: 'Diversified Hospitality Solutions',
+      emoji: '🏨',
+      cat: 'Amenidades',
+      country: 'USA · Florida',
+      url: 'https://diversifiedhospitality.com',
+      email: 'sales@diversifiedhospitality.com',
+      phone: '',
+      account: '',
+      terms: 'Net 30',
+      notes: 'Proveedor oficial de amenidades hoteleras',
+      active: true,
+      builtin: true,
+      createdAt: Date.now()
+    }];
+    saveSuppliers(list);
+  }
+  return list;
+}
+
+/* ── Tab switcher ── */
+function supSwitchTab(tabId, btn){
+  ['sup-tab-list','sup-tab-dhs','sup-tab-orders'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.style.display = id===tabId ? '' : 'none';
+  });
+  document.querySelectorAll('.sup-tab').forEach(function(t){ t.classList.remove('active'); });
+  if(btn) btn.classList.add('active');
+  if(tabId === 'sup-tab-list') renderSupplierList();
+  if(tabId === 'sup-tab-dhs')  renderDHSPage();
+}
+
+/* ── Render suppliers list ── */
+function renderSupplierList(){
+  var list = initDefaultSuppliers();
+  var el = document.getElementById('sup-list-content');
+  if(!el) return;
+
+  // Update stats
+  var total = document.getElementById('sup-total-count');
+  var dhsCnt = document.getElementById('sup-dhs-count');
+  var catCnt = document.getElementById('sup-cat-count');
+  if(total) total.textContent = list.length;
+  if(dhsCnt) dhsCnt.textContent = (typeof DHS !== 'undefined' && DHS.items) ? DHS.items.length : 0;
+  var cats = new Set(list.map(function(s){ return s.cat; }));
+  if(catCnt) catCnt.textContent = cats.size;
+
+  if(!list.length){
+    el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Sin suppliers. Agrega uno con el botón de abajo.</div>';
+    return;
+  }
+
+  var adminMode = canDeleteProducts && canDeleteProducts();
+  el.innerHTML = list.map(function(sup){
+    return '<div class="sup-card">'
+      + '<div class="sup-card-icon" style="background:' + (sup.active ? '#1FAD6E22' : '#F3F4F6') + '">' + (sup.emoji||'🏢') + '</div>'
+      + '<div class="sup-card-body">'
+      + '<div class="sup-card-name">' + sup.name + (sup.builtin ? ' <span style="font-size:10px;background:#1FAD6E;color:#fff;border-radius:5px;padding:1px 5px">BUILT-IN</span>' : '') + '</div>'
+      + '<div class="sup-card-cat">' + (sup.cat||'') + (sup.country ? ' · ' + sup.country : '') + '</div>'
+      + (sup.email ? '<div class="sup-card-info">✉️ ' + sup.email + '</div>' : '')
+      + (sup.phone ? '<div class="sup-card-info">📞 ' + sup.phone + '</div>' : '')
+      + (sup.account ? '<div class="sup-card-info">🔑 ' + sup.account + '</div>' : '')
+      + '<div class="sup-card-tags">'
+      + (sup.terms ? '<span class="sup-tag">' + sup.terms + '</span>' : '')
+      + (sup.url ? '<a href="' + sup.url + '" target="_blank" style="font-size:10px;color:var(--blue);padding:2px 7px;border-radius:10px;background:var(--surface2);font-weight:600">🌐 Web</a>' : '')
+      + (!sup.active ? '<span class="sup-tag" style="color:#E5383B;background:#FDE8E8">Inactivo</span>' : '')
+      + '</div>'
+      + '</div>'
+      + '<div class="sup-card-actions">'
+      + (adminMode ? '<button onclick="editSupplier(' + JSON.stringify(sup.id) + ')" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-size:13px;cursor:pointer">✏️</button>' : '')
+      + (adminMode && !sup.builtin ? '<button onclick="deleteSupplier(' + JSON.stringify(sup.id) + ')" style="background:#FDE8E8;border:none;border-radius:8px;padding:6px 9px;font-size:13px;cursor:pointer">🗑</button>' : '')
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+/* ── Open/close modal ── */
+function openSupplierModal(editId){
+  _supEmoji = '🏢';
+  var m = document.getElementById('sup-modal');
+  var titleEl = document.getElementById('sup-modal-title');
+  if(!m) return;
+
+  if(editId){
+    var sup = loadSuppliers().find(function(s){ return s.id === editId; });
+    if(sup){
+      document.getElementById('sup-edit-id').value = sup.id;
+      document.getElementById('sup-name').value    = sup.name||'';
+      document.getElementById('sup-cat').value     = sup.cat||'Amenidades';
+      document.getElementById('sup-country').value = sup.country||'';
+      document.getElementById('sup-url').value     = sup.url||'';
+      document.getElementById('sup-email').value   = sup.email||'';
+      document.getElementById('sup-phone').value   = sup.phone||'';
+      document.getElementById('sup-account').value = sup.account||'';
+      document.getElementById('sup-terms').value   = sup.terms||'Net 30';
+      document.getElementById('sup-notes').value   = sup.notes||'';
+      document.getElementById('sup-active').checked = sup.active !== false;
+      _supEmoji = sup.emoji||'🏢';
+      if(titleEl) titleEl.textContent = '✏️ Editar Supplier';
+    }
+  } else {
+    ['sup-edit-id','sup-name','sup-country','sup-url','sup-email','sup-phone','sup-account','sup-notes'].forEach(function(id){
+      var el=document.getElementById(id); if(el) el.value='';
+    });
+    document.getElementById('sup-active').checked = true;
+    if(titleEl) titleEl.textContent = '➕ Nuevo Supplier';
+  }
+
+  // Highlight selected emoji
+  document.querySelectorAll('#sup-emoji-picker .prop-emoji-btn').forEach(function(btn){
+    btn.classList.toggle('active', btn.dataset.emoji === _supEmoji);
+  });
+
+  m.classList.add('open');
+  setTimeout(function(){ var n=document.getElementById('sup-name'); if(n) n.focus(); }, 200);
+}
+
+function closeSupplierModal(){
+  var m = document.getElementById('sup-modal');
+  if(m) m.classList.remove('open');
+}
+
+function selectSupEmoji(btn){
+  document.querySelectorAll('#sup-emoji-picker .prop-emoji-btn').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  _supEmoji = btn.dataset.emoji;
+}
+
+/* ── Save supplier ── */
+function saveSupplier(){
+  var name = (document.getElementById('sup-name').value||'').trim();
+  if(!name){ showAlert('El nombre es requerido','warn'); return; }
+
+  var editId = document.getElementById('sup-edit-id').value;
+  var list   = loadSuppliers();
+
+  var sup = {
+    id:      editId || ('sup_' + Date.now()),
+    name:    name,
+    emoji:   _supEmoji,
+    cat:     document.getElementById('sup-cat').value,
+    country: document.getElementById('sup-country').value,
+    url:     document.getElementById('sup-url').value,
+    email:   document.getElementById('sup-email').value,
+    phone:   document.getElementById('sup-phone').value,
+    account: document.getElementById('sup-account').value,
+    terms:   document.getElementById('sup-terms').value,
+    notes:   document.getElementById('sup-notes').value,
+    active:  document.getElementById('sup-active').checked,
+    updatedAt: Date.now()
+  };
+
+  if(editId){
+    var idx = list.findIndex(function(s){ return s.id===editId; });
+    if(idx >= 0){
+      sup.builtin = list[idx].builtin || false;
+      sup.createdAt = list[idx].createdAt;
+      list[idx] = sup;
+    }
+  } else {
+    sup.createdAt = Date.now();
+    list.push(sup);
+  }
+
+  saveSuppliers(list);
+  closeSupplierModal();
+  renderSupplierList();
+  showAlert('✅ ' + name + ' guardado', 'success');
+}
+
+/* ── Edit supplier ── */
+function editSupplier(id){
+  openSupplierModal(id);
+}
+
+/* ── Delete supplier ── */
+function deleteSupplier(id){
+  if(!canDeleteProducts || !canDeleteProducts()){
+    showAlert('Solo el Administrador puede eliminar suppliers','warn'); return;
+  }
+  var list = loadSuppliers();
+  var sup  = list.find(function(s){ return s.id===id; });
+  if(!sup || sup.builtin){ showAlert('No se puede eliminar un supplier integrado','warn'); return; }
+  if(!confirm('¿Eliminar ' + sup.name + '?')) return;
+  list = list.filter(function(s){ return s.id!==id; });
+  saveSuppliers(list);
+  renderSupplierList();
+  showAlert('Supplier eliminado','info');
+}
+
+/* ── Render suppliers stats when page opens ── */
+var _supOrigNavigateDHS = typeof navigateDHS !== 'undefined' ? navigateDHS : null;
+function navigateDHS(page){
+  var result = _supOrigNavigateDHS ? _supOrigNavigateDHS(page) : false;
+  if(result !== false){
+    document.getElementById('page-title').textContent = 'Suppliers';
+    initDefaultSuppliers();
+    renderSupplierList();
+    // Update stats
+    var list = loadSuppliers();
+    var totalEl = document.getElementById('sup-total-count');
+    if(totalEl) totalEl.textContent = list.length;
+  }
+  return result;
+}
+
 </script>
 
 <!-- ═══════════════════════════════════════
@@ -6628,5 +6981,78 @@ async function invExecuteImport(){
   </div>
 </div>
 
+
+<!-- ═══════════════════════════════════════
+     SUPPLIER ADD/EDIT MODAL
+════════════════════════════════════════ -->
+<div class="modal-bg" id="sup-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <h3 id="sup-modal-title">➕ Nuevo Supplier</h3>
+      <button class="modal-close" onclick="closeSupplierModal()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="sup-edit-id">
+
+      <!-- Emoji + Name row -->
+      <div style="display:flex;gap:10px;margin-bottom:12px">
+        <div>
+          <label style="font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:5px">Ícono</label>
+          <div id="sup-emoji-picker" style="display:flex;flex-wrap:wrap;gap:5px;max-width:140px">
+            <button class="prop-emoji-btn active" data-emoji="🏢" onclick="selectSupEmoji(this)">🏢</button>
+            <button class="prop-emoji-btn" data-emoji="🏭" onclick="selectSupEmoji(this)">🏭</button>
+            <button class="prop-emoji-btn" data-emoji="🚚" onclick="selectSupEmoji(this)">🚚</button>
+            <button class="prop-emoji-btn" data-emoji="🧴" onclick="selectSupEmoji(this)">🧴</button>
+            <button class="prop-emoji-btn" data-emoji="🧹" onclick="selectSupEmoji(this)">🧹</button>
+            <button class="prop-emoji-btn" data-emoji="🛒" onclick="selectSupEmoji(this)">🛒</button>
+            <button class="prop-emoji-btn" data-emoji="📦" onclick="selectSupEmoji(this)">📦</button>
+            <button class="prop-emoji-btn" data-emoji="🍽️" onclick="selectSupEmoji(this)">🍽️</button>
+          </div>
+        </div>
+        <div style="flex:1">
+          <div class="fgrp"><label>Nombre del Supplier *</label><input type="text" id="sup-name" placeholder="Ej: Diversified Hospitality"></div>
+        </div>
+      </div>
+
+      <div class="frow2">
+        <div class="fgrp"><label>Categoría</label>
+          <select id="sup-cat">
+            <option>Amenidades</option><option>Limpieza</option><option>Alimentos</option>
+            <option>Textiles</option><option>Equipos</option><option>Tecnología</option>
+            <option>Construcción</option><option>Servicios</option><option>Otro</option>
+          </select>
+        </div>
+        <div class="fgrp"><label>País / Región</label><input type="text" id="sup-country" placeholder="USA · Florida"></div>
+      </div>
+
+      <div class="fgrp"><label>Sitio web / URL</label><input type="url" id="sup-url" placeholder="https://supplier.com"></div>
+      <div class="fgrp"><label>Email de contacto</label><input type="email" id="sup-email" placeholder="contact@supplier.com"></div>
+      <div class="fgrp"><label>Teléfono</label><input type="tel" id="sup-phone" placeholder="+1 (305) 000-0000"></div>
+      <div class="fgrp"><label>Cuenta / Número cliente</label><input type="text" id="sup-account" placeholder="Número de cuenta"></div>
+      <div class="fgrp"><label>Términos de pago</label>
+        <select id="sup-terms">
+          <option>Net 30</option><option>Net 15</option><option>Net 60</option>
+          <option>Prepago</option><option>COD</option><option>Crédito</option>
+        </select>
+      </div>
+      <div class="fgrp"><label>Notas</label><textarea id="sup-notes" rows="2" placeholder="Notas adicionales…" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:var(--r2);font-size:14px;font-family:inherit;resize:none"></textarea></div>
+
+      <!-- Admin only: active toggle -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border);margin-top:8px">
+        <span style="font-size:13px;font-weight:600;color:var(--text)">Supplier activo</span>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="sup-active" checked style="width:18px;height:18px">
+          <span style="font-size:12px;color:var(--text3)">Visible en listas</span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary" onclick="closeSupplierModal()">Cancelar</button>
+      <button class="btn-primary" onclick="saveSupplier()" style="background:#1FAD6E">💾 Guardar Supplier</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
