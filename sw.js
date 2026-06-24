@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════
-   StockPro v2 — Service Worker
-   Hotel Arbellas · Plantation, FL
+   Arbella'sStock WMS v3 — Service Worker
+   Arbella's Family · Plantation, FL
    ═══════════════════════════════════════════════════
    FIXES:
    - Removed ./css/app.css and ./js/app.js (don't exist)
@@ -8,7 +8,7 @@
    - Bumped to stockpro-v2 to clear stale v1 cache
    ═══════════════════════════════════════════════════ */
 
-const CACHE_NAME = 'stockpro-v2';
+const CACHE_NAME = 'arbellastock-wms-v3';
 
 const ASSETS = [
   './',
@@ -24,7 +24,7 @@ const CDN_HOSTS = [
 ];
 
 self.addEventListener('install', e => {
-  console.log('[SW] Installing stockpro-v2...');
+  console.log('[SW] Installing arbellastock-wms-v3...');
   e.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(ASSETS))

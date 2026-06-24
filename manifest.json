@@ -1,7 +1,7 @@
 {
-  "name": "StockPro — Inventario Hotel Arbellas",
-  "short_name": "StockPro",
-  "description": "Gestión de inventario de almacén con escáner de códigos de barras — Hotel Arbellas · Plantation, FL",
+  "name": "Arbella'sStock WMS",
+  "short_name": "AStock",
+  "description": "Warehouse Management System — Arbella's Family · Plantation, FL",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#0F1F3D",
@@ -22,6 +22,10 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["business", "productivity", "utilities"],
+  "categories": [
+    "business",
+    "productivity",
+    "utilities"
+  ],
   "screenshots": []
 }

@@ -1,8 +1,64 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
-  <rect width="192" height="192" rx="42" fill="#1A2B4A"/>
-  <rect x="40" y="56" width="112" height="14" rx="7" fill="white" opacity="0.9"/>
-  <rect x="40" y="82" width="80" height="14" rx="7" fill="white" opacity="0.9"/>
-  <rect x="40" y="108" width="90" height="14" rx="7" fill="white" opacity="0.9"/>
-  <circle cx="148" cy="136" r="28" fill="#F4A623"/>
-  <path d="M136 136l9 9 16-16" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1A2E5A"/>
+      <stop offset="100%" style="stop-color:#0D1F3C"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F9C846"/>
+      <stop offset="100%" style="stop-color:#E8920F"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4A9FFF"/>
+      <stop offset="100%" style="stop-color:#2563EB"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="rgba(0,0,0,0.4)"/>
+    </filter>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background rounded rect (iOS style) -->
+  <rect width="512" height="512" rx="114" ry="114" fill="url(#bg)"/>
+
+  <!-- Subtle grid pattern overlay -->
+  <rect width="512" height="512" rx="114" ry="114" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="40"/>
+
+  <!-- Top glow strip -->
+  <rect x="80" y="0" width="352" height="3" rx="2" fill="rgba(255,255,255,0.12)"/>
+
+  <!-- WAREHOUSE BOX — main graphic -->
+  <!-- Box body -->
+  <rect x="130" y="185" width="252" height="185" rx="14" fill="#1E3A6B" stroke="rgba(74,159,255,0.3)" stroke-width="2" filter="url(#shadow)"/>
+
+  <!-- Box top face (isometric look) -->
+  <path d="M130 185 L256 140 L382 185 L256 230 Z" fill="#2A4F8C" stroke="rgba(74,159,255,0.25)" stroke-width="2"/>
+
+  <!-- Box left side shading -->
+  <rect x="130" y="185" width="63" height="185" rx="0" fill="rgba(0,0,0,0.15)"/>
+
+  <!-- Box straps - horizontal gold line -->
+  <rect x="130" y="255" width="252" height="8" fill="url(#gold)" opacity="0.85"/>
+  <!-- Vertical strap -->
+  <rect x="248" y="185" width="16" height="185" fill="url(#gold)" opacity="0.85"/>
+  <!-- Top strap -->
+  <path d="M248 230 L256 140 L264 230" fill="url(#gold)" opacity="0.85"/>
+
+  <!-- Check mark circle - bottom right of box -->
+  <circle cx="340" cy="315" r="42" fill="#0D1F3C" stroke="url(#gold)" stroke-width="3"/>
+  <circle cx="340" cy="315" r="34" fill="url(#gold)"/>
+  <path d="M320 315 L334 329 L362 301" stroke="white" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- "A" letter mark top-left of box -->
+  <text x="175" y="235" font-family="-apple-system,Arial,sans-serif" font-weight="900" font-size="36" fill="rgba(255,255,255,0.15)" letter-spacing="-1">WMS</text>
+
+  <!-- Bottom label bar -->
+  <rect x="100" y="400" width="312" height="56" rx="12" fill="url(#accent)" filter="url(#shadow)"/>
+  <text x="256" y="438" font-family="-apple-system,Arial Black,sans-serif" font-weight="900" font-size="28" fill="white" text-anchor="middle" letter-spacing="-0.5">Arbella's</text>
+
+  <!-- Small "STOCK" sub-label -->
+  <text x="256" y="458" font-family="-apple-system,Arial,sans-serif" font-weight="700" font-size="11" fill="rgba(255,255,255,0.6)" text-anchor="middle" letter-spacing="3">WMS</text>
 </svg>
