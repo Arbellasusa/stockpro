@@ -19,6 +19,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- jsPDF for reports -->
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js" onload="pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js'"></script>
 <style>
 /* ═══════════════════════════════════════════
    Arbella'sStock WMS — CSS
@@ -911,6 +912,44 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+
+/* ── PRODUCT AUTOCOMPLETE ── */
+.im-suggest-wrap { position: relative; }
+.im-suggest-list {
+  position: absolute; top: 100%; left: 0; right: 0;
+  background: #fff;
+  border: 1.5px solid var(--blue2);
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 900;
+  box-shadow: 0 8px 24px rgba(0,0,0,.15);
+  display: none;
+}
+.im-suggest-list.open { display: block; }
+.im-suggest-item {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background .1s;
+}
+.im-suggest-item:last-child { border-bottom: none; }
+.im-suggest-item:active, .im-suggest-item:hover { background: var(--surface2); }
+.im-suggest-cat {
+  font-size: 10px;
+  background: var(--blue);
+  color: #fff;
+  border-radius: 5px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+}
+.im-suggest-name { font-size: 13px; font-weight: 600; flex: 1; }
+.im-suggest-sub  { font-size: 11px; color: var(--text3); }
+
 </style>
 </head>
 <body>
@@ -1033,6 +1072,9 @@ input,select,textarea{font-family:inherit;font-size:inherit}
   <div class="topbar">
     <span class="topbar-title" id="page-title">Dashboard</span>
     <div class="topbar-actions">
+      <button class="icon-btn" id="inv-import-toggle-btn" onclick="toggleInvImport()" aria-label="Importar inventario" style="display:none" title="Importar inventario desde archivo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
       <button class="icon-btn" onclick="openSearch()" aria-label="Search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       </button>
@@ -1157,8 +1199,35 @@ input,select,textarea{font-family:inherit;font-size:inherit}
     <div class="page" id="pg-inventory">
       <div class="filter-bar" id="inv-filters"></div>
       <div class="dash-grid" style="grid-template-columns:repeat(3,1fr);padding:8px 12px" id="inv-stats"></div>
+
+      <!-- Import toolbar -->
+      <div id="inv-import-bar" style="display:none;margin:0 12px 8px;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:10px 12px">
+        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">📥 Importar inventario desde archivo</div>
+        <div class="rpt-upload-area" style="margin:0 0 8px;padding:16px" onclick="document.getElementById('inv-file-inp').click()"
+          ondragover="event.preventDefault();this.classList.add('drag-over')"
+          ondragleave="this.classList.remove('drag-over')"
+          ondrop="invHandleDrop(event)">
+          <div style="font-size:24px;margin-bottom:6px">📂</div>
+          <div style="font-size:13px;font-weight:700;color:var(--text)">Arrastra o toca para seleccionar</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">CSV · Excel · JSON · PDF · TXT</div>
+        </div>
+        <input type="file" id="inv-file-inp" accept=".csv,.xlsx,.xls,.json,.pdf,.txt" style="display:none" onchange="invHandleFile(event)">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          <select id="inv-import-mode" style="flex:1;min-width:140px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;background:#fff">
+            <option value="update">Actualizar cantidades existentes</option>
+            <option value="upsert">Actualizar o crear productos</option>
+            <option value="replace">Reemplazar inventario completo</option>
+          </select>
+          <button onclick="invExecuteImport()" class="btn-primary" style="padding:7px 14px;font-size:12px;white-space:nowrap">⬆ Importar</button>
+          <button onclick="rptDownloadTemplate()" style="padding:7px 10px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;font-size:12px;color:var(--text2)">📋 Plantilla</button>
+        </div>
+        <div id="inv-import-result" style="display:none;padding:8px 10px;border-radius:8px;font-size:12px;font-weight:600"></div>
+      </div>
+
       <div id="inv-list"></div>
-      <button class="fab" onclick="openAddModal()" aria-label="Add product">
+
+      <!-- FAB with import toggle -->
+      <button class="fab" onclick="openAddModal()" aria-label="Add product" style="bottom:80px">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       </button>
     </div>
@@ -1526,7 +1595,18 @@ input,select,textarea{font-family:inherit;font-size:inherit}
         <div class="fgrp"><label data-i="barcode">Código de barras</label><div class="input-icon"><input type="text" id="im-barcode" placeholder="Escanear o escribir"><button onclick="navigate('scanner')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg></button></div></div>
         <div class="fgrp"><label>SKU</label><input type="text" id="im-sku" placeholder="SAB-QS-001"></div>
       </div>
-      <div class="fgrp"><label data-i="product_name">Nombre del producto *</label><input type="text" id="im-name" placeholder="Ej: Sábanas Queen Size"></div>
+      <div class="fgrp">
+        <label data-i="product_name">Nombre del producto *</label>
+        <div class="im-suggest-wrap">
+          <input type="text" id="im-name" placeholder="Ej: Sábanas Queen Size"
+            autocomplete="off"
+            oninput="imNameSuggest(this.value)"
+            onkeydown="imNameKeyDown(event)"
+            onfocus="imNameSuggest(this.value)"
+            style="width:100%;box-sizing:border-box">
+          <div class="im-suggest-list" id="im-suggest-list"></div>
+        </div>
+      </div>
       <div class="frow2">
         <div class="fgrp"><label data-i="category">Categoría</label><select id="im-cat"><option value="Ropa de Cama">🛏 Ropa de Cama</option><option value="Toallas">🛁 Toallas</option><option value="Amenidades">✨ Amenidades</option><option value="Limpieza">🧹 Limpieza</option><option value="Insumos">📦 Insumos</option></select></div>
         <div class="fgrp"><label data-i="unit">Unidad</label><select id="im-unit"><option>Piezas</option><option>Unidades</option><option>Rollos</option><option>Litros</option><option>Paquetes</option><option>Cajas</option></select></div>
@@ -1661,9 +1741,9 @@ input,select,textarea{font-family:inherit;font-size:inherit}
           ondrop="rptHandleDrop(event)">
           <div class="rpt-upload-icon">📂</div>
           <div class="rpt-upload-title">Importar inventario desde archivo</div>
-          <div class="rpt-upload-sub">CSV, Excel (.xlsx) o JSON · Arrastra o haz clic</div>
+          <div class="rpt-upload-sub">CSV · Excel (.xlsx) · JSON · PDF · TXT · Arrastra o haz clic</div>
         </div>
-        <input type="file" id="rpt-file-inp" accept=".csv,.xlsx,.xls,.json" style="display:none" onchange="rptHandleFile(event)">
+        <input type="file" id="rpt-file-inp" accept=".csv,.xlsx,.xls,.json,.pdf,.txt" style="display:none" onchange="rptHandleFile(event)">
 
         <!-- Field mapping -->
         <div style="padding:4px 12px 6px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">
@@ -2316,6 +2396,8 @@ function setSyncOffline(){
 
 /* ── NAVIGATION ── */
 function navigate(page){
+  var _iib=document.getElementById('inv-import-toggle-btn');if(_iib)_iib.style.display='none';
+  var _ibar=document.getElementById('inv-import-bar');if(_ibar)_ibar.style.display='none';
   // DHS intercept
   if(page==='dhs'){ if(typeof navigateDHS==='function') navigateDHS('dhs'); return; }
   document.querySelectorAll('.page').forEach(p=>{p.classList.remove('active');});
@@ -5353,35 +5435,43 @@ function renderPropCurrentCard(){
 
 /* ── RENDER SAVED LIST ── */
 function renderPropList(){
-  const el = document.getElementById('prop-list');
-  const others = PROP.list.filter(p=>!p.active);
-
-  if(!others.length){
-    el.innerHTML = '<div style="text-align:center;padding:16px;font-size:13px;color:var(--text3)">Sin otras instituciones guardadas.<br>Agrega una abajo. ↓</div>';
+  var el = document.getElementById('prop-list');
+  if(!el) return;
+  if(!PROP.list || PROP.list.length === 0){
+    el.innerHTML = '<div style="text-align:center;padding:24px 16px;font-size:13px;color:var(--text3)">Sin instituciones. Toca + Agregar.</div>';
     return;
   }
-
-  el.innerHTML = others.map(p => {
-    // Show tip about independent inventory
-    const invKey = p.id === 'prop_default' ? 'stockpro_inventario' : 'stockpro_inventario_' + p.id;
-    return `
-    <div class="prop-item" id="propitem-${p.id}">
-      <div class="prop-item-icon" style="background:${p.color}22;border-color:${p.color}44">${p.emoji||'🏨'}</div>
-      <div class="prop-item-body">
-        <div class="prop-item-name">${p.name}</div>
-        <div class="prop-item-meta">${p.type}${p.city?' · '+p.city:''}</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:2px">📦 Inventario independiente</div>
-      </div>
-      <div class="prop-item-actions">
-        <button class="prop-item-sel" onclick="switchToProperty('${p.id}')" style="background:${p.color}">
-          ✅ Activar
-        </button>
-        <button class="prop-item-sel" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border)" onclick="openAddPropModal('${p.id}')">✏️</button>
-        <button class="prop-item-del" onclick="deletePropItem('${p.id}')">🗑</button>
-      </div>
-    </div>
-    `;
-  }).join('');
+  var html = '';
+  PROP.list.forEach(function(p){
+    var isActive = PROP.active && p.id === PROP.active.id;
+    var col = p.color || '#1E4DB7';
+    var bgCard  = isActive ? col+'18' : 'var(--surface2)';
+    var bdrCard = isActive ? col+'66' : 'var(--border)';
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:11px 14px;margin-bottom:8px;background:'+bgCard+';border:1.5px solid '+bdrCard+';border-radius:14px">';
+    html += '<div style="width:40px;height:40px;border-radius:11px;background:'+col+'22;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">'+( p.emoji||'\u{1F3E8}')+'</div>';
+    html += '<div style="flex:1;min-width:0">';
+    html += '<div style="font-weight:800;font-size:14px;color:'+(isActive?col:'var(--text)')+'">'+p.name+'</div>';
+    html += '<div style="font-size:11px;color:var(--text3);margin-top:1px">'+(p.type||'Hotel')+(p.city?' · '+p.city:'')+'</div>';
+    if(isActive){
+      html += '<div style="font-size:10px;font-weight:800;color:'+col+';margin-top:3px">✅ ACTIVA · INVENTARIO CARGADO</div>';
+    } else {
+      html += '<div style="font-size:10px;color:var(--text3);margin-top:3px">📦 Inventario independiente</div>';
+    }
+    html += '</div>';
+    html += '<div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">';
+    if(isActive){
+      html += '<div style="background:'+col+';color:#fff;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:800;text-align:center">ACTIVA</div>';
+    } else {
+      html += '<button style="background:'+col+';color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer" onclick="dashSwitchProp(\''+p.id+'\');closePropSheet()">\u2705 Activar</button>';
+    }
+    html += '<div style="display:flex;gap:4px">';
+    html += '<button style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 8px;font-size:12px;cursor:pointer" onclick="openAddPropModal(\''+p.id+'\')">\u270f\ufe0f</button>';
+    if(!isActive){
+      html += '<button style="flex:1;background:#FDE8E8;border:none;border-radius:7px;padding:5px 8px;font-size:12px;cursor:pointer" onclick="deletePropItem(\''+p.id+'\')">\U0001f5d1</button>';
+    }
+    html += '</div></div></div>';
+  });
+  el.innerHTML = html;
 }
 
 /* ── SWITCH ACTIVE PROPERTY ── */
@@ -5642,29 +5732,73 @@ function rptProcessFile(file){
   RptImport.fileName = file.name;
   const ext = file.name.split('.').pop().toLowerCase();
   const reader = new FileReader();
+
   reader.onload = function(e){
     try{
       let rows = [];
+
       if(ext === 'json'){
         rows = JSON.parse(e.target.result);
         if(!Array.isArray(rows)) rows = Object.values(rows);
-      } else if(ext === 'csv'){
+
+      } else if(ext === 'csv' || ext === 'txt'){
         rows = rptParseCSV(e.target.result);
+
       } else if(ext === 'xlsx' || ext === 'xls'){
         if(window.XLSX){
           const wb = XLSX.read(e.target.result,{type:'binary'});
           rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-        } else { rptShowResult('Instala la app para usar Excel. Usa CSV.','err'); return; }
+        } else { rptShowResult('Abre la app en Chrome para usar Excel. Usa CSV como alternativa.','err'); return; }
+
+      } else if(ext === 'pdf'){
+        // PDF: extract text line by line and try to parse as CSV/table
+        rptShowResult('⏳ Procesando PDF…','ok');
+        rptParsePDF(file);
+        return;
       }
-      if(!rows.length){ rptShowResult('El archivo está vacío','err'); return; }
+
+      if(!rows.length){ rptShowResult('El archivo está vacío o no tiene filas reconocibles.','err'); return; }
       RptImport.rows = rows;
       RptImport.headers = Object.keys(rows[0]);
       rptShowFieldMap();
-      rptShowResult('✅ Archivo leído: ' + rows.length + ' filas — ' + file.name + '. Configura el mapeo y presiona "Actualizar inventario"','ok');
-    }catch(err){ rptShowResult('Error al leer el archivo: ' + err.message,'err'); }
+      rptShowResult('✅ Archivo leído: ' + rows.length + ' filas — ' + file.name,'ok');
+    }catch(err){ rptShowResult('Error al leer: ' + err.message,'err'); }
   };
+
   if(ext==='xlsx'||ext==='xls') reader.readAsBinaryString(file);
+  else if(ext==='pdf') reader.readAsArrayBuffer(file);
   else reader.readAsText(file,'UTF-8');
+}
+
+/* PDF parsing — extract text and try to find tabular data */
+async function rptParsePDF(file){
+  try{
+    // Use PDF.js if available (CDN loaded below), else fallback to raw text extraction
+    if(window.pdfjsLib){
+      const ab = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({data: ab}).promise;
+      let allText = '';
+      for(let pg=1; pg<=pdf.numPages; pg++){
+        const page = await pdf.getPage(pg);
+        const tc   = await page.getTextContent();
+        allText += tc.items.map(function(i){ return i.str; }).join(' ') + '\n';
+      }
+      // Try to parse as CSV-like lines
+      const rows = rptParseCSV(allText.trim());
+      if(rows.length){
+        RptImport.rows    = rows;
+        RptImport.headers = Object.keys(rows[0]);
+        rptShowFieldMap();
+        rptShowResult('✅ PDF leído: ' + rows.length + ' filas extraídas de ' + RptImport.fileName,'ok');
+      } else {
+        rptShowResult('⚠️ PDF sin tabla reconocible. Usa CSV/Excel para mejores resultados.','err');
+      }
+    } else {
+      rptShowResult('⚠️ PDF procesado como texto. Para mejor precisión usa CSV o Excel exportado del PDF.','err');
+    }
+  }catch(e){
+    rptShowResult('Error procesando PDF: ' + e.message + '. Usa CSV o Excel.','err');
+  }
 }
 
 function rptParseCSV(text){
@@ -5870,6 +6004,321 @@ function rptShowResult(msg, type){
 }
 
 /* ── Also remove old Imprimir button (now in tabs) ── */
+
+
+/* ════════════════════════════════════════════════════════════
+   PRODUCT NAME AUTOCOMPLETE (im-name)
+   Searches: existing inventory + DHS catalog
+   ════════════════════════════════════════════════════════════ */
+
+var _imSuggestIdx = -1;
+
+function imNameSuggest(q){
+  var list = document.getElementById('im-suggest-list');
+  if(!list) return;
+  q = (q||'').trim();
+
+  if(q.length < 2){
+    list.classList.remove('open');
+    list.innerHTML = '';
+    return;
+  }
+
+  var ql = q.toLowerCase();
+  var results = [];
+
+  // 1. Search existing inventory (S.items)
+  if(S.items){
+    S.items.forEach(function(item){
+      if(item.name && item.name.toLowerCase().includes(ql)){
+        results.push({
+          name:   item.name,
+          sub:    (item.brand||'') + (item.cat ? ' · ' + item.cat : ''),
+          sku:    item.sku||'',
+          cat:    item.cat||'',
+          brand:  item.brand||'',
+          price:  item.price||0,
+          unit:   item.unit||'',
+          supplier: item.supplier||'',
+          source: 'inv'
+        });
+      }
+    });
+  }
+
+  // 2. Search DHS catalog
+  if(typeof DHS_QUICK_CATALOG !== 'undefined'){
+    DHS_QUICK_CATALOG.forEach(function(p){
+      if(p.name && p.name.toLowerCase().includes(ql)){
+        // avoid duplicates
+        var already = results.some(function(r){ return r.name.toLowerCase() === p.name.toLowerCase(); });
+        if(!already){
+          results.push({
+            name:   p.name,
+            sub:    (p.brand||'') + (p.cat ? ' · ' + p.cat : '') + (p.sku ? ' · ' + p.sku : ''),
+            sku:    p.sku||'',
+            cat:    p.cat||'',
+            brand:  p.brand||'',
+            price:  p.cost||0,
+            unit:   p.unit||'',
+            supplier: 'DHS',
+            source: 'dhs'
+          });
+        }
+      }
+    });
+  }
+
+  // Limit to 8 results
+  results = results.slice(0, 8);
+  _imSuggestIdx = -1;
+
+  if(!results.length){
+    list.classList.remove('open');
+    list.innerHTML = '';
+    return;
+  }
+
+  list.innerHTML = results.map(function(r, idx){
+    var badge = r.source === 'dhs'
+      ? '<span class="im-suggest-cat" style="background:#1FAD6E">DHS</span>'
+      : '<span class="im-suggest-cat">Inv</span>';
+    return '<div class="im-suggest-item" data-idx="'+idx+'" onclick="imNameSelect('+idx+')">'
+      + badge
+      + '<div><div class="im-suggest-name">'+r.name+'</div>'
+      + '<div class="im-suggest-sub">'+r.sub+'</div></div>'
+      + '</div>';
+  }).join('');
+
+  // Store results for selection
+  list._results = results;
+  list.classList.add('open');
+}
+
+function imNameSelect(idx){
+  var list = document.getElementById('im-suggest-list');
+  if(!list || !list._results) return;
+  var r = list._results[idx];
+  if(!r) return;
+
+  // Fill all fields automatically
+  var fields = {
+    'im-name':  r.name,
+    'im-sku':   r.sku,
+    'im-brand': r.brand,
+    'im-supp':  r.supplier,
+    'im-unit':  r.unit,
+  };
+  Object.keys(fields).forEach(function(id){
+    var el = document.getElementById(id);
+    if(el && fields[id]) el.value = fields[id];
+  });
+
+  // Set category select
+  if(r.cat){
+    var catEl = document.getElementById('im-cat');
+    if(catEl){
+      // Try to match existing option, otherwise keep current
+      var opts = Array.from(catEl.options).map(function(o){ return o.value; });
+      if(opts.some(function(o){ return o.toLowerCase() === r.cat.toLowerCase(); })){
+        catEl.value = r.cat;
+      }
+    }
+  }
+
+  // Set price if provided and field is empty
+  if(r.price){
+    var priceEl = document.getElementById('im-price');
+    if(priceEl && !priceEl.value) priceEl.value = r.price;
+  }
+
+  list.classList.remove('open');
+  list.innerHTML = '';
+
+  // Focus next field (qty)
+  setTimeout(function(){ var q=document.getElementById('im-qty'); if(q) q.focus(); }, 100);
+}
+
+function imNameKeyDown(e){
+  var list = document.getElementById('im-suggest-list');
+  if(!list || !list.classList.contains('open')) return;
+  var items = list.querySelectorAll('.im-suggest-item');
+  if(!items.length) return;
+
+  if(e.key === 'ArrowDown'){
+    e.preventDefault();
+    _imSuggestIdx = Math.min(_imSuggestIdx+1, items.length-1);
+    items.forEach(function(el,i){ el.style.background = i===_imSuggestIdx?'var(--surface2)':''; });
+  } else if(e.key === 'ArrowUp'){
+    e.preventDefault();
+    _imSuggestIdx = Math.max(_imSuggestIdx-1, 0);
+    items.forEach(function(el,i){ el.style.background = i===_imSuggestIdx?'var(--surface2)':''; });
+  } else if(e.key === 'Enter' && _imSuggestIdx >= 0){
+    e.preventDefault();
+    imNameSelect(_imSuggestIdx);
+  } else if(e.key === 'Escape'){
+    list.classList.remove('open');
+  }
+}
+
+// Close suggest when clicking outside
+document.addEventListener('click', function(e){
+  if(!e.target.closest('.im-suggest-wrap')){
+    var list = document.getElementById('im-suggest-list');
+    if(list) list.classList.remove('open');
+  }
+});
+
+
+/* ════════════════════════════════════════════════════════════
+   INVENTORY PAGE IMPORT
+   ════════════════════════════════════════════════════════════ */
+
+function toggleInvImport(){
+  var bar = document.getElementById('inv-import-bar');
+  if(!bar) return;
+  bar.style.display = bar.style.display === 'none' ? 'block' : 'none';
+  if(bar.style.display === 'block'){
+    bar.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+}
+
+function invHandleDrop(e){
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  invProcessFile(e.dataTransfer.files[0]);
+}
+function invHandleFile(e){ invProcessFile(e.target.files[0]); }
+
+function invProcessFile(file){
+  if(!file) return;
+  // Re-use the report import engine — same file parsing
+  RptImport.fileName = file.name;
+  var result = document.getElementById('inv-import-result');
+  if(result){ result.style.display='block'; result.textContent='⏳ Leyendo '+file.name+'…'; result.style.background='#F0FDF4'; result.style.color='#166534'; }
+
+  var ext = file.name.split('.').pop().toLowerCase();
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    try{
+      var rows = [];
+      if(ext==='json'){
+        rows = JSON.parse(ev.target.result);
+        if(!Array.isArray(rows)) rows = Object.values(rows);
+      } else if(ext==='csv'||ext==='txt'){
+        rows = rptParseCSV(ev.target.result);
+      } else if(ext==='xlsx'||ext==='xls'){
+        if(window.XLSX){ var wb=XLSX.read(ev.target.result,{type:'binary'}); rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]); }
+        else { invShowResult('Usa CSV para importar Excel.','err'); return; }
+      } else if(ext==='pdf'){
+        invShowResult('PDF recibido. Procesando…','ok');
+        rptParsePDF(file).then(function(){
+          // rptParsePDF fills RptImport.rows
+          if(RptImport.rows.length){
+            invShowResult('✅ PDF: '+RptImport.rows.length+' filas. Presiona Importar.','ok');
+          }
+        });
+        return;
+      }
+      if(!rows.length){ invShowResult('Archivo vacío o sin filas reconocibles.','err'); return; }
+      RptImport.rows = rows;
+      RptImport.headers = Object.keys(rows[0]);
+      invShowResult('✅ '+rows.length+' filas leídas de '+file.name+'. Presiona Importar.','ok');
+    }catch(e){ invShowResult('Error: '+e.message,'err'); }
+  };
+  if(ext==='xlsx'||ext==='xls') reader.readAsBinaryString(file);
+  else if(ext==='pdf') reader.readAsArrayBuffer(file);
+  else reader.readAsText(file,'UTF-8');
+}
+
+function invShowResult(msg, type){
+  var el = document.getElementById('inv-import-result');
+  if(!el) return;
+  el.style.display = 'block';
+  el.textContent = msg;
+  el.style.background = type==='err' ? '#FEF2F2' : '#F0FDF4';
+  el.style.color       = type==='err' ? '#991B1B' : '#166534';
+  el.style.border      = type==='err' ? '1px solid #FCA5A5' : '1px solid #86EFAC';
+}
+
+async function invExecuteImport(){
+  if(!RptImport.rows || !RptImport.rows.length){
+    invShowResult('Primero carga un archivo.','err'); return;
+  }
+  // Auto-detect field mapping
+  var headers = RptImport.headers || Object.keys(RptImport.rows[0]);
+  var mapping = {};
+  headers.forEach(function(h){
+    var mapped = Object.keys(RPT_AUTO_MAP).find(function(field){
+      return RPT_AUTO_MAP[field].some(function(alias){
+        return h.toLowerCase().replace(/[^a-z0-9]/g,'_').includes(alias);
+      });
+    });
+    if(mapped) mapping[h] = mapped;
+  });
+
+  var mode = document.getElementById('inv-import-mode');
+  var importMode = mode ? mode.value : 'upsert';
+  if(importMode==='replace'){
+    if(!confirm('¿Reemplazar TODO el inventario con este archivo?')) return;
+  }
+
+  var updated=0, created=0, skipped=0, errors=0;
+  for(var ri=0; ri<RptImport.rows.length; ri++){
+    var row = RptImport.rows[ri];
+    var item = {};
+    Object.keys(mapping).forEach(function(col){
+      var field = mapping[col];
+      var val = row[col];
+      if(val===undefined||val==='') return;
+      if(field==='qty'||field==='minQty') item[field]=parseInt(val)||0;
+      else if(field==='price') item[field]=parseFloat(val)||0;
+      else item[field]=String(val).trim();
+    });
+    if(!item.name&&!item.sku&&!item.barcode){ skipped++; continue; }
+
+    var existing = null;
+    if(item.sku) existing = S.items.find(function(i){ return i.sku===item.sku; });
+    if(!existing&&item.barcode) existing = S.items.find(function(i){ return i.barcode===item.barcode; });
+    if(!existing&&item.name) existing = S.items.find(function(i){ return i.name&&i.name.toLowerCase()===item.name.toLowerCase(); });
+
+    try{
+      if(existing){
+        var upd = {};
+        ['qty','minQty','price','notes','location','cat'].forEach(function(f){ if(item[f]!==undefined) upd[f]=item[f]; });
+        upd.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+        upd.importedFrom = RptImport.fileName;
+        if(Object.keys(upd).length > 2){
+          if(S.fbReady) await firebase.firestore().collection(getPropInvCol()).doc(existing.id).update(upd);
+          else Object.assign(existing, upd);
+          updated++;
+        } else skipped++;
+      } else if(importMode==='upsert'||importMode==='replace'){
+        var newId = 'imp_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
+        var newItem = Object.assign({
+          id:newId, name:item.name||item.sku||'Producto importado',
+          sku:item.sku||'', barcode:item.barcode||'', qty:item.qty||0,
+          minQty:item.minQty||5, price:item.price||0, cat:item.cat||'General',
+          brand:item.brand||'', supplier:item.supplier||getPropName(),
+          location:item.location||'', notes:item.notes||'',
+          importedFrom:RptImport.fileName,
+          createdAt:firebase.firestore.FieldValue.serverTimestamp()
+        }, item);
+        if(S.fbReady) await firebase.firestore().collection(getPropInvCol()).doc(newId).set(newItem);
+        else S.items.push(newItem);
+        created++;
+      } else skipped++;
+    }catch(e){ errors++; }
+  }
+
+  renderInventory();
+  var msg = '✅ '+updated+' actualizados · '+created+' creados · '+skipped+' omitidos'+(errors?' · '+errors+' errores':'');
+  invShowResult(msg, errors>0 ? 'err' : 'ok');
+  showAlert(msg,'success');
+  RptImport.rows=[]; RptImport.headers=[];
+  var finp = document.getElementById('inv-file-inp');
+  if(finp) finp.value='';
+}
 
 </script>
 
