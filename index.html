@@ -5583,7 +5583,7 @@ function renderPropList(){
     html += 'style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 8px;font-size:13px;cursor:pointer">✏️</button>';
     if(!isAct){
       html += '<button onclick="deletePropItem(' + JSON.stringify(p.id) + ')" ';
-      html += 'style="background:#FDE8E8;border:none;border-radius:7px;padding:5px 8px;font-size:13px;cursor:pointer">🗑</button>';
+      html += 'style="background:#FDE8E8;color:#C1121F;border:none;border-radius:7px;padding:5px 7px;font-size:11px;font-weight:700;cursor:pointer">✕ Del</button>';
     }
     html += '</div></div></div>';
   }
@@ -5725,6 +5725,14 @@ function savePropForm(){
 
   propSave();
   closePropAddModal();
+  // Auto-generate inventory for NEW companies
+  if(!editId && newPropId){
+    var newPropType = document.getElementById('prop-type-val') ? 
+      document.getElementById('prop-type-val').value :
+      (document.querySelector('.prop-type-btn.active') ? 
+       document.querySelector('.prop-type-btn.active').dataset.type : 'Hotel');
+    try{ generateAutoInventory(newPropId, newPropType); }catch(e){ console.warn('Auto-inv:', e); }
+  }
   var nowActive = PROP.list.find(function(p){ return p.active; });
   if(nowActive){ PROP.active = nowActive; applyActiveProperty(); }
   renderPropCurrentCard();
@@ -6671,6 +6679,170 @@ function navigateDHS(page){
     if(totalEl) totalEl.textContent = list.length;
   }
   return result;
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   AUTO-INVENTORY — Generate starter products by company type
+   ════════════════════════════════════════════════════════════ */
+
+const INVENTORY_TEMPLATES = {
+  'Hotel': [
+    {name:'Toilet Paper',cat:'Amenidades',unit:'Roll',qty:200,min:50},
+    {name:'Hand Towels',cat:'Lencería',unit:'Each',qty:100,min:30},
+    {name:'Bath Towels',cat:'Lencería',unit:'Each',qty:80,min:20},
+    {name:'Flat Sheets Queen',cat:'Lencería',unit:'Each',qty:60,min:15},
+    {name:'Fitted Sheets Queen',cat:'Lencería',unit:'Each',qty:60,min:15},
+    {name:'Pillowcases',cat:'Lencería',unit:'Each',qty:120,min:30},
+    {name:'Trash Bags (Large)',cat:'Limpieza',unit:'Box',qty:20,min:5},
+    {name:'Trash Bags (Small)',cat:'Limpieza',unit:'Box',qty:15,min:5},
+    {name:'Shampoo (.85oz)',cat:'Amenidades',unit:'Each',qty:500,min:100},
+    {name:'Conditioner (.85oz)',cat:'Amenidades',unit:'Each',qty:300,min:80},
+    {name:'Body Wash (.85oz)',cat:'Amenidades',unit:'Each',qty:300,min:80},
+    {name:'Hand Soap Bar',cat:'Amenidades',unit:'Each',qty:400,min:100},
+    {name:'Disinfectant Spray',cat:'Limpieza',unit:'Bottle',qty:30,min:10},
+    {name:'Floor Cleaner',cat:'Limpieza',unit:'Gallon',qty:10,min:3},
+    {name:'Glass Cleaner',cat:'Limpieza',unit:'Bottle',qty:15,min:5},
+    {name:'Mop Heads',cat:'Limpieza',unit:'Each',qty:10,min:3},
+  ],
+  'Resort': [
+    {name:'Pool Towels',cat:'Lencería',unit:'Each',qty:200,min:50},
+    {name:'Sunscreen SPF50',cat:'Amenidades',unit:'Each',qty:50,min:15},
+    {name:'Shampoo (.85oz)',cat:'Amenidades',unit:'Each',qty:600,min:150},
+    {name:'Conditioner (.85oz)',cat:'Amenidades',unit:'Each',qty:400,min:100},
+    {name:'Body Wash (.85oz)',cat:'Amenidades',unit:'Each',qty:400,min:100},
+    {name:'Toilet Paper',cat:'Amenidades',unit:'Roll',qty:300,min:80},
+    {name:'Bath Towels',cat:'Lencería',unit:'Each',qty:150,min:40},
+    {name:'Flat Sheets',cat:'Lencería',unit:'Each',qty:100,min:25},
+    {name:'Trash Bags',cat:'Limpieza',unit:'Box',qty:30,min:8},
+    {name:'Disinfectant',cat:'Limpieza',unit:'Gallon',qty:15,min:4},
+  ],
+  'Hospital': [
+    {name:'Gloves (Latex M)',cat:'Médico',unit:'Box',qty:50,min:15},
+    {name:'Gloves (Latex L)',cat:'Médico',unit:'Box',qty:50,min:15},
+    {name:'Face Masks',cat:'Médico',unit:'Box',qty:30,min:10},
+    {name:'Hand Sanitizer',cat:'Limpieza',unit:'Bottle',qty:40,min:12},
+    {name:'Disinfectant Wipes',cat:'Limpieza',unit:'Box',qty:25,min:8},
+    {name:'Bed Sheets',cat:'Lencería',unit:'Each',qty:80,min:20},
+    {name:'Pillow Cases',cat:'Lencería',unit:'Each',qty:100,min:25},
+    {name:'Trash Bags (Bio)',cat:'Limpieza',unit:'Box',qty:20,min:5},
+    {name:'Paper Towels',cat:'Limpieza',unit:'Roll',qty:100,min:30},
+    {name:'Soap Dispenser Refill',cat:'Limpieza',unit:'Bottle',qty:30,min:8},
+  ],
+  'Restaurante': [
+    {name:'Paper Towels',cat:'Limpieza',unit:'Roll',qty:60,min:20},
+    {name:'Gloves (Food Safe)',cat:'Cocina',unit:'Box',qty:20,min:5},
+    {name:'Napkins',cat:'Servicio',unit:'Pack',qty:50,min:15},
+    {name:'Trash Bags',cat:'Limpieza',unit:'Box',qty:15,min:5},
+    {name:'Food Containers',cat:'Cocina',unit:'Pack',qty:30,min:10},
+    {name:'Cleaning Chemicals',cat:'Limpieza',unit:'Bottle',qty:12,min:4},
+    {name:'Dish Soap',cat:'Limpieza',unit:'Bottle',qty:10,min:3},
+    {name:'Sanitizer Spray',cat:'Limpieza',unit:'Bottle',qty:15,min:5},
+    {name:'Aluminum Foil',cat:'Cocina',unit:'Roll',qty:5,min:2},
+    {name:'Plastic Wrap',cat:'Cocina',unit:'Roll',qty:5,min:2},
+  ],
+  'Empresa': [
+    {name:'Printer Paper (A4)',cat:'Oficina',unit:'Ream',qty:20,min:5},
+    {name:'Pens (Blue)',cat:'Oficina',unit:'Box',qty:5,min:2},
+    {name:'Printer Toner',cat:'Oficina',unit:'Each',qty:4,min:1},
+    {name:'Folders',cat:'Oficina',unit:'Pack',qty:10,min:3},
+    {name:'Staples',cat:'Oficina',unit:'Box',qty:5,min:2},
+    {name:'Hand Sanitizer',cat:'Limpieza',unit:'Bottle',qty:10,min:3},
+    {name:'Disinfectant Wipes',cat:'Limpieza',unit:'Box',qty:8,min:3},
+    {name:'Trash Bags',cat:'Limpieza',unit:'Box',qty:10,min:3},
+    {name:'Paper Towels',cat:'Limpieza',unit:'Roll',qty:20,min:8},
+    {name:'Coffee',cat:'Cafetería',unit:'Bag',qty:5,min:2},
+  ],
+  'Escuela': [
+    {name:'Printer Paper',cat:'Oficina',unit:'Ream',qty:30,min:8},
+    {name:'Whiteboard Markers',cat:'Aula',unit:'Box',qty:10,min:3},
+    {name:'Pens',cat:'Oficina',unit:'Box',qty:8,min:3},
+    {name:'Pencils',cat:'Aula',unit:'Box',qty:10,min:4},
+    {name:'Folders',cat:'Oficina',unit:'Pack',qty:15,min:5},
+    {name:'Hand Soap',cat:'Limpieza',unit:'Bottle',qty:20,min:6},
+    {name:'Paper Towels',cat:'Limpieza',unit:'Roll',qty:40,min:12},
+    {name:'Trash Bags',cat:'Limpieza',unit:'Box',qty:12,min:4},
+    {name:'Cleaning Spray',cat:'Limpieza',unit:'Bottle',qty:10,min:3},
+    {name:'Chalk',cat:'Aula',unit:'Box',qty:5,min:2},
+  ],
+  'Motel': [
+    {name:'Toilet Paper',cat:'Amenidades',unit:'Roll',qty:150,min:40},
+    {name:'Shampoo',cat:'Amenidades',unit:'Each',qty:200,min:60},
+    {name:'Soap Bar',cat:'Amenidades',unit:'Each',qty:200,min:60},
+    {name:'Towels',cat:'Lencería',unit:'Each',qty:80,min:20},
+    {name:'Sheets',cat:'Lencería',unit:'Each',qty:60,min:15},
+    {name:'Trash Bags',cat:'Limpieza',unit:'Box',qty:15,min:5},
+    {name:'Disinfectant',cat:'Limpieza',unit:'Bottle',qty:12,min:4},
+    {name:'Glass Cleaner',cat:'Limpieza',unit:'Bottle',qty:8,min:3},
+  ],
+  'Clínica': [
+    {name:'Gloves (S)',cat:'Médico',unit:'Box',qty:30,min:10},
+    {name:'Gloves (M)',cat:'Médico',unit:'Box',qty:40,min:12},
+    {name:'Gloves (L)',cat:'Médico',unit:'Box',qty:30,min:10},
+    {name:'Masks (Surgical)',cat:'Médico',unit:'Box',qty:20,min:6},
+    {name:'Hand Sanitizer',cat:'Limpieza',unit:'Bottle',qty:25,min:8},
+    {name:'Disinfectant Wipes',cat:'Limpieza',unit:'Box',qty:20,min:6},
+    {name:'Paper Towels',cat:'Limpieza',unit:'Roll',qty:50,min:15},
+    {name:'Trash Bags',cat:'Limpieza',unit:'Box',qty:12,min:4},
+  ],
+};
+
+/* Generate and load auto-inventory when a company is created */
+async function generateAutoInventory(propId, propType){
+  var template = INVENTORY_TEMPLATES[propType] || INVENTORY_TEMPLATES['Hotel'];
+  if(!template || !template.length) return;
+
+  var col = propId === 'prop_default' ? COLS.INV : COLS.INV + '_' + propId;
+  var now = firebase.firestore ? firebase.firestore.FieldValue.serverTimestamp() : new Date();
+  var batch = S.fbReady ? firebase.firestore().batch() : null;
+  var newItems = [];
+
+  template.forEach(function(tmpl, idx){
+    var id = 'auto_' + propId + '_' + idx + '_' + Date.now();
+    var item = {
+      id: id,
+      name: tmpl.name,
+      cat: tmpl.cat,
+      unit: tmpl.unit || 'Each',
+      qty: tmpl.qty,
+      minQty: tmpl.min,
+      price: 0,
+      sku: '',
+      barcode: '',
+      brand: '',
+      supplier: propType + ' Auto-Stock',
+      location: '',
+      notes: 'Inventario inicial automático — ' + propType,
+      autoGenerated: true,
+      companyId: propId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    newItems.push(item);
+    if(batch){
+      var ref = firebase.firestore().collection(col).doc(id);
+      batch.set(ref, item);
+    }
+  });
+
+  if(batch){
+    try{
+      await batch.commit();
+      showAlert('✅ Inventario inicial cargado: ' + newItems.length + ' productos para ' + propType, 'success');
+    }catch(e){
+      // Fallback: add to local
+      newItems.forEach(function(item){ S.items.push(item); });
+      showAlert('Inventario guardado localmente (' + newItems.length + ' productos)', 'info');
+    }
+  } else {
+    newItems.forEach(function(item){ S.items.push(item); });
+    if(typeof saveLocal==='function') saveLocal();
+    showAlert('✅ ' + newItems.length + ' productos iniciales cargados para ' + propType, 'success');
+  }
+
+  // Reload inventory
+  try{ if(typeof renderInventory==='function') renderInventory(); }catch(e){}
+  try{ if(typeof renderDashboard==='function') renderDashboard(); }catch(e){}
 }
 
 </script>
