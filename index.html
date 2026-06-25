@@ -19,6 +19,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- jsPDF for reports -->
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js" onload="pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js'"></script>
 <style>
 /* ═══════════════════════════════════════════
    Arbella'sStock WMS — CSS
@@ -911,6 +912,102 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+
+/* ── PRODUCT AUTOCOMPLETE ── */
+.im-suggest-wrap { position: relative; }
+.im-suggest-list {
+  position: absolute; top: 100%; left: 0; right: 0;
+  background: #fff;
+  border: 1.5px solid var(--blue2);
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 900;
+  box-shadow: 0 8px 24px rgba(0,0,0,.15);
+  display: none;
+}
+.im-suggest-list.open { display: block; }
+.im-suggest-item {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background .1s;
+}
+.im-suggest-item:last-child { border-bottom: none; }
+.im-suggest-item:active, .im-suggest-item:hover { background: var(--surface2); }
+.im-suggest-cat {
+  font-size: 10px;
+  background: var(--blue);
+  color: #fff;
+  border-radius: 5px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+}
+.im-suggest-name { font-size: 13px; font-weight: 600; flex: 1; }
+.im-suggest-sub  { font-size: 11px; color: var(--text3); }
+
+
+/* ── SUPPLIERS MODULE ── */
+.sup-page { display:flex; flex-direction:column; height:100%; }
+.sup-hero {
+  background: linear-gradient(135deg, #1FAD6E 0%, #0D8A50 100%);
+  padding: 16px 16px 14px; flex-shrink:0;
+}
+.sup-hero-row { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+.sup-hero-icon {
+  width:48px; height:48px; border-radius:14px;
+  background:rgba(255,255,255,.2); display:flex;
+  align-items:center; justify-content:center; font-size:26px; flex-shrink:0;
+}
+.sup-hero-title { color:#fff; }
+.sup-hero-title h3 { font-size:18px; font-weight:800; margin:0 0 2px; }
+.sup-hero-title p  { font-size:12px; opacity:.75; margin:0; }
+.sup-tabs { display:flex; border-bottom:2px solid rgba(255,255,255,.2); }
+.sup-tab {
+  padding:8px 14px; font-size:12px; font-weight:700; color:rgba(255,255,255,.6);
+  border-bottom:3px solid transparent; cursor:pointer; margin-bottom:-2px;
+}
+.sup-tab.active { color:#fff; border-bottom-color:#fff; }
+
+/* Supplier card */
+.sup-card {
+  background:#fff; border-radius:14px; padding:14px;
+  margin-bottom:8px; border:1.5px solid var(--border);
+  display:flex; align-items:flex-start; gap:12px;
+}
+.sup-card-icon {
+  width:44px; height:44px; border-radius:11px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:22px;
+}
+.sup-card-body { flex:1; min-width:0; }
+.sup-card-name { font-weight:800; font-size:14px; color:var(--text); }
+.sup-card-cat  { font-size:11px; color:var(--text3); margin-top:2px; }
+.sup-card-info { font-size:11px; color:var(--text2); margin-top:4px; }
+.sup-card-tags { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+.sup-tag {
+  font-size:10px; padding:2px 7px; border-radius:10px;
+  background:var(--surface2); color:var(--text2); font-weight:600;
+}
+.sup-card-actions { display:flex; flex-direction:column; gap:5px; flex-shrink:0; }
+.sup-stat-row {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
+  padding:10px 12px; background:rgba(255,255,255,.1);
+  border-radius:10px; margin-top:8px;
+}
+.sup-stat { text-align:center; }
+.sup-stat-val { font-size:18px; font-weight:800; color:#fff; }
+.sup-stat-lbl { font-size:10px; color:rgba(255,255,255,.65); margin-top:1px; }
+
+
+/* ── EXCEL / QB EXPORT STYLES ── */
+.export-section { background:#F8FAFF; border:1.5px solid #DDE8FF; border-radius:12px; padding:12px; margin:6px 0; }
+.export-title   { font-size:11px; font-weight:800; color:#1E4DB7; text-transform:uppercase; letter-spacing:.05em; margin-bottom:8px; }
+.export-btn-row { display:flex; gap:6px; flex-wrap:wrap; }
+
 </style>
 </head>
 <body>
@@ -1033,6 +1130,9 @@ input,select,textarea{font-family:inherit;font-size:inherit}
   <div class="topbar">
     <span class="topbar-title" id="page-title">Dashboard</span>
     <div class="topbar-actions">
+      <button class="icon-btn" id="inv-import-toggle-btn" onclick="toggleInvImport()" aria-label="Importar inventario" style="display:none" title="Importar inventario desde archivo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
       <button class="icon-btn" onclick="openSearch()" aria-label="Search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       </button>
@@ -1091,7 +1191,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
       <div class="menu-sep"></div>
       <li class="menu-item dhs-item" data-p="dhs" onclick="navigate('dhs')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2z"/><path d="M12 6v6l4 2"/><path d="M8 12c0-2.2 1.8-4 4-4"/></svg>
-        <span>DHS Amenities</span>
+        <span>Suppliers</span>
         <span class="dhs-nav-badge" id="menu-dhs-badge" style="display:none">0</span>
       </li>
       <li class="menu-item" data-p="export" onclick="navigate('export')">
@@ -1157,8 +1257,35 @@ input,select,textarea{font-family:inherit;font-size:inherit}
     <div class="page" id="pg-inventory">
       <div class="filter-bar" id="inv-filters"></div>
       <div class="dash-grid" style="grid-template-columns:repeat(3,1fr);padding:8px 12px" id="inv-stats"></div>
+
+      <!-- Import toolbar -->
+      <div id="inv-import-bar" style="display:none;margin:0 12px 8px;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:10px 12px">
+        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">📥 Importar inventario desde archivo</div>
+        <div class="rpt-upload-area" style="margin:0 0 8px;padding:16px" onclick="document.getElementById('inv-file-inp').click()"
+          ondragover="event.preventDefault();this.classList.add('drag-over')"
+          ondragleave="this.classList.remove('drag-over')"
+          ondrop="invHandleDrop(event)">
+          <div style="font-size:24px;margin-bottom:6px">📂</div>
+          <div style="font-size:13px;font-weight:700;color:var(--text)">Arrastra o toca para seleccionar</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">CSV · Excel · JSON · PDF · TXT</div>
+        </div>
+        <input type="file" id="inv-file-inp" accept=".csv,.xlsx,.xls,.json,.pdf,.txt" style="display:none" onchange="invHandleFile(event)">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          <select id="inv-import-mode" style="flex:1;min-width:140px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;background:#fff">
+            <option value="update">Actualizar cantidades existentes</option>
+            <option value="upsert">Actualizar o crear productos</option>
+            <option value="replace">Reemplazar inventario completo</option>
+          </select>
+          <button onclick="invExecuteImport()" class="btn-primary" style="padding:7px 14px;font-size:12px;white-space:nowrap">⬆ Importar</button>
+          <button onclick="rptDownloadTemplate()" style="padding:7px 10px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;font-size:12px;color:var(--text2)">📋 Plantilla</button>
+        </div>
+        <div id="inv-import-result" style="display:none;padding:8px 10px;border-radius:8px;font-size:12px;font-weight:600"></div>
+      </div>
+
       <div id="inv-list"></div>
-      <button class="fab" onclick="openAddModal()" aria-label="Add product">
+
+      <!-- FAB with import toggle -->
+      <button class="fab" onclick="openAddModal()" aria-label="Add product" style="bottom:80px">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       </button>
     </div>
@@ -1308,8 +1435,42 @@ input,select,textarea{font-family:inherit;font-size:inherit}
     ═══════════════════════════════════════ -->
     <div class="page" id="pg-dhs">
 
-      <!-- Hero Banner -->
-      <div class="dhs-hero">
+      <!-- Suppliers Hero Banner -->
+      <div class="sup-hero">
+        <div class="sup-hero-row">
+          <div class="sup-hero-icon">🏢</div>
+          <div class="sup-hero-title">
+            <h3>Suppliers</h3>
+            <p>Suministradores · Gestión de proveedores</p>
+          </div>
+        </div>
+        <!-- Stats -->
+        <div class="sup-stat-row" id="sup-stats-row">
+          <div class="sup-stat"><div class="sup-stat-val" id="sup-total-count">0</div><div class="sup-stat-lbl">Suppliers</div></div>
+          <div class="sup-stat"><div class="sup-stat-val" id="sup-dhs-count">0</div><div class="sup-stat-lbl">Productos</div></div>
+          <div class="sup-stat"><div class="sup-stat-val" id="sup-cat-count">0</div><div class="sup-stat-lbl">Categorías</div></div>
+        </div>
+        <!-- Tabs -->
+        <div class="sup-tabs" style="margin-top:10px">
+          <div class="sup-tab active" onclick="supSwitchTab('sup-tab-list',this)">📋 Suppliers</div>
+          <div class="sup-tab" onclick="supSwitchTab('sup-tab-dhs',this)">🏨 DHS Catalog</div>
+          <div class="sup-tab" onclick="supSwitchTab('sup-tab-orders',this)">🛒 Compras</div>
+        </div>
+      </div>
+
+      <!-- TAB: SUPPLIERS LIST -->
+      <div id="sup-tab-list" style="flex:1;overflow-y:auto;padding:10px 12px">
+        <div id="sup-list-content"></div>
+        <button onclick="openSupplierModal()" style="width:100%;padding:12px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;margin-top:4px;display:flex;align-items:center;justify-content:center;gap:7px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Agregar Supplier
+        </button>
+      </div>
+
+      <!-- TAB: DHS CATALOG (original DHS content) -->
+      <div id="sup-tab-dhs" style="display:none;flex:1;overflow-y:auto">
+        <!-- DHS hero info moved here -->
+        <div class="dhs-hero" style="margin:0">
         <div class="dhs-logo-chip">
           <span class="dhs-acronym">DHS</span>
           <span class="dhs-sub">Supplier</span>
@@ -1448,6 +1609,8 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 
     </div><!-- /pg-dhs -->
 
+      </div><!-- /sup-tab-dhs -->
+      <div id="sup-tab-orders" style="display:none;flex:1;overflow-y:auto;padding:10px 12px"><div id="sup-orders-content"><div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Sin compras registradas aún.</div></div></div>
   </div><!-- /main -->
 
   <!-- BOTTOM NAV -->
@@ -1470,8 +1633,8 @@ input,select,textarea{font-family:inherit;font-size:inherit}
       <div class="nbadge hidden" id="nav-delivery-badge"></div>
     </button>
     <button class="nav-btn" data-p="dhs" onclick="navigate('dhs')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-      <span>DHS</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      <span>Suppliers</span>
       <div class="nbadge hidden" id="nav-dhs-badge"></div>
     </button>
     <button class="nav-btn" data-p="reports" onclick="navigate('reports')">
@@ -1526,7 +1689,18 @@ input,select,textarea{font-family:inherit;font-size:inherit}
         <div class="fgrp"><label data-i="barcode">Código de barras</label><div class="input-icon"><input type="text" id="im-barcode" placeholder="Escanear o escribir"><button onclick="navigate('scanner')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg></button></div></div>
         <div class="fgrp"><label>SKU</label><input type="text" id="im-sku" placeholder="SAB-QS-001"></div>
       </div>
-      <div class="fgrp"><label data-i="product_name">Nombre del producto *</label><input type="text" id="im-name" placeholder="Ej: Sábanas Queen Size"></div>
+      <div class="fgrp">
+        <label data-i="product_name">Nombre del producto *</label>
+        <div class="im-suggest-wrap">
+          <input type="text" id="im-name" placeholder="Ej: Sábanas Queen Size"
+            autocomplete="off"
+            oninput="imNameSuggest(this.value)"
+            onkeydown="imNameKeyDown(event)"
+            onfocus="imNameSuggest(this.value)"
+            style="width:100%;box-sizing:border-box">
+          <div class="im-suggest-list" id="im-suggest-list"></div>
+        </div>
+      </div>
       <div class="frow2">
         <div class="fgrp"><label data-i="category">Categoría</label><select id="im-cat"><option value="Ropa de Cama">🛏 Ropa de Cama</option><option value="Toallas">🛁 Toallas</option><option value="Amenidades">✨ Amenidades</option><option value="Limpieza">🧹 Limpieza</option><option value="Insumos">📦 Insumos</option></select></div>
         <div class="fgrp"><label data-i="unit">Unidad</label><select id="im-unit"><option>Piezas</option><option>Unidades</option><option>Rollos</option><option>Litros</option><option>Paquetes</option><option>Cajas</option></select></div>
@@ -1641,15 +1815,38 @@ input,select,textarea{font-family:inherit;font-size:inherit}
       </div>
 
       <!-- TAB: EXPORT -->
-      <div id="rpt-tab-export" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 0 4px">
-        <button class="btn-primary" onclick="downloadPDF()" style="font-size:13px">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <span data-i="download_pdf">Descargar PDF</span>
+      <div id="rpt-tab-export" style="padding:0 0 4px">
+        <!-- Row 1: PDF + WhatsApp -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <button class="btn-primary" onclick="downloadPDF()" style="font-size:13px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            PDF
+          </button>
+          <button class="btn-wa" onclick="shareReportWhatsApp()" style="font-size:13px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            WhatsApp
+          </button>
+        </div>
+        <!-- Row 2: Excel multi-sheet -->
+        <button onclick="exportarExcelInventario()" style="width:100%;padding:11px;background:#1D6F42;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:7px;margin-bottom:8px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+          📊 Exportar Excel (.xlsx) — 5 hojas
         </button>
-        <button class="btn-wa" onclick="shareReportWhatsApp()" style="font-size:13px">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-          <span data-i="send_whatsapp">WhatsApp</span>
-        </button>
+        <!-- Row 3: QuickBooks exports -->
+        <div style="background:#F0F4FF;border:1.5px solid #C7D7FF;border-radius:10px;padding:10px;margin-bottom:4px">
+          <div style="font-size:11px;font-weight:800;color:#2563EB;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">📦 QuickBooks CSV</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+            <button onclick="exportarCSVQuickBooksItems()" style="padding:8px 4px;background:#2563EB;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">
+              📋 Items
+            </button>
+            <button onclick="exportarCSVQuickBooksAdjustments()" style="padding:8px 4px;background:#7C3AED;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">
+              📝 Adjustments
+            </button>
+            <button onclick="exportarCSVQuickBooksExpenses()" style="padding:8px 4px;background:#0891B2;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">
+              💰 Expenses
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- TAB: IMPORT/UPDATE -->
@@ -1661,9 +1858,9 @@ input,select,textarea{font-family:inherit;font-size:inherit}
           ondrop="rptHandleDrop(event)">
           <div class="rpt-upload-icon">📂</div>
           <div class="rpt-upload-title">Importar inventario desde archivo</div>
-          <div class="rpt-upload-sub">CSV, Excel (.xlsx) o JSON · Arrastra o haz clic</div>
+          <div class="rpt-upload-sub">CSV · Excel (.xlsx) · JSON · PDF · TXT · Arrastra o haz clic</div>
         </div>
-        <input type="file" id="rpt-file-inp" accept=".csv,.xlsx,.xls,.json" style="display:none" onchange="rptHandleFile(event)">
+        <input type="file" id="rpt-file-inp" accept=".csv,.xlsx,.xls,.json,.pdf,.txt" style="display:none" onchange="rptHandleFile(event)">
 
         <!-- Field mapping -->
         <div style="padding:4px 12px 6px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">
@@ -2316,6 +2513,8 @@ function setSyncOffline(){
 
 /* ── NAVIGATION ── */
 function navigate(page){
+  var _iib=document.getElementById('inv-import-toggle-btn');if(_iib)_iib.style.display='none';
+  var _ibar=document.getElementById('inv-import-bar');if(_ibar)_ibar.style.display='none';
   // DHS intercept
   if(page==='dhs'){ if(typeof navigateDHS==='function') navigateDHS('dhs'); return; }
   document.querySelectorAll('.page').forEach(p=>{p.classList.remove('active');});
@@ -2407,7 +2606,8 @@ function renderDashPropChips() {
 }
 
 /* ── Quick switch from chip ── */
-function dashSwitchProp(id) {
+function dashSwitchProp(id){ propSwitchAndClose(id); }
+function dashSwitchPropFull(id) {
   if (PROP.active && PROP.active.id === id) return; // already active
 
   // Show loading state
@@ -5223,10 +5423,15 @@ function navigateDHS(page){
   document.querySelectorAll('.nav-btn,.menu-item').forEach(b=>b.classList.remove('active'));
   document.getElementById('pg-dhs').classList.add('active');
   document.querySelectorAll('[data-p="dhs"]').forEach(b=>b.classList.add('active'));
-  document.getElementById('page-title').textContent='DHS Amenities';
+  document.getElementById('page-title').textContent='Suppliers';
   toggleMenu(true);
   renderDHSPage();
   dhsAttachListeners();
+  // Init suppliers module
+  try{
+    initDefaultSuppliers();
+    renderSupplierList();
+  }catch(e){}
   return true;
 }
 
@@ -5321,10 +5526,19 @@ function applyActiveProperty(){
 
 /* ── PROP ADD MODAL OPEN/CLOSE ── */
 function openAddPropModal(editId){
-  if(editId){ editPropItem(editId); }
-  else { resetPropForm(); document.getElementById('prop-add-title').textContent = '➕ Nueva institución'; }
-  var el=document.getElementById('prop-add-overlay');
-  if(el) el.classList.add('open');
+  if(editId){
+    editPropItem(editId);
+  } else {
+    resetPropForm();
+    ['prop-add-title','prop-form-title-txt'].forEach(function(id){
+      var el=document.getElementById(id); if(el) el.textContent='➕ Nueva institución';
+    });
+  }
+  var pao=document.getElementById('prop-add-overlay');
+  if(pao) pao.classList.add('open');
+  setTimeout(function(){
+    var inp=document.getElementById('prop-name-inp'); if(inp) inp.focus();
+  }, 200);
 }
 function closePropAddModal(){
   var el=document.getElementById('prop-add-overlay');
@@ -5352,36 +5566,71 @@ function renderPropCurrentCard(){
 }
 
 /* ── RENDER SAVED LIST ── */
-function renderPropList(){
-  const el = document.getElementById('prop-list');
-  const others = PROP.list.filter(p=>!p.active);
 
-  if(!others.length){
-    el.innerHTML = '<div style="text-align:center;padding:16px;font-size:13px;color:var(--text3)">Sin otras instituciones guardadas.<br>Agrega una abajo. ↓</div>';
+function propSwitchAndClose(id){
+  // Switch property and reload inventory
+  PROP.list.forEach(function(p){ p.active = (p.id === id); });
+  PROP.active = PROP.list.find(function(p){ return p.id === id; }) || PROP.list[0];
+  propSave();
+  applyActiveProperty();
+  S.items = [];
+  if(typeof renderInventory === 'function') renderInventory();
+  if(typeof renderDashboard === 'function') renderDashboard();
+  if(typeof renderDashPropWidget === 'function') renderDashPropWidget();
+  try{ attachListeners(); }catch(e){}
+  renderPropCurrentCard();
+  renderPropList();
+  var name = PROP.active ? PROP.active.name : '';
+  showAlert('✅ ' + name + ' — inventario cargando…', 'success');
+  setTimeout(closePropSheet, 900);
+}
+
+function renderPropList(){
+  var el = document.getElementById('prop-list');
+  if(!el) return;
+  if(!PROP.list || PROP.list.length === 0){
+    el.innerHTML = '<div style="text-align:center;padding:24px;font-size:13px;color:var(--text3)">Sin instituciones. Toca Agregar abajo.</div>';
     return;
   }
-
-  el.innerHTML = others.map(p => {
-    // Show tip about independent inventory
-    const invKey = p.id === 'prop_default' ? 'stockpro_inventario' : 'stockpro_inventario_' + p.id;
-    return `
-    <div class="prop-item" id="propitem-${p.id}">
-      <div class="prop-item-icon" style="background:${p.color}22;border-color:${p.color}44">${p.emoji||'🏨'}</div>
-      <div class="prop-item-body">
-        <div class="prop-item-name">${p.name}</div>
-        <div class="prop-item-meta">${p.type}${p.city?' · '+p.city:''}</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:2px">📦 Inventario independiente</div>
-      </div>
-      <div class="prop-item-actions">
-        <button class="prop-item-sel" onclick="switchToProperty('${p.id}')" style="background:${p.color}">
-          ✅ Activar
-        </button>
-        <button class="prop-item-sel" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border)" onclick="openAddPropModal('${p.id}')">✏️</button>
-        <button class="prop-item-del" onclick="deletePropItem('${p.id}')">🗑</button>
-      </div>
-    </div>
-    `;
-  }).join('');
+  var html = '';
+  for(var pi=0; pi<PROP.list.length; pi++){
+    var p = PROP.list[pi];
+    var isAct = PROP.active && p.id === PROP.active.id;
+    var col = p.color || '#1E4DB7';
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:8px;';
+    html += 'background:' + (isAct ? col+'15' : 'var(--surface2)') + ';';
+    html += 'border:1.5px solid ' + (isAct ? col+'88' : 'var(--border)') + ';border-radius:14px">';
+    // Icon
+    html += '<div style="width:42px;height:42px;border-radius:11px;background:' + col + '22;';
+    html += 'display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">' + (p.emoji||'🏨') + '</div>';
+    // Info
+    html += '<div style="flex:1;min-width:0">';
+    html += '<div style="font-weight:800;font-size:14px;color:' + (isAct ? col : 'var(--text)') + '">' + p.name + '</div>';
+    html += '<div style="font-size:11px;color:var(--text3)">' + (p.type||'Hotel') + (p.city ? ' · ' + p.city : '') + '</div>';
+    if(isAct){
+      html += '<div style="font-size:10px;font-weight:800;color:' + col + ';margin-top:2px">✅ ACTIVA · INVENTARIO CARGADO</div>';
+    } else {
+      html += '<div style="font-size:10px;color:var(--text3);margin-top:2px">📦 Inventario independiente</div>';
+    }
+    html += '</div>';
+    // Actions
+    html += '<div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">';
+    if(isAct){
+      html += '<div style="background:' + col + ';color:#fff;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:800">ACTIVA</div>';
+    } else {
+      html += '<button onclick="propSwitchAndClose(' + JSON.stringify(p.id) + ')" ';
+      html += 'style="background:' + col + ';color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">✅ Activar</button>';
+    }
+    html += '<div style="display:flex;gap:4px">';
+    html += '<button onclick="openAddPropModal(' + JSON.stringify(p.id) + ')" ';
+    html += 'style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 8px;font-size:13px;cursor:pointer">✏️</button>';
+    if(!isAct){
+      html += '<button onclick="deletePropItem(' + JSON.stringify(p.id) + ')" ';
+      html += 'style="background:#FDE8E8;color:#C1121F;border:none;border-radius:7px;padding:5px 7px;font-size:11px;font-weight:700;cursor:pointer">✕ Del</button>';
+    }
+    html += '</div></div></div>';
+  }
+  el.innerHTML = html;
 }
 
 /* ── SWITCH ACTIVE PROPERTY ── */
@@ -5412,50 +5661,56 @@ function deletePropItem(id){
 
 /* ── EDIT PROPERTY ── */
 function editPropItem(id){
-  const p = PROP.list.find(x=>x.id===id); if(!p) return;
+  var p = PROP.list.find(function(x){ return x.id===id; });
+  if(!p) return;
   PROP.editingId = id;
-  document.getElementById('prop-form-title-txt').textContent = 'Editar institución';
-  document.getElementById('prop-edit-id').value = id;
-  document.getElementById('prop-name-inp').value = p.name;
-  document.getElementById('prop-city-inp').value = p.city||'';
-  document.getElementById('prop-notes-inp').value = p.notes||'';
-
-  PROP.selectedEmoji  = p.emoji||'🏨';
-  PROP.selectedType   = p.type||'Hotel';
-  PROP.selectedColor  = p.color||'#1E4DB7';
-
-  // Sync emoji buttons
-  document.querySelectorAll('.prop-emoji-btn').forEach(b=>{
+  // Safe title update
+  ['prop-add-title','prop-form-title-txt'].forEach(function(tid){
+    var el=document.getElementById(tid); if(el) el.textContent='✏️ Editar institución';
+  });
+  // Safe field fill
+  var _set = function(id,val){ var el=document.getElementById(id); if(el) el.value=val||''; };
+  _set('prop-edit-id', id);
+  _set('prop-name-inp', p.name);
+  _set('prop-city-inp', p.city);
+  _set('prop-notes-inp', p.notes);
+  PROP.selectedEmoji  = p.emoji  || '🏨';
+  PROP.selectedType   = p.type   || 'Hotel';
+  PROP.selectedColor  = p.color  || '#1E4DB7';
+  document.querySelectorAll('.prop-emoji-btn').forEach(function(b){
     b.classList.toggle('active', b.dataset.emoji===PROP.selectedEmoji);
   });
-  // Sync type buttons
-  document.querySelectorAll('.prop-type-btn').forEach(b=>{
+  document.querySelectorAll('.prop-type-btn').forEach(function(b){
     b.classList.toggle('active', b.dataset.type===PROP.selectedType);
   });
-  // Sync color dots
-  document.querySelectorAll('.prop-color-dot').forEach(d=>{
+  document.querySelectorAll('.prop-color-dot').forEach(function(d){
     d.classList.toggle('active', d.dataset.color===PROP.selectedColor);
   });
-
-  // Open the add/edit modal
-  var eEl=document.getElementById('prop-add-overlay');
-  if(eEl) eEl.classList.add('open');
-  var tt=document.getElementById('prop-add-title');
-  if(tt) tt.textContent='✏️ Editar institución';
+  // Open the modal
+  var pao=document.getElementById('prop-add-overlay'); if(pao) pao.classList.add('open');
 }
 
 /* ── RESET FORM ── */
 function resetPropForm(){
   PROP.editingId = null;
-  document.getElementById('prop-form-title-txt').textContent = 'Agregar institución';
-  document.getElementById('prop-edit-id').value = '';
-  document.getElementById('prop-name-inp').value = '';
-  document.getElementById('prop-city-inp').value = '';
-  document.getElementById('prop-notes-inp').value = '';
+  // Safe title update — try both possible IDs
+  ['prop-add-title','prop-form-title-txt'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.textContent='➕ Nueva institución';
+  });
+  // Safe field clear
+  ['prop-edit-id','prop-name-inp','prop-city-inp','prop-notes-inp'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.value='';
+  });
   PROP.selectedEmoji='🏨'; PROP.selectedType='Hotel'; PROP.selectedColor='#1E4DB7';
-  document.querySelectorAll('.prop-emoji-btn').forEach(b=>b.classList.toggle('active',b.dataset.emoji==='🏨'));
-  document.querySelectorAll('.prop-type-btn').forEach(b=>b.classList.toggle('active',b.dataset.type==='Hotel'));
-  document.querySelectorAll('.prop-color-dot').forEach(d=>d.classList.toggle('active',d.dataset.color==='#1E4DB7'));
+  document.querySelectorAll('.prop-emoji-btn').forEach(function(b){
+    b.classList.toggle('active', b.dataset.emoji==='🏨');
+  });
+  document.querySelectorAll('.prop-type-btn').forEach(function(b){
+    b.classList.toggle('active', b.dataset.type==='Hotel');
+  });
+  document.querySelectorAll('.prop-color-dot').forEach(function(d){
+    d.classList.toggle('active', d.dataset.color==='#1E4DB7');
+  });
 }
 
 /* ── FORM SELECTORS ── */
@@ -5519,6 +5774,14 @@ function savePropForm(){
 
   propSave();
   closePropAddModal();
+  // Auto-generate inventory for NEW companies
+  if(!editId && newPropId){
+    var newPropType = document.getElementById('prop-type-val') ? 
+      document.getElementById('prop-type-val').value :
+      (document.querySelector('.prop-type-btn.active') ? 
+       document.querySelector('.prop-type-btn.active').dataset.type : 'Hotel');
+    try{ generateAutoInventory(newPropId, newPropType); }catch(e){ console.warn('Auto-inv:', e); }
+  }
   var nowActive = PROP.list.find(function(p){ return p.active; });
   if(nowActive){ PROP.active = nowActive; applyActiveProperty(); }
   renderPropCurrentCard();
@@ -5642,29 +5905,73 @@ function rptProcessFile(file){
   RptImport.fileName = file.name;
   const ext = file.name.split('.').pop().toLowerCase();
   const reader = new FileReader();
+
   reader.onload = function(e){
     try{
       let rows = [];
+
       if(ext === 'json'){
         rows = JSON.parse(e.target.result);
         if(!Array.isArray(rows)) rows = Object.values(rows);
-      } else if(ext === 'csv'){
+
+      } else if(ext === 'csv' || ext === 'txt'){
         rows = rptParseCSV(e.target.result);
+
       } else if(ext === 'xlsx' || ext === 'xls'){
         if(window.XLSX){
           const wb = XLSX.read(e.target.result,{type:'binary'});
           rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-        } else { rptShowResult('Instala la app para usar Excel. Usa CSV.','err'); return; }
+        } else { rptShowResult('Abre la app en Chrome para usar Excel. Usa CSV como alternativa.','err'); return; }
+
+      } else if(ext === 'pdf'){
+        // PDF: extract text line by line and try to parse as CSV/table
+        rptShowResult('⏳ Procesando PDF…','ok');
+        rptParsePDF(file);
+        return;
       }
-      if(!rows.length){ rptShowResult('El archivo está vacío','err'); return; }
+
+      if(!rows.length){ rptShowResult('El archivo está vacío o no tiene filas reconocibles.','err'); return; }
       RptImport.rows = rows;
       RptImport.headers = Object.keys(rows[0]);
       rptShowFieldMap();
-      rptShowResult('✅ Archivo leído: ' + rows.length + ' filas — ' + file.name + '. Configura el mapeo y presiona "Actualizar inventario"','ok');
-    }catch(err){ rptShowResult('Error al leer el archivo: ' + err.message,'err'); }
+      rptShowResult('✅ Archivo leído: ' + rows.length + ' filas — ' + file.name,'ok');
+    }catch(err){ rptShowResult('Error al leer: ' + err.message,'err'); }
   };
+
   if(ext==='xlsx'||ext==='xls') reader.readAsBinaryString(file);
+  else if(ext==='pdf') reader.readAsArrayBuffer(file);
   else reader.readAsText(file,'UTF-8');
+}
+
+/* PDF parsing — extract text and try to find tabular data */
+async function rptParsePDF(file){
+  try{
+    // Use PDF.js if available (CDN loaded below), else fallback to raw text extraction
+    if(window.pdfjsLib){
+      const ab = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({data: ab}).promise;
+      let allText = '';
+      for(let pg=1; pg<=pdf.numPages; pg++){
+        const page = await pdf.getPage(pg);
+        const tc   = await page.getTextContent();
+        allText += tc.items.map(function(i){ return i.str; }).join(' ') + '\n';
+      }
+      // Try to parse as CSV-like lines
+      const rows = rptParseCSV(allText.trim());
+      if(rows.length){
+        RptImport.rows    = rows;
+        RptImport.headers = Object.keys(rows[0]);
+        rptShowFieldMap();
+        rptShowResult('✅ PDF leído: ' + rows.length + ' filas extraídas de ' + RptImport.fileName,'ok');
+      } else {
+        rptShowResult('⚠️ PDF sin tabla reconocible. Usa CSV/Excel para mejores resultados.','err');
+      }
+    } else {
+      rptShowResult('⚠️ PDF procesado como texto. Para mejor precisión usa CSV o Excel exportado del PDF.','err');
+    }
+  }catch(e){
+    rptShowResult('Error procesando PDF: ' + e.message + '. Usa CSV o Excel.','err');
+  }
 }
 
 function rptParseCSV(text){
@@ -5870,6 +6177,1097 @@ function rptShowResult(msg, type){
 }
 
 /* ── Also remove old Imprimir button (now in tabs) ── */
+
+
+/* ════════════════════════════════════════════════════════════
+   PRODUCT NAME AUTOCOMPLETE (im-name)
+   Searches: existing inventory + DHS catalog
+   ════════════════════════════════════════════════════════════ */
+
+var _imSuggestIdx = -1;
+
+function imNameSuggest(q){
+  var list = document.getElementById('im-suggest-list');
+  if(!list) return;
+  q = (q||'').trim();
+
+  if(q.length < 2){
+    list.classList.remove('open');
+    list.innerHTML = '';
+    return;
+  }
+
+  var ql = q.toLowerCase();
+  var results = [];
+
+  // 1. Search existing inventory (S.items)
+  if(S.items){
+    S.items.forEach(function(item){
+      if(item.name && item.name.toLowerCase().includes(ql)){
+        results.push({
+          name:   item.name,
+          sub:    (item.brand||'') + (item.cat ? ' · ' + item.cat : ''),
+          sku:    item.sku||'',
+          cat:    item.cat||'',
+          brand:  item.brand||'',
+          price:  item.price||0,
+          unit:   item.unit||'',
+          supplier: item.supplier||'',
+          source: 'inv'
+        });
+      }
+    });
+  }
+
+  // 2. Search DHS catalog
+  if(typeof DHS_QUICK_CATALOG !== 'undefined'){
+    DHS_QUICK_CATALOG.forEach(function(p){
+      if(p.name && p.name.toLowerCase().includes(ql)){
+        // avoid duplicates
+        var already = results.some(function(r){ return r.name.toLowerCase() === p.name.toLowerCase(); });
+        if(!already){
+          results.push({
+            name:   p.name,
+            sub:    (p.brand||'') + (p.cat ? ' · ' + p.cat : '') + (p.sku ? ' · ' + p.sku : ''),
+            sku:    p.sku||'',
+            cat:    p.cat||'',
+            brand:  p.brand||'',
+            price:  p.cost||0,
+            unit:   p.unit||'',
+            supplier: 'DHS',
+            source: 'dhs'
+          });
+        }
+      }
+    });
+  }
+
+  // Limit to 8 results
+  results = results.slice(0, 8);
+  _imSuggestIdx = -1;
+
+  if(!results.length){
+    list.classList.remove('open');
+    list.innerHTML = '';
+    return;
+  }
+
+  list.innerHTML = results.map(function(r, idx){
+    var badge = r.source === 'dhs'
+      ? '<span class="im-suggest-cat" style="background:#1FAD6E">DHS</span>'
+      : '<span class="im-suggest-cat">Inv</span>';
+    return '<div class="im-suggest-item" data-idx="'+idx+'" onclick="imNameSelect('+idx+')">'
+      + badge
+      + '<div><div class="im-suggest-name">'+r.name+'</div>'
+      + '<div class="im-suggest-sub">'+r.sub+'</div></div>'
+      + '</div>';
+  }).join('');
+
+  // Store results for selection
+  list._results = results;
+  list.classList.add('open');
+}
+
+function imNameSelect(idx){
+  var list = document.getElementById('im-suggest-list');
+  if(!list || !list._results) return;
+  var r = list._results[idx];
+  if(!r) return;
+
+  // Fill all fields automatically
+  var fields = {
+    'im-name':  r.name,
+    'im-sku':   r.sku,
+    'im-brand': r.brand,
+    'im-supp':  r.supplier,
+    'im-unit':  r.unit,
+  };
+  Object.keys(fields).forEach(function(id){
+    var el = document.getElementById(id);
+    if(el && fields[id]) el.value = fields[id];
+  });
+
+  // Set category select
+  if(r.cat){
+    var catEl = document.getElementById('im-cat');
+    if(catEl){
+      // Try to match existing option, otherwise keep current
+      var opts = Array.from(catEl.options).map(function(o){ return o.value; });
+      if(opts.some(function(o){ return o.toLowerCase() === r.cat.toLowerCase(); })){
+        catEl.value = r.cat;
+      }
+    }
+  }
+
+  // Set price if provided and field is empty
+  if(r.price){
+    var priceEl = document.getElementById('im-price');
+    if(priceEl && !priceEl.value) priceEl.value = r.price;
+  }
+
+  list.classList.remove('open');
+  list.innerHTML = '';
+
+  // Focus next field (qty)
+  setTimeout(function(){ var q=document.getElementById('im-qty'); if(q) q.focus(); }, 100);
+}
+
+function imNameKeyDown(e){
+  var list = document.getElementById('im-suggest-list');
+  if(!list || !list.classList.contains('open')) return;
+  var items = list.querySelectorAll('.im-suggest-item');
+  if(!items.length) return;
+
+  if(e.key === 'ArrowDown'){
+    e.preventDefault();
+    _imSuggestIdx = Math.min(_imSuggestIdx+1, items.length-1);
+    items.forEach(function(el,i){ el.style.background = i===_imSuggestIdx?'var(--surface2)':''; });
+  } else if(e.key === 'ArrowUp'){
+    e.preventDefault();
+    _imSuggestIdx = Math.max(_imSuggestIdx-1, 0);
+    items.forEach(function(el,i){ el.style.background = i===_imSuggestIdx?'var(--surface2)':''; });
+  } else if(e.key === 'Enter' && _imSuggestIdx >= 0){
+    e.preventDefault();
+    imNameSelect(_imSuggestIdx);
+  } else if(e.key === 'Escape'){
+    list.classList.remove('open');
+  }
+}
+
+// Close suggest when clicking outside
+document.addEventListener('click', function(e){
+  if(!e.target.closest('.im-suggest-wrap')){
+    var list = document.getElementById('im-suggest-list');
+    if(list) list.classList.remove('open');
+  }
+});
+
+
+/* ════════════════════════════════════════════════════════════
+   INVENTORY PAGE IMPORT
+   ════════════════════════════════════════════════════════════ */
+
+function toggleInvImport(){
+  var bar = document.getElementById('inv-import-bar');
+  if(!bar) return;
+  bar.style.display = bar.style.display === 'none' ? 'block' : 'none';
+  if(bar.style.display === 'block'){
+    bar.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+}
+
+function invHandleDrop(e){
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  invProcessFile(e.dataTransfer.files[0]);
+}
+function invHandleFile(e){ invProcessFile(e.target.files[0]); }
+
+function invProcessFile(file){
+  if(!file) return;
+  // Re-use the report import engine — same file parsing
+  RptImport.fileName = file.name;
+  var result = document.getElementById('inv-import-result');
+  if(result){ result.style.display='block'; result.textContent='⏳ Leyendo '+file.name+'…'; result.style.background='#F0FDF4'; result.style.color='#166534'; }
+
+  var ext = file.name.split('.').pop().toLowerCase();
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    try{
+      var rows = [];
+      if(ext==='json'){
+        rows = JSON.parse(ev.target.result);
+        if(!Array.isArray(rows)) rows = Object.values(rows);
+      } else if(ext==='csv'||ext==='txt'){
+        rows = rptParseCSV(ev.target.result);
+      } else if(ext==='xlsx'||ext==='xls'){
+        if(window.XLSX){ var wb=XLSX.read(ev.target.result,{type:'binary'}); rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]); }
+        else { invShowResult('Usa CSV para importar Excel.','err'); return; }
+      } else if(ext==='pdf'){
+        invShowResult('PDF recibido. Procesando…','ok');
+        rptParsePDF(file).then(function(){
+          // rptParsePDF fills RptImport.rows
+          if(RptImport.rows.length){
+            invShowResult('✅ PDF: '+RptImport.rows.length+' filas. Presiona Importar.','ok');
+          }
+        });
+        return;
+      }
+      if(!rows.length){ invShowResult('Archivo vacío o sin filas reconocibles.','err'); return; }
+      RptImport.rows = rows;
+      RptImport.headers = Object.keys(rows[0]);
+      invShowResult('✅ '+rows.length+' filas leídas de '+file.name+'. Presiona Importar.','ok');
+    }catch(e){ invShowResult('Error: '+e.message,'err'); }
+  };
+  if(ext==='xlsx'||ext==='xls') reader.readAsBinaryString(file);
+  else if(ext==='pdf') reader.readAsArrayBuffer(file);
+  else reader.readAsText(file,'UTF-8');
+}
+
+function invShowResult(msg, type){
+  var el = document.getElementById('inv-import-result');
+  if(!el) return;
+  el.style.display = 'block';
+  el.textContent = msg;
+  el.style.background = type==='err' ? '#FEF2F2' : '#F0FDF4';
+  el.style.color       = type==='err' ? '#991B1B' : '#166534';
+  el.style.border      = type==='err' ? '1px solid #FCA5A5' : '1px solid #86EFAC';
+}
+
+async function invExecuteImport(){
+  if(!RptImport.rows || !RptImport.rows.length){
+    invShowResult('Primero carga un archivo.','err'); return;
+  }
+  // Auto-detect field mapping
+  var headers = RptImport.headers || Object.keys(RptImport.rows[0]);
+  var mapping = {};
+  headers.forEach(function(h){
+    var mapped = Object.keys(RPT_AUTO_MAP).find(function(field){
+      return RPT_AUTO_MAP[field].some(function(alias){
+        return h.toLowerCase().replace(/[^a-z0-9]/g,'_').includes(alias);
+      });
+    });
+    if(mapped) mapping[h] = mapped;
+  });
+
+  var mode = document.getElementById('inv-import-mode');
+  var importMode = mode ? mode.value : 'upsert';
+  if(importMode==='replace'){
+    if(!confirm('¿Reemplazar TODO el inventario con este archivo?')) return;
+  }
+
+  var updated=0, created=0, skipped=0, errors=0;
+  for(var ri=0; ri<RptImport.rows.length; ri++){
+    var row = RptImport.rows[ri];
+    var item = {};
+    Object.keys(mapping).forEach(function(col){
+      var field = mapping[col];
+      var val = row[col];
+      if(val===undefined||val==='') return;
+      if(field==='qty'||field==='minQty') item[field]=parseInt(val)||0;
+      else if(field==='price') item[field]=parseFloat(val)||0;
+      else item[field]=String(val).trim();
+    });
+    if(!item.name&&!item.sku&&!item.barcode){ skipped++; continue; }
+
+    var existing = null;
+    if(item.sku) existing = S.items.find(function(i){ return i.sku===item.sku; });
+    if(!existing&&item.barcode) existing = S.items.find(function(i){ return i.barcode===item.barcode; });
+    if(!existing&&item.name) existing = S.items.find(function(i){ return i.name&&i.name.toLowerCase()===item.name.toLowerCase(); });
+
+    try{
+      if(existing){
+        var upd = {};
+        ['qty','minQty','price','notes','location','cat'].forEach(function(f){ if(item[f]!==undefined) upd[f]=item[f]; });
+        upd.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+        upd.importedFrom = RptImport.fileName;
+        if(Object.keys(upd).length > 2){
+          if(S.fbReady) await firebase.firestore().collection(getPropInvCol()).doc(existing.id).update(upd);
+          else Object.assign(existing, upd);
+          updated++;
+        } else skipped++;
+      } else if(importMode==='upsert'||importMode==='replace'){
+        var newId = 'imp_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
+        var newItem = Object.assign({
+          id:newId, name:item.name||item.sku||'Producto importado',
+          sku:item.sku||'', barcode:item.barcode||'', qty:item.qty||0,
+          minQty:item.minQty||5, price:item.price||0, cat:item.cat||'General',
+          brand:item.brand||'', supplier:item.supplier||getPropName(),
+          location:item.location||'', notes:item.notes||'',
+          importedFrom:RptImport.fileName,
+          createdAt:firebase.firestore.FieldValue.serverTimestamp()
+        }, item);
+        if(S.fbReady) await firebase.firestore().collection(getPropInvCol()).doc(newId).set(newItem);
+        else S.items.push(newItem);
+        created++;
+      } else skipped++;
+    }catch(e){ errors++; }
+  }
+
+  renderInventory();
+  var msg = '✅ '+updated+' actualizados · '+created+' creados · '+skipped+' omitidos'+(errors?' · '+errors+' errores':'');
+  invShowResult(msg, errors>0 ? 'err' : 'ok');
+  showAlert(msg,'success');
+  RptImport.rows=[]; RptImport.headers=[];
+  var finp = document.getElementById('inv-file-inp');
+  if(finp) finp.value='';
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   SUPPLIERS MODULE — Full CRUD
+   Stored in localStorage: sp_suppliers
+   ════════════════════════════════════════════════════════════ */
+
+var _supEmoji = '🏢';
+
+// Load suppliers from localStorage + Firestore
+function loadSuppliers(){
+  try{ return JSON.parse(localStorage.getItem('sp_suppliers') || '[]'); }
+  catch(e){ return []; }
+}
+function saveSuppliers(list){
+  localStorage.setItem('sp_suppliers', JSON.stringify(list));
+  // Also push to Firestore if available
+  if(S.fbReady){
+    var batch = firebase.firestore().batch();
+    list.forEach(function(sup){
+      var ref = firebase.firestore().collection('stockpro_suppliers').doc(sup.id);
+      batch.set(ref, sup, {merge:true});
+    });
+    batch.commit().catch(function(e){ console.warn('Suppliers Firestore sync:', e.message); });
+  }
+}
+
+// Init built-in suppliers (DHS always present)
+function initDefaultSuppliers(){
+  var list = loadSuppliers();
+  if(list.length === 0){
+    list = [{
+      id: 'sup_dhs',
+      name: 'Diversified Hospitality Solutions',
+      emoji: '🏨',
+      cat: 'Amenidades',
+      country: 'USA · Florida',
+      url: 'https://diversifiedhospitality.com',
+      email: 'sales@diversifiedhospitality.com',
+      phone: '',
+      account: '',
+      terms: 'Net 30',
+      notes: 'Proveedor oficial de amenidades hoteleras',
+      active: true,
+      builtin: true,
+      createdAt: Date.now()
+    }];
+    saveSuppliers(list);
+  }
+  return list;
+}
+
+/* ── Tab switcher ── */
+function supSwitchTab(tabId, btn){
+  ['sup-tab-list','sup-tab-dhs','sup-tab-orders'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.style.display = id===tabId ? '' : 'none';
+  });
+  document.querySelectorAll('.sup-tab').forEach(function(t){ t.classList.remove('active'); });
+  if(btn) btn.classList.add('active');
+  if(tabId === 'sup-tab-list') renderSupplierList();
+  if(tabId === 'sup-tab-dhs')  renderDHSPage();
+}
+
+/* ── Render suppliers list ── */
+function renderSupplierList(){
+  var list = initDefaultSuppliers();
+  var el = document.getElementById('sup-list-content');
+  if(!el) return;
+
+  // Update stats
+  var total = document.getElementById('sup-total-count');
+  var dhsCnt = document.getElementById('sup-dhs-count');
+  var catCnt = document.getElementById('sup-cat-count');
+  if(total) total.textContent = list.length;
+  if(dhsCnt) dhsCnt.textContent = (typeof DHS !== 'undefined' && DHS.items) ? DHS.items.length : 0;
+  var cats = new Set(list.map(function(s){ return s.cat; }));
+  if(catCnt) catCnt.textContent = cats.size;
+
+  if(!list.length){
+    el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Sin suppliers. Agrega uno con el botón de abajo.</div>';
+    return;
+  }
+
+  var adminMode = canDeleteProducts && canDeleteProducts();
+  el.innerHTML = list.map(function(sup){
+    return '<div class="sup-card">'
+      + '<div class="sup-card-icon" style="background:' + (sup.active ? '#1FAD6E22' : '#F3F4F6') + '">' + (sup.emoji||'🏢') + '</div>'
+      + '<div class="sup-card-body">'
+      + '<div class="sup-card-name">' + sup.name + (sup.builtin ? ' <span style="font-size:10px;background:#1FAD6E;color:#fff;border-radius:5px;padding:1px 5px">BUILT-IN</span>' : '') + '</div>'
+      + '<div class="sup-card-cat">' + (sup.cat||'') + (sup.country ? ' · ' + sup.country : '') + '</div>'
+      + (sup.email ? '<div class="sup-card-info">✉️ ' + sup.email + '</div>' : '')
+      + (sup.phone ? '<div class="sup-card-info">📞 ' + sup.phone + '</div>' : '')
+      + (sup.account ? '<div class="sup-card-info">🔑 ' + sup.account + '</div>' : '')
+      + '<div class="sup-card-tags">'
+      + (sup.terms ? '<span class="sup-tag">' + sup.terms + '</span>' : '')
+      + (sup.url ? '<a href="' + sup.url + '" target="_blank" style="font-size:10px;color:var(--blue);padding:2px 7px;border-radius:10px;background:var(--surface2);font-weight:600">🌐 Web</a>' : '')
+      + (!sup.active ? '<span class="sup-tag" style="color:#E5383B;background:#FDE8E8">Inactivo</span>' : '')
+      + '</div>'
+      + '</div>'
+      + '<div class="sup-card-actions">'
+      + (adminMode ? '<button onclick="editSupplier(' + JSON.stringify(sup.id) + ')" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-size:13px;cursor:pointer">✏️</button>' : '')
+      + (adminMode && !sup.builtin ? '<button onclick="deleteSupplier(' + JSON.stringify(sup.id) + ')" style="background:#FDE8E8;border:none;border-radius:8px;padding:6px 9px;font-size:13px;cursor:pointer">🗑</button>' : '')
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+/* ── Open/close modal ── */
+function openSupplierModal(editId){
+  _supEmoji = '🏢';
+  var m = document.getElementById('sup-modal');
+  var titleEl = document.getElementById('sup-modal-title');
+  if(!m) return;
+
+  if(editId){
+    var sup = loadSuppliers().find(function(s){ return s.id === editId; });
+    if(sup){
+      document.getElementById('sup-edit-id').value = sup.id;
+      document.getElementById('sup-name').value    = sup.name||'';
+      document.getElementById('sup-cat').value     = sup.cat||'Amenidades';
+      document.getElementById('sup-country').value = sup.country||'';
+      document.getElementById('sup-url').value     = sup.url||'';
+      document.getElementById('sup-email').value   = sup.email||'';
+      document.getElementById('sup-phone').value   = sup.phone||'';
+      document.getElementById('sup-account').value = sup.account||'';
+      document.getElementById('sup-terms').value   = sup.terms||'Net 30';
+      document.getElementById('sup-notes').value   = sup.notes||'';
+      document.getElementById('sup-active').checked = sup.active !== false;
+      _supEmoji = sup.emoji||'🏢';
+      if(titleEl) titleEl.textContent = '✏️ Editar Supplier';
+    }
+  } else {
+    ['sup-edit-id','sup-name','sup-country','sup-url','sup-email','sup-phone','sup-account','sup-notes'].forEach(function(id){
+      var el=document.getElementById(id); if(el) el.value='';
+    });
+    document.getElementById('sup-active').checked = true;
+    if(titleEl) titleEl.textContent = '➕ Nuevo Supplier';
+  }
+
+  // Highlight selected emoji
+  document.querySelectorAll('#sup-emoji-picker .prop-emoji-btn').forEach(function(btn){
+    btn.classList.toggle('active', btn.dataset.emoji === _supEmoji);
+  });
+
+  m.classList.add('open');
+  setTimeout(function(){ var n=document.getElementById('sup-name'); if(n) n.focus(); }, 200);
+}
+
+function closeSupplierModal(){
+  var m = document.getElementById('sup-modal');
+  if(m) m.classList.remove('open');
+}
+
+function selectSupEmoji(btn){
+  document.querySelectorAll('#sup-emoji-picker .prop-emoji-btn').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  _supEmoji = btn.dataset.emoji;
+}
+
+/* ── Save supplier ── */
+function saveSupplier(){
+  var name = (document.getElementById('sup-name').value||'').trim();
+  if(!name){ showAlert('El nombre es requerido','warn'); return; }
+
+  var editId = document.getElementById('sup-edit-id').value;
+  var list   = loadSuppliers();
+
+  var sup = {
+    id:      editId || ('sup_' + Date.now()),
+    name:    name,
+    emoji:   _supEmoji,
+    cat:     document.getElementById('sup-cat').value,
+    country: document.getElementById('sup-country').value,
+    url:     document.getElementById('sup-url').value,
+    email:   document.getElementById('sup-email').value,
+    phone:   document.getElementById('sup-phone').value,
+    account: document.getElementById('sup-account').value,
+    terms:   document.getElementById('sup-terms').value,
+    notes:   document.getElementById('sup-notes').value,
+    active:  document.getElementById('sup-active').checked,
+    updatedAt: Date.now()
+  };
+
+  if(editId){
+    var idx = list.findIndex(function(s){ return s.id===editId; });
+    if(idx >= 0){
+      sup.builtin = list[idx].builtin || false;
+      sup.createdAt = list[idx].createdAt;
+      list[idx] = sup;
+    }
+  } else {
+    sup.createdAt = Date.now();
+    list.push(sup);
+  }
+
+  saveSuppliers(list);
+  closeSupplierModal();
+  renderSupplierList();
+  showAlert('✅ ' + name + ' guardado', 'success');
+}
+
+/* ── Edit supplier ── */
+function editSupplier(id){
+  openSupplierModal(id);
+}
+
+/* ── Delete supplier ── */
+function deleteSupplier(id){
+  if(!canDeleteProducts || !canDeleteProducts()){
+    showAlert('Solo el Administrador puede eliminar suppliers','warn'); return;
+  }
+  var list = loadSuppliers();
+  var sup  = list.find(function(s){ return s.id===id; });
+  if(!sup || sup.builtin){ showAlert('No se puede eliminar un supplier integrado','warn'); return; }
+  if(!confirm('¿Eliminar ' + sup.name + '?')) return;
+  list = list.filter(function(s){ return s.id!==id; });
+  saveSuppliers(list);
+  renderSupplierList();
+  showAlert('Supplier eliminado','info');
+}
+
+
+
+
+/* ════════════════════════════════════════════════════════════
+   AUTO-INVENTORY — Generate starter products by company type
+   ════════════════════════════════════════════════════════════ */
+
+const INVENTORY_TEMPLATES = {
+  'Hotel': [
+    {name:'Toilet Paper',cat:'Amenidades',unit:'Roll',qty:200,min:50},
+    {name:'Hand Towels',cat:'Lencería',unit:'Each',qty:100,min:30},
+    {name:'Bath Towels',cat:'Lencería',unit:'Each',qty:80,min:20},
+    {name:'Flat Sheets Queen',cat:'Lencería',unit:'Each',qty:60,min:15},
+    {name:'Fitted Sheets Queen',cat:'Lencería',unit:'Each',qty:60,min:15},
+    {name:'Pillowcases',cat:'Lencería',unit:'Each',qty:120,min:30},
+    {name:'Trash Bags (Large)',cat:'Limpieza',unit:'Box',qty:20,min:5},
+    {name:'Trash Bags (Small)',cat:'Limpieza',unit:'Box',qty:15,min:5},
+    {name:'Shampoo (.85oz)',cat:'Amenidades',unit:'Each',qty:500,min:100},
+    {name:'Conditioner (.85oz)',cat:'Amenidades',unit:'Each',qty:300,min:80},
+    {name:'Body Wash (.85oz)',cat:'Amenidades',unit:'Each',qty:300,min:80},
+    {name:'Hand Soap Bar',cat:'Amenidades',unit:'Each',qty:400,min:100},
+    {name:'Disinfectant Spray',cat:'Limpieza',unit:'Bottle',qty:30,min:10},
+    {name:'Floor Cleaner',cat:'Limpieza',unit:'Gallon',qty:10,min:3},
+    {name:'Glass Cleaner',cat:'Limpieza',unit:'Bottle',qty:15,min:5},
+    {name:'Mop Heads',cat:'Limpieza',unit:'Each',qty:10,min:3},
+  ],
+  'Resort': [
+    {name:'Pool Towels',cat:'Lencería',unit:'Each',qty:200,min:50},
+    {name:'Sunscreen SPF50',cat:'Amenidades',unit:'Each',qty:50,min:15},
+    {name:'Shampoo (.85oz)',cat:'Amenidades',unit:'Each',qty:600,min:150},
+    {name:'Conditioner (.85oz)',cat:'Amenidades',unit:'Each',qty:400,min:100},
+    {name:'Body Wash (.85oz)',cat:'Amenidades',unit:'Each',qty:400,min:100},
+    {name:'Toilet Paper',cat:'Amenidades',unit:'Roll',qty:300,min:80},
+    {name:'Bath Towels',cat:'Lencería',unit:'Each',qty:150,min:40},
+    {name:'Flat Sheets',cat:'Lencería',unit:'Each',qty:100,min:25},
+    {name:'Trash Bags',cat:'Limpieza',unit:'Box',qty:30,min:8},
+    {name:'Disinfectant',cat:'Limpieza',unit:'Gallon',qty:15,min:4},
+  ],
+  'Hospital': [
+    {name:'Gloves (Latex M)',cat:'Médico',unit:'Box',qty:50,min:15},
+    {name:'Gloves (Latex L)',cat:'Médico',unit:'Box',qty:50,min:15},
+    {name:'Face Masks',cat:'Médico',unit:'Box',qty:30,min:10},
+    {name:'Hand Sanitizer',cat:'Limpieza',unit:'Bottle',qty:40,min:12},
+    {name:'Disinfectant Wipes',cat:'Limpieza',unit:'Box',qty:25,min:8},
+    {name:'Bed Sheets',cat:'Lencería',unit:'Each',qty:80,min:20},
+    {name:'Pillow Cases',cat:'Lencería',unit:'Each',qty:100,min:25},
+    {name:'Trash Bags (Bio)',cat:'Limpieza',unit:'Box',qty:20,min:5},
+    {name:'Paper Towels',cat:'Limpieza',unit:'Roll',qty:100,min:30},
+    {name:'Soap Dispenser Refill',cat:'Limpieza',unit:'Bottle',qty:30,min:8},
+  ],
+  'Restaurante': [
+    {name:'Paper Towels',cat:'Limpieza',unit:'Roll',qty:60,min:20},
+    {name:'Gloves (Food Safe)',cat:'Cocina',unit:'Box',qty:20,min:5},
+    {name:'Napkins',cat:'Servicio',unit:'Pack',qty:50,min:15},
+    {name:'Trash Bags',cat:'Limpieza',unit:'Box',qty:15,min:5},
+    {name:'Food Containers',cat:'Cocina',unit:'Pack',qty:30,min:10},
+    {name:'Cleaning Chemicals',cat:'Limpieza',unit:'Bottle',qty:12,min:4},
+    {name:'Dish Soap',cat:'Limpieza',unit:'Bottle',qty:10,min:3},
+    {name:'Sanitizer Spray',cat:'Limpieza',unit:'Bottle',qty:15,min:5},
+    {name:'Aluminum Foil',cat:'Cocina',unit:'Roll',qty:5,min:2},
+    {name:'Plastic Wrap',cat:'Cocina',unit:'Roll',qty:5,min:2},
+  ],
+  'Empresa': [
+    {name:'Printer Paper (A4)',cat:'Oficina',unit:'Ream',qty:20,min:5},
+    {name:'Pens (Blue)',cat:'Oficina',unit:'Box',qty:5,min:2},
+    {name:'Printer Toner',cat:'Oficina',unit:'Each',qty:4,min:1},
+    {name:'Folders',cat:'Oficina',unit:'Pack',qty:10,min:3},
+    {name:'Staples',cat:'Oficina',unit:'Box',qty:5,min:2},
+    {name:'Hand Sanitizer',cat:'Limpieza',unit:'Bottle',qty:10,min:3},
+    {name:'Disinfectant Wipes',cat:'Limpieza',unit:'Box',qty:8,min:3},
+    {name:'Trash Bags',cat:'Limpieza',unit:'Box',qty:10,min:3},
+    {name:'Paper Towels',cat:'Limpieza',unit:'Roll',qty:20,min:8},
+    {name:'Coffee',cat:'Cafetería',unit:'Bag',qty:5,min:2},
+  ],
+  'Escuela': [
+    {name:'Printer Paper',cat:'Oficina',unit:'Ream',qty:30,min:8},
+    {name:'Whiteboard Markers',cat:'Aula',unit:'Box',qty:10,min:3},
+    {name:'Pens',cat:'Oficina',unit:'Box',qty:8,min:3},
+    {name:'Pencils',cat:'Aula',unit:'Box',qty:10,min:4},
+    {name:'Folders',cat:'Oficina',unit:'Pack',qty:15,min:5},
+    {name:'Hand Soap',cat:'Limpieza',unit:'Bottle',qty:20,min:6},
+    {name:'Paper Towels',cat:'Limpieza',unit:'Roll',qty:40,min:12},
+    {name:'Trash Bags',cat:'Limpieza',unit:'Box',qty:12,min:4},
+    {name:'Cleaning Spray',cat:'Limpieza',unit:'Bottle',qty:10,min:3},
+    {name:'Chalk',cat:'Aula',unit:'Box',qty:5,min:2},
+  ],
+  'Motel': [
+    {name:'Toilet Paper',cat:'Amenidades',unit:'Roll',qty:150,min:40},
+    {name:'Shampoo',cat:'Amenidades',unit:'Each',qty:200,min:60},
+    {name:'Soap Bar',cat:'Amenidades',unit:'Each',qty:200,min:60},
+    {name:'Towels',cat:'Lencería',unit:'Each',qty:80,min:20},
+    {name:'Sheets',cat:'Lencería',unit:'Each',qty:60,min:15},
+    {name:'Trash Bags',cat:'Limpieza',unit:'Box',qty:15,min:5},
+    {name:'Disinfectant',cat:'Limpieza',unit:'Bottle',qty:12,min:4},
+    {name:'Glass Cleaner',cat:'Limpieza',unit:'Bottle',qty:8,min:3},
+  ],
+  'Clínica': [
+    {name:'Gloves (S)',cat:'Médico',unit:'Box',qty:30,min:10},
+    {name:'Gloves (M)',cat:'Médico',unit:'Box',qty:40,min:12},
+    {name:'Gloves (L)',cat:'Médico',unit:'Box',qty:30,min:10},
+    {name:'Masks (Surgical)',cat:'Médico',unit:'Box',qty:20,min:6},
+    {name:'Hand Sanitizer',cat:'Limpieza',unit:'Bottle',qty:25,min:8},
+    {name:'Disinfectant Wipes',cat:'Limpieza',unit:'Box',qty:20,min:6},
+    {name:'Paper Towels',cat:'Limpieza',unit:'Roll',qty:50,min:15},
+    {name:'Trash Bags',cat:'Limpieza',unit:'Box',qty:12,min:4},
+  ],
+};
+
+/* Generate and load auto-inventory when a company is created */
+async function generateAutoInventory(propId, propType){
+  var template = INVENTORY_TEMPLATES[propType] || INVENTORY_TEMPLATES['Hotel'];
+  if(!template || !template.length) return;
+
+  var col = propId === 'prop_default' ? COLS.INV : COLS.INV + '_' + propId;
+  var now = firebase.firestore ? firebase.firestore.FieldValue.serverTimestamp() : new Date();
+  var batch = S.fbReady ? firebase.firestore().batch() : null;
+  var newItems = [];
+
+  template.forEach(function(tmpl, idx){
+    var id = 'auto_' + propId + '_' + idx + '_' + Date.now();
+    var item = {
+      id: id,
+      name: tmpl.name,
+      cat: tmpl.cat,
+      unit: tmpl.unit || 'Each',
+      qty: tmpl.qty,
+      minQty: tmpl.min,
+      price: 0,
+      sku: '',
+      barcode: '',
+      brand: '',
+      supplier: propType + ' Auto-Stock',
+      location: '',
+      notes: 'Inventario inicial automático — ' + propType,
+      autoGenerated: true,
+      companyId: propId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    newItems.push(item);
+    if(batch){
+      var ref = firebase.firestore().collection(col).doc(id);
+      batch.set(ref, item);
+    }
+  });
+
+  if(batch){
+    try{
+      await batch.commit();
+      showAlert('✅ Inventario inicial cargado: ' + newItems.length + ' productos para ' + propType, 'success');
+    }catch(e){
+      // Fallback: add to local
+      newItems.forEach(function(item){ S.items.push(item); });
+      showAlert('Inventario guardado localmente (' + newItems.length + ' productos)', 'info');
+    }
+  } else {
+    newItems.forEach(function(item){ S.items.push(item); });
+    if(typeof saveLocal==='function') saveLocal();
+    showAlert('✅ ' + newItems.length + ' productos iniciales cargados para ' + propType, 'success');
+  }
+
+  // Reload inventory
+  try{ if(typeof renderInventory==='function') renderInventory(); }catch(e){}
+  try{ if(typeof renderDashboard==='function') renderDashboard(); }catch(e){}
+}
+
+
+/* === EXPORT ENGINE === */
+/* ════════════════════════════════════════════════════════════
+   EXPORT ENGINE — Excel + QuickBooks CSV
+   Arbella'sStock WMS
+   ════════════════════════════════════════════════════════════ */
+
+/* ── State: last generated report data ── */
+var _lastReport = null;
+
+/* ── CSV helper: escape a value safely ── */
+function csvEsc(v){
+  if(v === null || v === undefined) return '';
+  var s = String(v).replace(/"/g, '""');
+  if(s.includes(',') || s.includes('"') || s.includes('\n')) s = '"' + s + '"';
+  return s;
+}
+function csvRow(arr){ return arr.map(csvEsc).join(','); }
+function csvFile(rows){ return rows.map(csvRow).join('\r\n'); }
+
+/* ── Trigger file download ── */
+function triggerDownload(content, filename, mime){
+  var blob = new Blob(['\uFEFF' + content], {type: mime + ';charset=utf-8;'});
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+}
+
+/* ── Trigger binary download (for XLSX) ── */
+function triggerBinaryDownload(buffer, filename){
+  var blob = new Blob([buffer], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GENERATE REPORT DATA (called before any export)
+   ═══════════════════════════════════════════════════════════ */
+function generarReporteInventario(periodo, fechaInicio, fechaFin){
+  if(!PROP.active){ showAlert('Selecciona una empresa primero','warn'); return null; }
+  if(!S.items || S.items.length === 0){ showAlert('No hay productos en el inventario','warn'); return null; }
+
+  var now      = new Date();
+  var company  = PROP.active;
+  var items    = S.items || [];
+  var movs     = S.movements || [];
+
+  // Date range
+  var endDate   = fechaFin   ? new Date(fechaFin   + 'T23:59:59') : now;
+  var startDate = fechaInicio ? new Date(fechaInicio + 'T00:00:00') : (function(){
+    var d = {daily:1, weekly:7, biweekly:15, monthly:30};
+    return new Date(now - (d[periodo]||1) * 86400000);
+  })();
+
+  // Filter movements in range
+  var periodMovs = movs.filter(function(m){
+    var t = m.date ? new Date(m.date) : (m.ts ? new Date(m.ts.seconds*1000) : new Date());
+    return t >= startDate && t <= endDate;
+  });
+
+  // Build product rows
+  var rows = items.map(function(item){
+    var itemMovs  = periodMovs.filter(function(m){ return m.productId === item.id; });
+    var entries   = itemMovs.filter(function(m){ return m.type === 'entrada' || m.type === 'entry' || m.type === 'in'; })
+                            .reduce(function(s,m){ return s + (parseFloat(m.qty)||0); }, 0);
+    var exits     = itemMovs.filter(function(m){ return m.type === 'salida' || m.type === 'exit' || m.type === 'out'; })
+                            .reduce(function(s,m){ return s + (parseFloat(m.qty)||0); }, 0);
+    var adjusts   = itemMovs.filter(function(m){ return m.type === 'ajuste' || m.type === 'adjustment'; })
+                            .reduce(function(s,m){ return s + (parseFloat(m.qty)||0); }, 0);
+    var qty       = parseFloat(item.qty) || 0;
+    var minQty    = parseFloat(item.minQty) || 5;
+    var price     = parseFloat(item.price) || 0;
+    var initQty   = qty - entries + exits - adjusts; // derived initial
+    var finalQty  = qty;
+    var status    = finalQty <= 0 ? 'Agotado' : finalQty <= minQty ? 'Bajo Stock' : 'Disponible';
+    return {
+      id:          item.id,
+      name:        item.name || '',
+      sku:         item.sku  || '',
+      cat:         item.cat  || 'General',
+      unit:        item.unit || 'Each',
+      brand:       item.brand || '',
+      supplier:    item.supplier || '',
+      location:    item.location || '',
+      initQty:     initQty,
+      entries:     entries,
+      exits:       exits,
+      adjusts:     adjusts,
+      finalQty:    finalQty,
+      minQty:      minQty,
+      price:       price,
+      total:       finalQty * price,
+      status:      status,
+      notes:       item.notes || '',
+    };
+  });
+
+  var totEntries  = rows.reduce(function(s,r){ return s+r.entries; }, 0);
+  var totExits    = rows.reduce(function(s,r){ return s+r.exits; }, 0);
+  var totValue    = rows.reduce(function(s,r){ return s+r.total; }, 0);
+  var totLow      = rows.filter(function(r){ return r.status==='Bajo Stock'; }).length;
+  var totOut      = rows.filter(function(r){ return r.status==='Agotado'; }).length;
+
+  var report = {
+    company:     company,
+    companyId:   company.id,
+    companyName: company.name,
+    companyType: company.type || 'Hotel',
+    periodo:     periodo || 'custom',
+    startDate:   startDate.toISOString().slice(0,10),
+    endDate:     endDate.toISOString().slice(0,10),
+    generatedAt: now.toISOString(),
+    generatedBy: S.user ? S.user.name : 'Unknown',
+    rows:        rows,
+    movements:   periodMovs,
+    totals: {
+      products:  rows.length,
+      entries:   totEntries,
+      exits:     totExits,
+      value:     totValue,
+      lowStock:  totLow,
+      outStock:  totOut,
+    },
+  };
+
+  _lastReport = report;
+  return report;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   EXCEL EXPORT (.xlsx) — 5 worksheets
+   Uses the XLSX library (already loaded in CDN)
+   ═══════════════════════════════════════════════════════════ */
+function exportarExcelInventario(){
+  var report = _lastReport || generarReporteInventario('custom');
+  if(!report){ showAlert('Genera un reporte primero','warn'); return; }
+  if(!window.XLSX){ showAlert('Biblioteca Excel no disponible. Espera un momento y reintenta.','warn'); return; }
+
+  var wb = XLSX.utils.book_new();
+  var co = report.company;
+  var per = report.startDate + ' → ' + report.endDate;
+  var now = new Date().toLocaleString();
+
+  /* ── SHEET 1: Resumen ── */
+  var summaryData = [
+    ["ARBELLA'S STOCK WMS — INVENTORY REPORT"],
+    [],
+    ["Company:",      co.name],
+    ["Type:",         report.companyType],
+    ["Period:",       per],
+    ["Generated:",    now],
+    ["Generated By:", report.generatedBy],
+    [],
+    ["── SUMMARY ──"],
+    ["Total Products",        report.totals.products],
+    ["Total Entries (period)",report.totals.entries],
+    ["Total Exits (period)",  report.totals.exits],
+    ["Total Inventory Value", "$" + report.totals.value.toFixed(2)],
+    ["Low Stock Items",       report.totals.lowStock],
+    ["Out of Stock Items",    report.totals.outStock],
+  ];
+  var wsSum = XLSX.utils.aoa_to_sheet(summaryData);
+  wsSum['!cols'] = [{wch:30},{wch:40}];
+  XLSX.utils.book_append_sheet(wb, wsSum, "Resumen");
+
+  /* ── SHEET 2: Inventario ── */
+  var invHeaders = ["Product","SKU","Category","Unit","Brand","Supplier","Location",
+                    "Init Qty","Entries","Exits","Adjustments","Final Qty","Min Stock",
+                    "Unit Cost","Total Value","Status","Notes"];
+  var invRows = report.rows.map(function(r){
+    return [r.name, r.sku, r.cat, r.unit, r.brand, r.supplier, r.location,
+            r.initQty, r.entries, r.exits, r.adjusts, r.finalQty, r.minQty,
+            r.price, r.total, r.status, r.notes];
+  });
+  // Total row
+  invRows.push(["TOTALS","","","","","","",
+    "",
+    report.totals.entries,
+    report.totals.exits,
+    "",
+    "",
+    "",
+    "",
+    report.totals.value,
+    "","" ]);
+
+  var wsInv = XLSX.utils.aoa_to_sheet([invHeaders].concat(invRows));
+  wsInv['!cols'] = [30,12,15,10,15,20,15,10,10,10,12,10,10,12,14,12,20].map(function(w){ return {wch:w}; });
+  // Apply header style via formula comment (XLSX lite limitation)
+  XLSX.utils.book_append_sheet(wb, wsInv, "Inventario");
+
+  /* ── SHEET 3: Movimientos ── */
+  var movHeaders = ["Date","Product","SKU","Type","Quantity","Notes","User"];
+  var movRows = report.movements.map(function(m){
+    var d = m.date ? m.date : (m.ts ? new Date(m.ts.seconds*1000).toISOString().slice(0,10) : '');
+    var prod = S.items.find(function(i){ return i.id===m.productId; });
+    return [d, prod ? prod.name : m.productId, prod ? prod.sku : '',
+            m.type||'', m.qty||0, m.notes||m.reason||'', m.user||m.userName||''];
+  });
+  if(!movRows.length) movRows.push(["No movements recorded in this period."]);
+  var wsMov = XLSX.utils.aoa_to_sheet([movHeaders].concat(movRows));
+  wsMov['!cols'] = [{wch:14},{wch:30},{wch:12},{wch:14},{wch:10},{wch:30},{wch:20}];
+  XLSX.utils.book_append_sheet(wb, wsMov, "Movimientos");
+
+  /* ── SHEET 4: Bajo Stock ── */
+  var lowRows = report.rows.filter(function(r){ return r.status==='Bajo Stock'; });
+  var lowHeaders = ["Product","SKU","Category","Current Qty","Min Stock","Unit Cost","Total Value","Supplier"];
+  var lowData = lowRows.length ?
+    lowRows.map(function(r){ return [r.name,r.sku,r.cat,r.finalQty,r.minQty,r.price,r.total,r.supplier]; }) :
+    [["No low-stock items in this period."]];
+  var wsLow = XLSX.utils.aoa_to_sheet([lowHeaders].concat(lowData));
+  wsLow['!cols'] = [{wch:30},{wch:12},{wch:15},{wch:12},{wch:12},{wch:12},{wch:14},{wch:20}];
+  XLSX.utils.book_append_sheet(wb, wsLow, "Bajo Stock");
+
+  /* ── SHEET 5: Agotados ── */
+  var outRows = report.rows.filter(function(r){ return r.status==='Agotado'; });
+  var outHeaders = ["Product","SKU","Category","Last Qty","Min Stock","Supplier","Notes"];
+  var outData = outRows.length ?
+    outRows.map(function(r){ return [r.name,r.sku,r.cat,r.finalQty,r.minQty,r.supplier,r.notes]; }) :
+    [["No out-of-stock items in this period."]];
+  var wsOut = XLSX.utils.aoa_to_sheet([outHeaders].concat(outData));
+  wsOut['!cols'] = [{wch:30},{wch:12},{wch:15},{wch:12},{wch:12},{wch:20},{wch:30}];
+  XLSX.utils.book_append_sheet(wb, wsOut, "Agotados");
+
+  /* ── Write & Download ── */
+  var fname = 'ArbellaStock_' + co.name.replace(/[^a-zA-Z0-9]/g,'_') + '_' + report.startDate + '.xlsx';
+  var wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+  triggerBinaryDownload(wbout, fname);
+
+  showAlert('✅ Excel descargado: ' + fname, 'success');
+
+  // Log to audit
+  try{ logAudit('EXPORT_EXCEL', {company: co.name, period: per, rows: report.rows.length}); }catch(e){}
+}
+
+/* ═══════════════════════════════════════════════════════════
+   QUICKBOOKS CSV EXPORTS
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── QB Items ── */
+function exportarCSVQuickBooksItems(){
+  var report = _lastReport || generarReporteInventario('custom');
+  if(!report){ showAlert('Genera un reporte primero','warn'); return; }
+
+  var headers = ['Name','SKU','Type','Description','Category','Qty On Hand',
+                 'Cost','Sales Price','Income Account','Expense Account',
+                 'Asset Account','Taxable','Preferred Vendor'];
+
+  var rows = [headers];
+  report.rows.forEach(function(r){
+    rows.push([
+      r.name,
+      r.sku || r.name.replace(/\s+/g,'').toUpperCase().slice(0,10),
+      'Inventory',
+      r.name + (r.brand ? ' - ' + r.brand : '') + (r.notes ? '. ' + r.notes : ''),
+      r.cat,
+      r.finalQty,
+      r.price.toFixed(2),
+      (r.price * 1.3).toFixed(2),    // 30% markup suggested
+      'Sales of Product Income',
+      'Cost of Goods Sold',
+      'Inventory Asset',
+      'No',
+      r.supplier,
+    ]);
+  });
+
+  var fname = 'QB_Items_' + report.companyName.replace(/[^a-zA-Z0-9]/g,'_') + '_' + report.startDate + '.csv';
+  triggerDownload(csvFile(rows), fname, 'text/csv');
+  showAlert('✅ QuickBooks Items CSV descargado', 'success');
+  try{ logAudit('EXPORT_QB_ITEMS', {company: report.companyName, rows: report.rows.length}); }catch(e){}
+}
+
+/* ── QB Inventory Adjustments ── */
+function exportarCSVQuickBooksAdjustments(){
+  var report = _lastReport || generarReporteInventario('custom');
+  if(!report){ showAlert('Genera un reporte primero','warn'); return; }
+
+  var headers = ['Date','Product/Service','SKU','Adjustment Type',
+                 'Quantity Change','New Quantity','Inventory Site',
+                 'Memo','Reference Number'];
+
+  var rows = [headers];
+  // Use movements for adjustments
+  report.movements.forEach(function(m, idx){
+    var d    = m.date || (m.ts ? new Date(m.ts.seconds*1000).toISOString().slice(0,10) : report.endDate);
+    var prod = S.items.find(function(i){ return i.id === m.productId; });
+    var name = prod ? prod.name : (m.productId || '');
+    var sku  = prod ? (prod.sku||'') : '';
+    var qty  = parseFloat(m.qty) || 0;
+    var type = m.type === 'salida' || m.type === 'exit' ? 'Decrease' : 'Increase';
+    var change = (type === 'Decrease' ? -1 : 1) * qty;
+    rows.push([
+      d,
+      name,
+      sku,
+      type,
+      change,
+      prod ? (parseFloat(prod.qty)||0) : '',
+      report.companyName,
+      m.notes || m.reason || m.type || '',
+      'ADJ-' + String(idx+1).padStart(4,'0'),
+    ]);
+  });
+
+  if(rows.length === 1){
+    rows.push(['No movements found in period.','','','','','','','','']);
+  }
+
+  var fname = 'QB_Adjustments_' + report.companyName.replace(/[^a-zA-Z0-9]/g,'_') + '_' + report.startDate + '.csv';
+  triggerDownload(csvFile(rows), fname, 'text/csv');
+  showAlert('✅ QuickBooks Adjustments CSV descargado', 'success');
+  try{ logAudit('EXPORT_QB_ADJ', {company: report.companyName, rows: rows.length-1}); }catch(e){}
+}
+
+/* ── QB Expenses ── */
+function exportarCSVQuickBooksExpenses(){
+  var report = _lastReport || generarReporteInventario('custom');
+  if(!report){ showAlert('Genera un reporte primero','warn'); return; }
+
+  var headers = ['Date','Vendor','Category','Description','Amount',
+                 'Payment Account','Memo','Customer/Project','Class'];
+
+  var rows = [headers];
+
+  // Group by supplier/vendor
+  var byVendor = {};
+  report.rows.forEach(function(r){
+    var v = r.supplier || 'General';
+    if(!byVendor[v]) byVendor[v] = {cat: r.cat, items:[], total:0};
+    byVendor[v].items.push(r.name);
+    byVendor[v].total += r.total;
+  });
+
+  Object.keys(byVendor).forEach(function(vendor){
+    var info = byVendor[vendor];
+    rows.push([
+      report.endDate,
+      vendor,
+      info.cat,
+      'Inventory purchase: ' + info.items.slice(0,3).join(', ') + (info.items.length > 3 ? '...' : ''),
+      info.total.toFixed(2),
+      'Checking Account',
+      'Inventory restocking — ' + report.startDate + ' to ' + report.endDate,
+      report.companyName,
+      report.companyType,
+    ]);
+  });
+
+  if(rows.length === 1){
+    rows.push([report.endDate,'No vendors','','No inventory data','0.00','','','','']);
+  }
+
+  var fname = 'QB_Expenses_' + report.companyName.replace(/[^a-zA-Z0-9]/g,'_') + '_' + report.startDate + '.csv';
+  triggerDownload(csvFile(rows), fname, 'text/csv');
+  showAlert('✅ QuickBooks Expenses CSV descargado', 'success');
+  try{ logAudit('EXPORT_QB_EXP', {company: report.companyName, total: report.totals.value}); }catch(e){}
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HOOK: Capture report data when generateReport() is called
+   So export functions always have fresh data
+   ═══════════════════════════════════════════════════════════ */
+(function(){
+  var _origGR = window.generateReport;
+  if(typeof _origGR === 'function'){
+    window.generateReport = function(period, fromDate, toDate){
+      _origGR.call(this, period, fromDate, toDate);
+      // Capture current report data after generation
+      try{
+        var r = generarReporteInventario(period, fromDate, toDate);
+        if(r) _lastReport = r;
+      }catch(e){}
+    };
+  }
+})();
+
 
 </script>
 
@@ -6179,5 +7577,78 @@ function rptShowResult(msg, type){
   </div>
 </div>
 
+
+<!-- ═══════════════════════════════════════
+     SUPPLIER ADD/EDIT MODAL
+════════════════════════════════════════ -->
+<div class="modal-bg" id="sup-modal" onclick="if(event.target===this)closeSupplierModal()">
+  <div class="modal">
+    <div class="modal-hdr">
+      <h3 id="sup-modal-title">➕ Nuevo Supplier</h3>
+      <button class="modal-close" onclick="closeSupplierModal()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="sup-edit-id">
+
+      <!-- Emoji + Name row -->
+      <div style="display:flex;gap:10px;margin-bottom:12px">
+        <div>
+          <label style="font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:5px">Ícono</label>
+          <div id="sup-emoji-picker" style="display:flex;flex-wrap:wrap;gap:5px;max-width:140px">
+            <button class="prop-emoji-btn active" data-emoji="🏢" onclick="selectSupEmoji(this)">🏢</button>
+            <button class="prop-emoji-btn" data-emoji="🏭" onclick="selectSupEmoji(this)">🏭</button>
+            <button class="prop-emoji-btn" data-emoji="🚚" onclick="selectSupEmoji(this)">🚚</button>
+            <button class="prop-emoji-btn" data-emoji="🧴" onclick="selectSupEmoji(this)">🧴</button>
+            <button class="prop-emoji-btn" data-emoji="🧹" onclick="selectSupEmoji(this)">🧹</button>
+            <button class="prop-emoji-btn" data-emoji="🛒" onclick="selectSupEmoji(this)">🛒</button>
+            <button class="prop-emoji-btn" data-emoji="📦" onclick="selectSupEmoji(this)">📦</button>
+            <button class="prop-emoji-btn" data-emoji="🍽️" onclick="selectSupEmoji(this)">🍽️</button>
+          </div>
+        </div>
+        <div style="flex:1">
+          <div class="fgrp"><label>Nombre del Supplier *</label><input type="text" id="sup-name" placeholder="Ej: Diversified Hospitality"></div>
+        </div>
+      </div>
+
+      <div class="frow2">
+        <div class="fgrp"><label>Categoría</label>
+          <select id="sup-cat">
+            <option>Amenidades</option><option>Limpieza</option><option>Alimentos</option>
+            <option>Textiles</option><option>Equipos</option><option>Tecnología</option>
+            <option>Construcción</option><option>Servicios</option><option>Otro</option>
+          </select>
+        </div>
+        <div class="fgrp"><label>País / Región</label><input type="text" id="sup-country" placeholder="USA · Florida"></div>
+      </div>
+
+      <div class="fgrp"><label>Sitio web / URL</label><input type="url" id="sup-url" placeholder="https://supplier.com"></div>
+      <div class="fgrp"><label>Email de contacto</label><input type="email" id="sup-email" placeholder="contact@supplier.com"></div>
+      <div class="fgrp"><label>Teléfono</label><input type="tel" id="sup-phone" placeholder="+1 (305) 000-0000"></div>
+      <div class="fgrp"><label>Cuenta / Número cliente</label><input type="text" id="sup-account" placeholder="Número de cuenta"></div>
+      <div class="fgrp"><label>Términos de pago</label>
+        <select id="sup-terms">
+          <option>Net 30</option><option>Net 15</option><option>Net 60</option>
+          <option>Prepago</option><option>COD</option><option>Crédito</option>
+        </select>
+      </div>
+      <div class="fgrp"><label>Notas</label><textarea id="sup-notes" rows="2" placeholder="Notas adicionales…" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:var(--r2);font-size:14px;font-family:inherit;resize:none"></textarea></div>
+
+      <!-- Admin only: active toggle -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border);margin-top:8px">
+        <span style="font-size:13px;font-weight:600;color:var(--text)">Supplier activo</span>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="sup-active" checked style="width:18px;height:18px">
+          <span style="font-size:12px;color:var(--text3)">Visible en listas</span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary" onclick="closeSupplierModal()">Cancelar</button>
+      <button class="btn-primary" onclick="saveSupplier()" style="background:#1FAD6E">💾 Guardar Supplier</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

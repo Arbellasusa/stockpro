@@ -1,103 +1,129 @@
-/* ═══════════════════════════════════════════════════
-   Arbella'sStock WMS v3 — Service Worker
-   Arbella's Family · Plantation, FL
-   ═══════════════════════════════════════════════════
-   FIXES:
-   - Removed ./css/app.css and ./js/app.js (don't exist)
-   - index.html is self-contained (CSS+JS inline)
-   - Bumped to stockpro-v2 to clear stale v1 cache
-   ═══════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════
+   Arbella'sStock WMS — Service Worker v7
+   Hotel Arbellas · Plantation, FL
+   ═══════════════════════════════════════════════════════════
+   v7 CHANGES:
+   - Bumped cache name → forces all devices to re-download
+   - index.html: NETWORK-FIRST (always gets latest version)
+   - CDN libs: cache-first (speeds up load)
+   - Firebase/Firestore: bypass (never cache real-time data)
+   - Auto-skipWaiting → no "waiting" state on iPhone
+   ═══════════════════════════════════════════════════════════ */
 
-const CACHE_NAME = 'arbellastock-wms-v3';
+const CACHE_NAME = 'arbellastock-wms-v7';
 
-const ASSETS = [
-  './',
-  './index.html',
+const PRECACHE_ASSETS = [
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
 ];
 
-// External CDN assets cached on first use (network-first, then cache)
 const CDN_HOSTS = [
   'cdn.jsdelivr.net',
+  'cdnjs.cloudflare.com',
 ];
 
-self.addEventListener('install', e => {
-  console.log('[SW] Installing arbellastock-wms-v3...');
-  e.waitUntil(
+const NO_CACHE_HOSTS = [
+  'firebase',
+  'firestore',
+  'googleapis',
+  'firebaseio',
+  'identitytoolkit',
+];
+
+/* ── INSTALL ── */
+self.addEventListener('install', event => {
+  console.log('[SW v7] Installing...');
+  event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(ASSETS))
-      .then(() => {
-        console.log('[SW] Core assets cached');
-        return self.skipWaiting();
-      })
-      .catch(err => console.error('[SW] Install failed:', err))
+      .then(cache => cache.addAll(PRECACHE_ASSETS))
+      .then(() => self.skipWaiting())
+      .catch(err => { console.warn('[SW v7] Pre-cache error:', err.message); return self.skipWaiting(); })
   );
 });
 
-self.addEventListener('activate', e => {
-  console.log('[SW] Activating — clearing old caches...');
-  e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys
-          .filter(k => k !== CACHE_NAME)
-          .map(k => {
-            console.log('[SW] Deleting old cache:', k);
-            return caches.delete(k);
-          })
-      )
-    ).then(() => self.clients.claim())
+/* ── ACTIVATE: delete ALL old caches ── */
+self.addEventListener('activate', event => {
+  console.log('[SW v7] Activating — purging old caches...');
+  event.waitUntil(
+    caches.keys()
+      .then(keys => Promise.all(
+        keys.filter(k => k !== CACHE_NAME).map(k => {
+          console.log('[SW v7] Deleted:', k);
+          return caches.delete(k);
+        })
+      ))
+      .then(() => self.clients.claim())
   );
 });
 
-self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
+/* ── FETCH ── */
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
+  const p = url.pathname;
 
-  const url = new URL(e.request.url);
+  /* Firebase / Firestore — never cache */
+  if (NO_CACHE_HOSTS.some(h => url.hostname.includes(h))) return;
 
-  // CDN resources — network first, fallback to cache
-  if (CDN_HOSTS.some(h => url.hostname.includes(h))) {
-    e.respondWith(
-      fetch(e.request)
+  /* index.html — NETWORK FIRST, always get latest */
+  if (p.endsWith('/') || p.endsWith('/index.html') || p.includes('/stockpro') ) {
+    event.respondWith(
+      fetch(event.request)
         .then(res => {
           if (res.ok) {
-            const clone = res.clone();
-            caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+            caches.open(CACHE_NAME).then(c => c.put(event.request, res.clone()));
           }
           return res;
         })
-        .catch(() => caches.match(e.request))
+        .catch(() => caches.match('./index.html') || caches.match('./'))
     );
     return;
   }
 
-  // Firebase / Firestore — always network, never cache (real-time data)
-  if (
-    url.hostname.includes('firebase') ||
-    url.hostname.includes('firestore') ||
-    url.hostname.includes('googleapis')
-  ) {
-    return; // Let browser handle normally
+  /* CDN libs — cache first */
+  if (CDN_HOSTS.some(h => url.hostname.includes(h))) {
+    event.respondWith(
+      caches.match(event.request).then(cached => {
+        if (cached) return cached;
+        return fetch(event.request).then(res => {
+          if (res.ok) caches.open(CACHE_NAME).then(c => c.put(event.request, res.clone()));
+          return res;
+        });
+      })
+    );
+    return;
   }
 
-  // App shell — cache first, fallback to network
-  e.respondWith(
-    caches.match(e.request).then(cached => {
-      if (cached) return cached;
-      return fetch(e.request).then(res => {
-        if (res.ok) {
-          const clone = res.clone();
-          caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
-        }
+  /* Icons / static — cache first */
+  if (['.png','.jpg','.svg','.ico','manifest.json'].some(ext => p.endsWith(ext))) {
+    event.respondWith(
+      caches.match(event.request).then(cached => {
+        if (cached) return cached;
+        return fetch(event.request).then(res => {
+          if (res.ok) caches.open(CACHE_NAME).then(c => c.put(event.request, res.clone()));
+          return res;
+        });
+      })
+    );
+    return;
+  }
+
+  /* Everything else — network first */
+  event.respondWith(
+    fetch(event.request)
+      .then(res => {
+        if (res.ok) caches.open(CACHE_NAME).then(c => c.put(event.request, res.clone()));
         return res;
-      }).catch(() => {
-        // Offline fallback: serve index.html for navigation requests
-        if (e.request.mode === 'navigate') {
-          return caches.match('./index.html');
-        }
-      });
-    })
+      })
+      .catch(() => caches.match(event.request))
   );
+});
+
+/* ── MESSAGE: force update from app ── */
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+  if (event.data && event.data.type === 'CLEAR_CACHE') {
+    caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))));
+  }
 });
