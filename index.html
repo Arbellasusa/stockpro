@@ -5774,13 +5774,12 @@ function savePropForm(){
 
   propSave();
   closePropAddModal();
-  // Auto-generate inventory for NEW companies
-  if(!editId && newPropId){
-    var newPropType = document.getElementById('prop-type-val') ? 
-      document.getElementById('prop-type-val').value :
-      (document.querySelector('.prop-type-btn.active') ? 
-       document.querySelector('.prop-type-btn.active').dataset.type : 'Hotel');
-    try{ generateAutoInventory(newPropId, newPropType); }catch(e){ console.warn('Auto-inv:', e); }
+  // Auto-generate inventory for NEW companies (newProp only exists in the 'else' branch above)
+  if(!editId && typeof newProp !== 'undefined' && newProp && newProp.id){
+    var newPropType = newProp.type || 'Hotel';
+    try{
+      generateAutoInventory(newProp.id, newPropType);
+    }catch(e){ console.warn('Auto-inventory error:', e); }
   }
   var nowActive = PROP.list.find(function(p){ return p.active; });
   if(nowActive){ PROP.active = nowActive; applyActiveProperty(); }
