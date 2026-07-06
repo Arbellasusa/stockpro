@@ -5618,14 +5618,14 @@ function renderPropList(){
     if(isAct){
       html += '<div style="background:' + col + ';color:#fff;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:800">ACTIVA</div>';
     } else {
-      html += '<button onclick="propSwitchAndClose(' + JSON.stringify(p.id) + ')" ';
+      html += '<button onclick="propSwitchAndClose(\'' + p.id + '\')" ';
       html += 'style="background:' + col + ';color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">✅ Activar</button>';
     }
     html += '<div style="display:flex;gap:4px">';
-    html += '<button onclick="openAddPropModal(' + JSON.stringify(p.id) + ')" ';
+    html += '<button onclick="openAddPropModal(\'' + p.id + '\')" ';
     html += 'style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 8px;font-size:13px;cursor:pointer">✏️</button>';
     if(!isAct){
-      html += '<button onclick="deletePropItem(' + JSON.stringify(p.id) + ')" ';
+      html += '<button onclick="deletePropItem(\'' + p.id + '\')" ';
       html += 'style="background:#FDE8E8;color:#C1121F;border:none;border-radius:7px;padding:5px 7px;font-size:11px;font-weight:700;cursor:pointer">✕ Del</button>';
     }
     html += '</div></div></div>';
