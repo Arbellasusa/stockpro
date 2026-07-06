@@ -1,79 +1,61 @@
-// ═══════════════════════════════════════════════════════════
-// Arbella'sStock WMS — Firestore Security Rules
-// Firebase Console → Firestore → Rules → Paste this
-// ═══════════════════════════════════════════════════════════
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper: is user authenticated?
     function isAuth() {
       return request.auth != null && request.auth.uid != null;
     }
 
-    // Helper: is user admin or warehouse manager?
     function isAdmin() {
       return isAuth() &&
         exists(/databases/$(database)/documents/stockpro_usuarios/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/stockpro_usuarios/$(request.auth.uid)).data.role in ['administrator','warehouse_manager'];
     }
 
-    // ── Default inventory collection ──────────────────────
     match /stockpro_inventario/{docId} {
-      allow read:   if isAuth();
-      allow write:  if isAuth();
+      allow read, write: if isAuth();
     }
 
-    // ── Per-company inventory collections ─────────────────
-    // Matches stockpro_inventario_prop_XXXX (any company ID)
-    match /stockpro_inventario_{companyId}/{docId} {
-      allow read:   if isAuth();
-      allow write:  if isAuth();
+    match /stockpro_inventario_prop_default/{docId} {
+      allow read, write: if isAuth();
     }
 
-    // ── Movements ─────────────────────────────────────────
     match /stockpro_movimientos/{docId} {
-      allow read:   if isAuth();
-      allow write:  if isAuth();
+      allow read, write: if isAuth();
     }
 
-    // ── Deliveries ────────────────────────────────────────
     match /stockpro_deliveries/{docId} {
-      allow read:   if isAuth();
-      allow write:  if isAuth();
+      allow read, write: if isAuth();
     }
 
-    // ── Users / Roles ─────────────────────────────────────
     match /stockpro_usuarios/{userId} {
-      allow read:   if isAuth();
-      allow write:  if isAdmin() || request.auth.uid == userId;
+      allow read: if isAuth();
+      allow write: if isAdmin() || request.auth.uid == userId;
     }
 
-    // ── Suppliers ─────────────────────────────────────────
     match /stockpro_suppliers/{docId} {
-      allow read:   if isAuth();
-      allow write:  if isAuth();
+      allow read, write: if isAuth();
     }
 
-    // ── Audit Logs (write-only for clients, read for admin) ─
     match /stockpro_audit/{docId} {
-      allow read:   if isAdmin();
-      allow write:  if isAuth();
+      allow read: if isAdmin();
+      allow write: if isAuth();
     }
 
-    // ── Reports ───────────────────────────────────────────
     match /stockpro_reports/{docId} {
-      allow read:   if isAuth();
-      allow write:  if isAuth();
+      allow read, write: if isAuth();
     }
 
-    // ── DHS Products ──────────────────────────────────────
     match /stockpro_dhs/{docId} {
-      allow read:   if isAuth();
-      allow write:  if isAdmin();
+      allow read: if isAuth();
+      allow write: if isAdmin();
     }
 
-    // ── Catch-all: deny everything else ───────────────────
+    match /{collection}/{docId} {
+      allow read, write: if isAuth() &&
+        collection.matches('stockpro_inventario_.*');
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
