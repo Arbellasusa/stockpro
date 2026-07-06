@@ -1454,6 +1454,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
         <div class="sup-tabs" style="margin-top:10px">
           <div class="sup-tab active" onclick="supSwitchTab('sup-tab-list',this)">📋 Suppliers</div>
           <div class="sup-tab" onclick="supSwitchTab('sup-tab-dhs',this)">🏨 DHS Catalog</div>
+          <div class="sup-tab" onclick="supSwitchTab('sup-tab-import',this)">📥 Importar</div>
           <div class="sup-tab" onclick="supSwitchTab('sup-tab-orders',this)">🛒 Compras</div>
         </div>
       </div>
@@ -1465,6 +1466,52 @@ input,select,textarea{font-family:inherit;font-size:inherit}
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Agregar Supplier
         </button>
+      </div>
+
+      <!-- TAB: IMPORT SUPPLIERS -->
+      <div id="sup-tab-import" style="display:none;padding:12px">
+
+        <!-- Drop zone -->
+        <div id="sup-import-dropzone"
+          style="border:2.5px dashed var(--border2,#CBD5E1);border-radius:14px;padding:28px 20px;text-align:center;cursor:pointer;background:var(--surface2);transition:all .2s;margin-bottom:12px"
+          onclick="document.getElementById('sup-import-file').click()"
+          ondragover="event.preventDefault();this.style.borderColor='var(--blue)';this.style.background='#EFF6FF'"
+          ondragleave="this.style.borderColor='var(--border2,#CBD5E1)';this.style.background='var(--surface2)'"
+          ondrop="supImportHandleDrop(event)">
+          <div style="font-size:38px;margin-bottom:8px">📂</div>
+          <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:4px">Importar Suppliers desde archivo</div>
+          <div style="font-size:12px;color:var(--text3)">PDF · CSV · Excel (.xlsx) · JSON</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:6px">Arrastra aquí o toca para seleccionar</div>
+        </div>
+        <input type="file" id="sup-import-file" accept=".pdf,.csv,.xlsx,.xls,.json,.txt" style="display:none" onchange="supImportHandleFile(event)">
+
+        <!-- Format guide -->
+        <div style="background:#F0F4FF;border:1.5px solid #C7D7FF;border-radius:12px;padding:12px;margin-bottom:12px">
+          <div style="font-size:11px;font-weight:800;color:#1E4DB7;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">📋 Columnas requeridas (CSV/Excel)</div>
+          <div style="font-size:11px;color:var(--text2);line-height:1.6;font-family:monospace">
+            name, category, country, email, phone, url, terms, notes
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:6px">Para PDF: el sistema extrae texto automáticamente y busca proveedores</div>
+        </div>
+
+        <!-- Action buttons -->
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <button onclick="supImportExecute()" class="btn-primary" style="flex:1;font-size:13px">
+            ⬆ Importar Suppliers
+          </button>
+          <button onclick="supImportDownloadTemplate()" style="padding:10px 12px;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;font-size:12px;color:var(--text2);font-weight:600;white-space:nowrap">
+            📋 Plantilla CSV
+          </button>
+        </div>
+
+        <!-- Status -->
+        <div id="sup-import-status" style="display:none;padding:10px 12px;border-radius:10px;font-size:13px;font-weight:600;margin-bottom:8px"></div>
+
+        <!-- Preview table -->
+        <div id="sup-import-preview" style="display:none">
+          <div style="font-size:11px;font-weight:800;color:var(--text2);text-transform:uppercase;margin-bottom:6px">Vista previa</div>
+          <div id="sup-import-preview-list"></div>
+        </div>
       </div>
 
       <!-- TAB: DHS CATALOG (original DHS content) -->
@@ -6545,7 +6592,7 @@ function initDefaultSuppliers(){
 
 /* ── Tab switcher ── */
 function supSwitchTab(tabId, btn){
-  ['sup-tab-list','sup-tab-dhs','sup-tab-orders'].forEach(function(id){
+  ['sup-tab-list','sup-tab-dhs','sup-tab-import','sup-tab-orders'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.style.display = id===tabId ? '' : 'none';
   });
@@ -7267,6 +7314,305 @@ function exportarCSVQuickBooksExpenses(){
   }
 })();
 
+
+
+/* ════════════════════════════════════════════════════════════
+   SUPPLIER IMPORT — CSV / Excel / JSON / PDF
+   ════════════════════════════════════════════════════════════ */
+
+var _supImportRows = [];
+
+/* ── Field auto-detection map ── */
+var SUP_FIELD_MAP = {
+  name:     ['name','nombre','company','empresa','supplier','proveedor','vendor'],
+  cat:      ['cat','category','categoria','type','tipo'],
+  country:  ['country','pais','país','region','location','ubicacion'],
+  email:    ['email','correo','mail','e-mail'],
+  phone:    ['phone','tel','telefono','teléfono','mobile','celular'],
+  url:      ['url','web','website','sitio','link','href'],
+  terms:    ['terms','pago','payment','credito','credito'],
+  notes:    ['notes','notas','remarks','comments','comentarios'],
+};
+
+function supAutoDetectCol(header){
+  var h = header.toLowerCase().trim().replace(/[^a-z0-9]/g,'');
+  for(var field in SUP_FIELD_MAP){
+    if(SUP_FIELD_MAP[field].some(function(a){ return h.includes(a.replace(/[^a-z0-9]/g,'')); }))
+      return field;
+  }
+  return null;
+}
+
+/* ── Drop / File handlers ── */
+function supImportHandleDrop(e){
+  e.preventDefault();
+  var dz = document.getElementById('sup-import-dropzone');
+  if(dz){ dz.style.borderColor='var(--border2,#CBD5E1)'; dz.style.background='var(--surface2)'; }
+  supImportProcessFile(e.dataTransfer.files[0]);
+}
+
+function supImportHandleFile(e){
+  supImportProcessFile(e.target.files[0]);
+}
+
+function supImportProcessFile(file){
+  if(!file) return;
+  supImportShowStatus('⏳ Leyendo '+file.name+'…','info');
+  _supImportRows = [];
+
+  var ext = file.name.split('.').pop().toLowerCase();
+  var reader = new FileReader();
+
+  reader.onload = function(ev){
+    try{
+      var rows = [];
+
+      if(ext === 'json'){
+        var parsed = JSON.parse(ev.target.result);
+        rows = Array.isArray(parsed) ? parsed : Object.values(parsed);
+
+      } else if(ext === 'csv' || ext === 'txt'){
+        rows = supParseCSV(ev.target.result);
+
+      } else if(ext === 'xlsx' || ext === 'xls'){
+        if(window.XLSX){
+          var wb = XLSX.read(ev.target.result, {type:'binary'});
+          rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+        } else {
+          supImportShowStatus('Carga la app en Chrome para Excel. Usa CSV.','error'); return;
+        }
+
+      } else if(ext === 'pdf'){
+        supImportShowStatus('⏳ Procesando PDF con OCR…','info');
+        supImportPDF(file);
+        return;
+      }
+
+      if(!rows.length){ supImportShowStatus('El archivo está vacío.','error'); return; }
+      _supImportRows = rows;
+      supImportShowPreview(rows, file.name);
+
+    } catch(err){
+      supImportShowStatus('Error al leer: '+err.message,'error');
+    }
+  };
+
+  if(ext==='xlsx'||ext==='xls') reader.readAsBinaryString(file);
+  else if(ext==='pdf') reader.readAsArrayBuffer(file);
+  else reader.readAsText(file,'UTF-8');
+}
+
+/* ── PDF Import via PDF.js ── */
+async function supImportPDF(file){
+  try{
+    var pdfjsLib = window.pdfjsLib;
+    if(!pdfjsLib){ supImportShowStatus('PDF.js no disponible. Intenta con CSV.','error'); return; }
+
+    var ab = await file.arrayBuffer();
+    var pdf = await pdfjsLib.getDocument({data:ab}).promise;
+    var fullText = '';
+
+    for(var pg=1; pg<=pdf.numPages; pg++){
+      var page  = await pdf.getPage(pg);
+      var tc    = await page.getTextContent();
+      fullText += tc.items.map(function(i){ return i.str; }).join(' ') + '\n';
+    }
+
+    // Try to extract supplier-like data from text
+    var rows = supExtractFromPDFText(fullText);
+
+    if(rows.length){
+      _supImportRows = rows;
+      supImportShowPreview(rows, file.name + ' (PDF extraído)');
+    } else {
+      // Show raw text for manual review
+      supImportShowStatus(
+        '⚠️ No se detectaron columnas estructuradas en el PDF. ' +
+        'Se encontraron ' + fullText.split('\n').filter(function(l){ return l.trim(); }).length + ' líneas de texto. ' +
+        'Usa CSV/Excel para mejor resultado.',
+        'warning'
+      );
+      // Try to at least show the text lines as potential supplier names
+      var lines = fullText.split('\n').map(function(l){ return l.trim(); }).filter(function(l){ return l.length > 3 && l.length < 100; });
+      if(lines.length){
+        _supImportRows = lines.slice(0,50).map(function(l){ return {name:l}; });
+        supImportShowPreview(_supImportRows, 'PDF — revisar antes de importar');
+      }
+    }
+  } catch(e){
+    supImportShowStatus('Error procesando PDF: '+e.message,'error');
+  }
+}
+
+/* ── Extract structured data from PDF text ── */
+function supExtractFromPDFText(text){
+  var rows = [];
+  var lines = text.split('\n').map(function(l){ return l.trim(); }).filter(function(l){ return l.length > 2; });
+
+  // Try comma-separated lines first
+  if(lines[0] && lines[0].includes(',')){
+    var csv = supParseCSV(text);
+    if(csv.length > 0 && Object.keys(csv[0]).some(function(k){ return supAutoDetectCol(k); })){
+      return csv;
+    }
+  }
+
+  // Try to detect email pattern lines as supplier entries
+  var emailRx = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+  var phoneRx = /[+]?[0-9][\s\-().]{6,}/;
+  var urlRx   = /https?:\/\/[^\s]+/;
+
+  var current = null;
+  lines.forEach(function(line){
+    if(line.length > 5 && !emailRx.test(line) && !phoneRx.test(line) && !urlRx.test(line)){
+      if(current) rows.push(current);
+      current = {name: line, cat:'', country:'', email:'', phone:'', url:'', notes:''};
+    } else if(current){
+      var email = line.match(emailRx);
+      var phone = line.match(phoneRx);
+      var url   = line.match(urlRx);
+      if(email) current.email = email[0];
+      if(phone) current.phone = phone[0];
+      if(url)   current.url   = url[0];
+      else      current.notes = (current.notes + ' ' + line).trim();
+    }
+  });
+  if(current) rows.push(current);
+
+  return rows.filter(function(r){ return r.name && r.name.length > 2; });
+}
+
+/* ── Parse CSV text ── */
+function supParseCSV(text){
+  var lines = text.trim().split('\n');
+  if(!lines.length) return [];
+  function parseLine(line){
+    var result=[]; var cur=''; var inQ=false;
+    for(var i=0;i<line.length;i++){
+      var c=line[i];
+      if(c==='"'&&!inQ) inQ=true;
+      else if(c==='"'&&inQ&&line[i+1]==='"'){cur+='"';i++;}
+      else if(c==='"'&&inQ) inQ=false;
+      else if((c===','||c===';')&&!inQ){result.push(cur.trim());cur='';}
+      else cur+=c;
+    }
+    result.push(cur.trim()); return result;
+  }
+  var headers = parseLine(lines[0]);
+  return lines.slice(1).filter(function(l){ return l.trim(); }).map(function(line){
+    var vals = parseLine(line);
+    var obj = {};
+    headers.forEach(function(h,i){ obj[h] = vals[i]||''; });
+    return obj;
+  });
+}
+
+/* ── Show preview of rows ── */
+function supImportShowPreview(rows, fileName){
+  supImportShowStatus('✅ '+rows.length+' proveedores listos de "'+fileName+'". Revisa y presiona Importar.','ok');
+  var preview = document.getElementById('sup-import-preview');
+  var list    = document.getElementById('sup-import-preview-list');
+  if(!preview||!list) return;
+  preview.style.display = 'block';
+  list.innerHTML = rows.slice(0,8).map(function(r){
+    var name = r.name || r.nombre || r.company || r.empresa || r.supplier || Object.values(r)[0] || '—';
+    var cat  = r.cat || r.category || r.categoria || '';
+    var email= r.email || r.correo || '';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border-radius:10px;margin-bottom:5px">'
+      +'<div style="font-size:18px">🏢</div>'
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+name+'</div>'
+      +(cat||email ? '<div style="font-size:11px;color:var(--text3)">'+(cat||'')+(cat&&email?' · ':'')+( email||'')+'</div>' : '')
+      +'</div></div>';
+  }).join('') + (rows.length>8?'<div style="font-size:11px;color:var(--text3);text-align:center;padding:4px">…y '+(rows.length-8)+' más</div>':'');
+}
+
+/* ── Execute import ── */
+function supImportExecute(){
+  if(!_supImportRows.length){ supImportShowStatus('Primero carga un archivo.','error'); return; }
+
+  var existing = loadSuppliers();
+  var added=0, skipped=0;
+
+  _supImportRows.forEach(function(row){
+    // Auto-detect field names
+    var name = '';
+    for(var k in row){
+      if(supAutoDetectCol(k)==='name'){ name=String(row[k]).trim(); break; }
+    }
+    if(!name) name = Object.values(row)[0] ? String(Object.values(row)[0]).trim() : '';
+    if(!name || name.length<2){ skipped++; return; }
+
+    // Check duplicate
+    if(existing.find(function(s){ return s.name.toLowerCase()===name.toLowerCase(); })){ skipped++; return; }
+
+    var getField = function(fieldKey){
+      for(var k in row){
+        if(supAutoDetectCol(k)===fieldKey) return String(row[k]||'').trim();
+      }
+      return '';
+    };
+
+    existing.push({
+      id:      'sup_imp_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),
+      name:    name,
+      emoji:   '🏢',
+      cat:     getField('cat')     || 'General',
+      country: getField('country') || '',
+      email:   getField('email')   || '',
+      phone:   getField('phone')   || '',
+      url:     getField('url')     || '',
+      terms:   getField('terms')   || 'Net 30',
+      notes:   getField('notes')   || '',
+      active:  true,
+      createdAt: Date.now(),
+    });
+    added++;
+  });
+
+  saveSuppliers(existing);
+  supSwitchTab('sup-tab-list', document.querySelector('.sup-tab'));
+  renderSupplierList();
+
+  var msg = '✅ '+added+' suppliers importados'+(skipped?' ('+skipped+' omitidos por duplicado o sin nombre)':'');
+  supImportShowStatus(msg,'ok');
+  if(typeof showAlert==='function') showAlert(msg,'success');
+
+  // Reset
+  _supImportRows = [];
+  var fi = document.getElementById('sup-import-file'); if(fi) fi.value='';
+  var pv = document.getElementById('sup-import-preview'); if(pv) pv.style.display='none';
+}
+
+/* ── Download CSV template ── */
+function supImportDownloadTemplate(){
+  var headers = 'name,category,country,email,phone,url,terms,notes';
+  var sample  = 'Example Supplier LLC,Amenidades,USA · Florida,contact@supplier.com,+1 (305) 000-0000,https://supplier.com,Net 30,Main supplier for amenities';
+  var csv = headers + '\r\n' + sample;
+  var blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'suppliers_template.csv';
+  a.click();
+}
+
+/* ── Show import status ── */
+function supImportShowStatus(msg, type){
+  var el = document.getElementById('sup-import-status');
+  if(!el) return;
+  el.style.display = 'block';
+  el.textContent = msg;
+  var colors = {
+    ok:      {bg:'#F0FDF4', border:'#86EFAC', color:'#166534'},
+    error:   {bg:'#FEF2F2', border:'#FCA5A5', color:'#991B1B'},
+    warning: {bg:'#FFFBEB', border:'#FCD34D', color:'#92400E'},
+    info:    {bg:'#EFF6FF', border:'#93C5FD', color:'#1E40AF'},
+  };
+  var s = colors[type] || colors.info;
+  el.style.background = s.bg;
+  el.style.border     = '1.5px solid '+s.border;
+  el.style.color      = s.color;
+}
 
 </script>
 
