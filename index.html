@@ -1755,7 +1755,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
       <div class="frow3">
         <div class="fgrp"><label data-i="quantity">Cantidad</label><input type="number" id="im-qty" placeholder="0" min="0"></div>
         <div class="fgrp"><label data-i="min_stock">Mínimo</label><input type="number" id="im-min" placeholder="10" min="0"></div>
-        <div class="fgrp"><label data-i="price">Precio ($)</label><input type="number" id="im-price" placeholder="0.00" step="0.01"></div>
+        <div class="fgrp"><label data-i="price">Unit Price ($)</label><input type="number" id="im-price" placeholder="0.00" step="0.01"></div>
       </div>
       <div class="frow2">
         <div class="fgrp"><label data-i="location">Ubicación</label><input type="text" id="im-loc" placeholder="Estante A-1"></div>
@@ -1799,6 +1799,29 @@ input,select,textarea{font-family:inherit;font-size:inherit}
         <div class="fgrp"><label data-i="responsible">Responsable</label><input type="text" id="mov-resp-input" placeholder="Nombre"></div>
       </div>
       <div class="fgrp"><label data-i="reason">Motivo / Notas</label><input type="text" id="mov-reason-input" placeholder="Restock, Habitaciones piso 3..."></div>
+
+      <!-- SALIDA-only fields — shown/hidden by selMovType() -->
+      <div id="mov-salida-fields" style="display:none;background:#FFF8F0;border:1.5px solid #FED7AA;border-radius:12px;padding:10px 12px;margin-top:6px">
+        <div style="font-size:11px;font-weight:800;color:#C2410C;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">📤 Datos de salida</div>
+        <div class="frow2">
+          <div class="fgrp" style="margin:0 0 8px">
+            <label style="font-size:12px;font-weight:700;color:var(--text2)">Recipient Name</label>
+            <input type="text" id="mov-recipient-input" placeholder="Guest / Staff name"
+              style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-size:13px">
+          </div>
+          <div class="fgrp" style="margin:0 0 8px">
+            <label style="font-size:12px;font-weight:700;color:var(--text2)">Room Number</label>
+            <input type="text" id="mov-room-input" placeholder="101, 302, Lobby..."
+              style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-size:13px">
+          </div>
+        </div>
+        <div class="fgrp" style="margin:0">
+          <label style="font-size:12px;font-weight:700;color:var(--text2)">Delivered By</label>
+          <input type="text" id="mov-delivered-input" placeholder="Staff name / ID"
+            style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-size:13px">
+        </div>
+      </div>
+
       <div class="fgrp" style="margin-top:6px">
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--text2)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -2963,8 +2986,24 @@ function openMovModal(){
   document.querySelector('.mtype-btn[data-t="ENTRADA"]').classList.add('active');
   document.getElementById('mov-modal').classList.add('open'); setTodayDefault('mov-date-input');
 }
-function closeMovModal(){ document.getElementById('mov-modal').classList.remove('open'); }
-function selMovType(btn,type){ document.getElementById('mov-type-val').value=type; document.querySelectorAll('.mtype-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); }
+function closeMovModal(){ document.getElementById('mov-modal').classList.remove('open'); 
+  // Reset salida-only fields
+  ['mov-recipient-input','mov-room-input','mov-delivered-input'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.value='';
+  });
+  var sf=document.getElementById('mov-salida-fields'); if(sf) sf.style.display='none';
+}
+function selMovType(btn,type){ document.getElementById('mov-type-val').value=type; document.querySelectorAll('.mtype-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); 
+  // Show/hide salida-only fields
+  var salidaFields = document.getElementById('mov-salida-fields');
+  if(salidaFields) salidaFields.style.display = type==='SALIDA' ? 'block' : 'none';
+  // Clear salida fields when switching away
+  if(type !== 'SALIDA'){
+    ['mov-recipient-input','mov-room-input','mov-delivered-input'].forEach(function(id){
+      var el=document.getElementById(id); if(el) el.value='';
+    });
+  }
+}
 
 async function saveMovement(){
   const productId=document.getElementById('mov-product-sel').value;
@@ -2972,6 +3011,10 @@ async function saveMovement(){
   const qty=parseInt(document.getElementById('mov-qty-input').value);
   const responsible=document.getElementById('mov-resp-input').value.trim()||S.user?.name||'Usuario';
   const reason=document.getElementById('mov-reason-input').value.trim();
+  // Salida-specific fields
+  const recipientName  = (document.getElementById('mov-recipient-input')||{}).value?.trim()||'';
+  const roomNumber     = (document.getElementById('mov-room-input')||{}).value?.trim()||'';
+  const deliveredBy    = (document.getElementById('mov-delivered-input')||{}).value?.trim()||responsible;
   if(!qty||qty<=0){showAlert('Cantidad inválida','warn');return;}
   const item=S.items.find(i=>i.id===productId); if(!item) return;
   let newQty=item.qty||0;
@@ -2985,14 +3028,14 @@ async function saveMovement(){
   const movTimestamp = S.fbReady ? (movDateVal ? firebase.firestore.Timestamp.fromDate(movDate) : firebase.firestore.FieldValue.serverTimestamp()) : movDate.toISOString();
   const _saveMovLocal = () => {
     item.qty=newQty;
-    S.movements.unshift({id:'m'+Date.now(),productId,productName:item.name,type,qty,newQty,responsible,reason,date:movDate.toISOString()});
+    S.movements.unshift({id:'m'+Date.now(),productId,productName:item.name,type,qty,newQty,responsible,reason,recipientName,roomNumber,deliveredBy,date:movDate.toISOString()});
     saveLocal(); renderInventory(); if(typeof renderMovements==='function') renderMovements(); renderDashboard();
   };
   if(S.fbReady){
     const db=firebase.firestore(); const batch=db.batch();
     try{
       batch.update(db.collection(getPropInvCol()).doc(productId),{qty:newQty,updatedAt:movTimestamp,updatedBy:S.user?.email});
-      batch.set(db.collection(COLS.MOV).doc(),{productId,productName:item.name,type,qty,newQty,responsible,reason,date:movTimestamp,createdBy:S.user?.email,companyId:PROP.active?PROP.active.id:'default'});
+      batch.set(db.collection(COLS.MOV).doc(),{productId,productName:item.name,type,qty,newQty,responsible,reason,recipientName,roomNumber,deliveredBy,date:movTimestamp,createdBy:S.user?.email,companyId:PROP.active?PROP.active.id:'default'});
       await batch.commit();
     } catch(fbErr){
       console.warn('[saveMovement] Firestore error, saving locally:', fbErr.message);
@@ -7182,12 +7225,23 @@ function exportarExcelInventario(){
   XLSX.utils.book_append_sheet(wb, wsInv, "Inventario");
 
   /* ── SHEET 3: Movimientos ── */
-  var movHeaders = ["Date","Product","SKU","Type","Quantity","Notes","User"];
+  var movHeaders = ["Date","Product","SKU","Type","Quantity","Notes/Reason","Responsible","Recipient Name","Room Number","Delivered By"];
   var movRows = report.movements.map(function(m){
-    var d = m.date ? m.date : (m.ts ? new Date(m.ts.seconds*1000).toISOString().slice(0,10) : '');
+    var rawD = m.date;
+    var d = rawD ? (rawD.seconds ? new Date(rawD.seconds*1000).toISOString().slice(0,10) : String(rawD).slice(0,10)) : '';
     var prod = S.items.find(function(i){ return i.id===m.productId; });
-    return [d, prod ? prod.name : m.productId, prod ? prod.sku : '',
-            m.type||'', m.qty||0, m.notes||m.reason||'', m.user||m.userName||''];
+    return [
+      d,
+      prod ? prod.name : (m.productName||m.productId||''),
+      prod ? (prod.sku||'') : '',
+      m.type||'',
+      m.qty||0,
+      m.notes||m.reason||'',
+      m.responsible||m.user||m.userName||'',
+      m.recipientName||'',
+      m.roomNumber||'',
+      m.deliveredBy||''
+    ];
   });
   if(!movRows.length) movRows.push(["No movements recorded in this period."]);
   var wsMov = XLSX.utils.aoa_to_sheet([movHeaders].concat(movRows));
