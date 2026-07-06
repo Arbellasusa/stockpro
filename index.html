@@ -1761,6 +1761,16 @@ input,select,textarea{font-family:inherit;font-size:inherit}
         <div class="fgrp"><label data-i="location">Ubicación</label><input type="text" id="im-loc" placeholder="Estante A-1"></div>
         <div class="fgrp"><label data-i="supplier">Proveedor</label><input type="text" id="im-supp" placeholder="Nombre"></div>
       </div>
+      <!-- Fecha de entrada -->
+      <div class="fgrp" style="padding:0 0 4px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--text2)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Fecha de entrada
+        </label>
+        <input type="date" id="im-date"
+          style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;background:var(--surface2)">
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">Vacío = hoy. Cambia para registrar en fecha anterior.</div>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn-secondary" onclick="closeItemModal()" data-i="cancel">Cancelar</button>
@@ -1789,6 +1799,15 @@ input,select,textarea{font-family:inherit;font-size:inherit}
         <div class="fgrp"><label data-i="responsible">Responsable</label><input type="text" id="mov-resp-input" placeholder="Nombre"></div>
       </div>
       <div class="fgrp"><label data-i="reason">Motivo / Notas</label><input type="text" id="mov-reason-input" placeholder="Restock, Habitaciones piso 3..."></div>
+      <div class="fgrp" style="margin-top:6px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--text2)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Fecha del movimiento
+        </label>
+        <input type="date" id="mov-date-input"
+          style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;background:var(--surface2)">
+        <div style="font-size:10px;color:var(--text3);margin-top:4px">⚠️ Puedes cambiar la fecha para registrar entradas o salidas anteriores</div>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn-secondary" onclick="closeMovModal()" data-i="cancel">Cancelar</button>
@@ -2822,10 +2841,10 @@ async function deleteItem(id){
 /* ── ADD/EDIT MODAL ── */
 function openAddModal(){
   S.editingId=null; document.getElementById('item-modal-title').textContent=t('add_product');
-  ['im-barcode','im-sku','im-name','im-qty','im-min','im-price','im-loc','im-supp'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  ['im-barcode','im-sku','im-name','im-qty','im-min','im-price','im-loc','im-supp','im-date'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   document.getElementById('im-cat').value='Ropa de Cama'; document.getElementById('im-unit').value='Piezas'; document.getElementById('item-edit-id').value='';
   document.getElementById('item-modal').classList.add('open');
-  setTimeout(()=>document.getElementById('im-name').focus(),200);
+  setTodayDefault('im-date'); setTimeout(()=>document.getElementById('im-name').focus(),200);
 }
 function openEditModal(id){
   const item=S.items.find(i=>i.id===id); if(!item) return; S.editingId=id;
@@ -2848,7 +2867,12 @@ function closeItemModal(){ document.getElementById('item-modal').classList.remov
 async function saveItem(){
   const name=document.getElementById('im-name').value.trim(); if(!name){showAlert('Ingresa el nombre','warn');return;}
   const editId=document.getElementById('item-edit-id').value;
-  const data={barcode:document.getElementById('im-barcode').value.trim()||'BC'+Date.now(),sku:document.getElementById('im-sku').value.trim()||'SKU-'+Date.now(),name,cat:document.getElementById('im-cat').value,unit:document.getElementById('im-unit').value,qty:parseInt(document.getElementById('im-qty').value)||0,minQty:parseInt(document.getElementById('im-min').value)||10,price:parseFloat(document.getElementById('im-price').value)||0,loc:document.getElementById('im-loc').value.trim()||'Sin ubicación',supplier:document.getElementById('im-supp').value.trim()||'',updatedAt:S.fbReady?firebase.firestore.FieldValue.serverTimestamp():new Date().toISOString(),updatedBy:S.user?.email||'demo'};
+  // Handle custom entry date
+  const imDateEl = document.getElementById('im-date');
+  const imDateVal = imDateEl ? imDateEl.value : '';
+  const entryDate = imDateVal ? new Date(imDateVal + 'T00:00:00') : new Date();
+  const entryTimestamp = S.fbReady ? (imDateVal ? firebase.firestore.Timestamp.fromDate(entryDate) : firebase.firestore.FieldValue.serverTimestamp()) : entryDate.toISOString();
+  const data={barcode:document.getElementById('im-barcode').value.trim()||'BC'+Date.now(),sku:document.getElementById('im-sku').value.trim()||'SKU-'+Date.now(),name,cat:document.getElementById('im-cat').value,unit:document.getElementById('im-unit').value,qty:parseInt(document.getElementById('im-qty').value)||0,minQty:parseInt(document.getElementById('im-min').value)||10,price:parseFloat(document.getElementById('im-price').value)||0,loc:document.getElementById('im-loc').value.trim()||'Sin ubicación',supplier:document.getElementById('im-supp').value.trim()||'',updatedAt:S.fbReady?firebase.firestore.FieldValue.serverTimestamp():new Date().toISOString(),updatedBy:S.user?.email||'demo',entryDate:entryTimestamp};
   if(S.fbReady){
     const db=firebase.firestore();
     if(editId) await db.collection(getPropInvCol()).doc(editId).update(data);
@@ -2926,7 +2950,7 @@ function openMovModal(){
   document.getElementById('mov-type-val').value='ENTRADA';
   document.querySelectorAll('.mtype-btn').forEach(b=>b.classList.remove('active'));
   document.querySelector('.mtype-btn[data-t="ENTRADA"]').classList.add('active');
-  document.getElementById('mov-modal').classList.add('open');
+  document.getElementById('mov-modal').classList.add('open'); setTodayDefault('mov-date-input');
 }
 function closeMovModal(){ document.getElementById('mov-modal').classList.remove('open'); }
 function selMovType(btn,type){ document.getElementById('mov-type-val').value=type; document.querySelectorAll('.mtype-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); }
@@ -2943,12 +2967,17 @@ async function saveMovement(){
   if(type==='ENTRADA') newQty+=qty;
   else if(type==='SALIDA') newQty=Math.max(0,newQty-qty);
   else newQty=qty;
+  // Handle custom movement date
+  const movDateEl = document.getElementById('mov-date-input');
+  const movDateVal = movDateEl ? movDateEl.value : '';
+  const movDate = movDateVal ? new Date(movDateVal + 'T12:00:00') : new Date();
+  const movTimestamp = S.fbReady ? (movDateVal ? firebase.firestore.Timestamp.fromDate(movDate) : firebase.firestore.FieldValue.serverTimestamp()) : movDate.toISOString();
   if(S.fbReady){
     const db=firebase.firestore(); const batch=db.batch();
-    batch.update(db.collection(getPropInvCol()).doc(productId),{qty:newQty,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),updatedBy:S.user?.email});
-    batch.set(db.collection(COLS.MOV).doc(),{productId,productName:item.name,type,qty,newQty,responsible,reason,date:firebase.firestore.FieldValue.serverTimestamp(),createdBy:S.user?.email});
+    batch.update(db.collection(getPropInvCol()).doc(productId),{qty:newQty,updatedAt:movTimestamp,updatedBy:S.user?.email});
+    batch.set(db.collection(COLS.MOV).doc(),{productId,productName:item.name,type,qty,newQty,responsible,reason,date:movTimestamp,createdBy:S.user?.email,companyId:PROP.active?PROP.active.id:'default'});
     await batch.commit();
-  } else { item.qty=newQty; S.movements.unshift({id:'m'+Date.now(),productId,productName:item.name,type,qty,newQty,responsible,reason,date:new Date().toISOString()}); saveLocal(); renderInventory(); renderMovements(); renderDashboard(); }
+  } else { item.qty=newQty; S.movements.unshift({id:'m'+Date.now(),productId,productName:item.name,type,qty,newQty,responsible,reason,date:movDate.toISOString()}); saveLocal(); renderInventory(); renderMovements(); renderDashboard(); }
   closeMovModal(); showAlert(`${t('movement_registered')} — ${type} ${qty} ${item.unit}`,'success'); autoSnapshot();
 }
 
@@ -7612,6 +7641,18 @@ function supImportShowStatus(msg, type){
   el.style.background = s.bg;
   el.style.border     = '1.5px solid '+s.border;
   el.style.color      = s.color;
+}
+
+
+/* ── Set today as default date in modals ── */
+function setTodayDefault(dateInputId){
+  var el = document.getElementById(dateInputId);
+  if(!el || el.value) return;
+  var today = new Date();
+  var y = today.getFullYear();
+  var m = String(today.getMonth()+1).padStart(2,'0');
+  var d = String(today.getDate()).padStart(2,'0');
+  el.value = y+'-'+m+'-'+d;
 }
 
 </script>
