@@ -2873,14 +2873,25 @@ async function saveItem(){
   const entryDate = imDateVal ? new Date(imDateVal + 'T00:00:00') : new Date();
   const entryTimestamp = S.fbReady ? (imDateVal ? firebase.firestore.Timestamp.fromDate(entryDate) : firebase.firestore.FieldValue.serverTimestamp()) : entryDate.toISOString();
   const data={barcode:document.getElementById('im-barcode').value.trim()||'BC'+Date.now(),sku:document.getElementById('im-sku').value.trim()||'SKU-'+Date.now(),name,cat:document.getElementById('im-cat').value,unit:document.getElementById('im-unit').value,qty:parseInt(document.getElementById('im-qty').value)||0,minQty:parseInt(document.getElementById('im-min').value)||10,price:parseFloat(document.getElementById('im-price').value)||0,loc:document.getElementById('im-loc').value.trim()||'Sin ubicación',supplier:document.getElementById('im-supp').value.trim()||'',updatedAt:S.fbReady?firebase.firestore.FieldValue.serverTimestamp():new Date().toISOString(),updatedBy:S.user?.email||'demo',entryDate:entryTimestamp};
-  if(S.fbReady){
-    const db=firebase.firestore();
-    if(editId) await db.collection(getPropInvCol()).doc(editId).update(data);
-    else { data.createdAt=firebase.firestore.FieldValue.serverTimestamp(); await db.collection(getPropInvCol()).add(data); }
-  } else {
+  const _saveLocal = () => {
     if(editId){const idx=S.items.findIndex(i=>i.id===editId);if(idx>=0)S.items[idx]={...S.items[idx],...data};}
     else{data.id='itm'+Date.now();S.items.unshift(data);}
     saveLocal(); renderInventory(); renderDashboard();
+  };
+  if(S.fbReady){
+    const db=firebase.firestore();
+    try{
+      if(editId) await db.collection(getPropInvCol()).doc(editId).update(data);
+      else { data.createdAt=firebase.firestore.FieldValue.serverTimestamp(); await db.collection(getPropInvCol()).add(data); }
+    } catch(fbErr){
+      console.warn('[saveItem] Firestore error, saving locally:', fbErr.message);
+      _saveLocal();
+      closeItemModal();
+      showAlert('✅ Guardado localmente (sin conexión a base de datos)', 'success');
+      return;
+    }
+  } else {
+    _saveLocal();
   }
   closeItemModal(); showAlert(editId?t('updated_firebase'):t('saved_firebase'),'success'); autoSnapshot();
 }
@@ -2972,12 +2983,25 @@ async function saveMovement(){
   const movDateVal = movDateEl ? movDateEl.value : '';
   const movDate = movDateVal ? new Date(movDateVal + 'T12:00:00') : new Date();
   const movTimestamp = S.fbReady ? (movDateVal ? firebase.firestore.Timestamp.fromDate(movDate) : firebase.firestore.FieldValue.serverTimestamp()) : movDate.toISOString();
+  const _saveMovLocal = () => {
+    item.qty=newQty;
+    S.movements.unshift({id:'m'+Date.now(),productId,productName:item.name,type,qty,newQty,responsible,reason,date:movDate.toISOString()});
+    saveLocal(); renderInventory(); if(typeof renderMovements==='function') renderMovements(); renderDashboard();
+  };
   if(S.fbReady){
     const db=firebase.firestore(); const batch=db.batch();
-    batch.update(db.collection(getPropInvCol()).doc(productId),{qty:newQty,updatedAt:movTimestamp,updatedBy:S.user?.email});
-    batch.set(db.collection(COLS.MOV).doc(),{productId,productName:item.name,type,qty,newQty,responsible,reason,date:movTimestamp,createdBy:S.user?.email,companyId:PROP.active?PROP.active.id:'default'});
-    await batch.commit();
-  } else { item.qty=newQty; S.movements.unshift({id:'m'+Date.now(),productId,productName:item.name,type,qty,newQty,responsible,reason,date:movDate.toISOString()}); saveLocal(); renderInventory(); renderMovements(); renderDashboard(); }
+    try{
+      batch.update(db.collection(getPropInvCol()).doc(productId),{qty:newQty,updatedAt:movTimestamp,updatedBy:S.user?.email});
+      batch.set(db.collection(COLS.MOV).doc(),{productId,productName:item.name,type,qty,newQty,responsible,reason,date:movTimestamp,createdBy:S.user?.email,companyId:PROP.active?PROP.active.id:'default'});
+      await batch.commit();
+    } catch(fbErr){
+      console.warn('[saveMovement] Firestore error, saving locally:', fbErr.message);
+      _saveMovLocal();
+      closeMovModal();
+      showAlert('✅ Movimiento guardado localmente', 'success');
+      return;
+    }
+  } else { _saveMovLocal(); }
   closeMovModal(); showAlert(`${t('movement_registered')} — ${type} ${qty} ${item.unit}`,'success'); autoSnapshot();
 }
 
