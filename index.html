@@ -1753,9 +1753,25 @@ input,select,textarea{font-family:inherit;font-size:inherit}
         <div class="fgrp"><label data-i="unit">Unidad</label><select id="im-unit"><option>Piezas</option><option>Unidades</option><option>DZ — Docena</option><option>Rollos</option><option>Litros</option><option>Galones</option><option>Paquetes</option><option>Cajas</option><option>Each</option><option>Gramos</option><option>Kilos</option><option>Onzas</option><option>Libras</option><option>Metros</option><option>Pares</option><option>Sets</option><option>Bolsas</option><option>Tubos</option></select></div>
       </div>
       <div class="frow3">
-        <div class="fgrp"><label data-i="quantity">Cantidad</label><input type="number" id="im-qty" placeholder="0" min="0"></div>
-        <div class="fgrp"><label data-i="min_stock">Mínimo</label><input type="number" id="im-min" placeholder="10" min="0"></div>
-        <div class="fgrp"><label data-i="price">Unit Price ($)</label><input type="number" id="im-price" placeholder="0.00" step="0.01"></div>
+        <div class="fgrp">
+          <label data-i="quantity">Cantidad</label>
+          <input type="number" id="im-qty" placeholder="0" min="0"
+            oninput="calcItemTotal()" style="font-size:15px;font-weight:700">
+        </div>
+        <div class="fgrp">
+          <label data-i="price">Unit Price ($)</label>
+          <input type="number" id="im-price" placeholder="0.00" step="0.01"
+            oninput="calcItemTotal()">
+        </div>
+        <div class="fgrp">
+          <label style="color:var(--blue);font-weight:800">Total Price ($)</label>
+          <input type="number" id="im-total" placeholder="0.00" step="0.01" readonly
+            style="background:var(--surface2);border-color:var(--blue);border-width:2px;font-weight:800;color:var(--blue);font-size:15px">
+        </div>
+      </div>
+      <div class="fgrp" style="margin-top:-4px">
+        <label data-i="min_stock">Stock Mínimo</label>
+        <input type="number" id="im-min" placeholder="10" min="0">
       </div>
       <div class="frow2">
         <div class="fgrp"><label data-i="location">Ubicación</label><input type="text" id="im-loc" placeholder="Estante A-1"></div>
@@ -2800,7 +2816,7 @@ function renderInventory(){
     return`<div class="item-card" onclick="openDetail('${item.id}')">
       <div class="item-emoji">${emoji}</div>
       <div class="item-body"><div class="item-name">${item.name}</div><div class="item-sub">${item.sku} · ${item.loc}</div><span class="badge ${s.cls}">${s.label}</span></div>
-      <div class="item-right"><div class="item-qty" style="color:${qc}">${item.qty||0}</div><div class="item-unit">${item.unit}</div><div style="font-size:10px;color:var(--text3);margin-top:2px">$${Number(item.price||0).toFixed(2)}</div></div>
+      <div class="item-right"><div class="item-qty" style="color:${qc}">${item.qty||0}</div><div class="item-unit" style="font-size:10px;color:var(--text3)">@ $${(item.price||0).toFixed(2)}</div><div style="font-size:12px;font-weight:800;color:var(--blue);margin-top:2px">$${((item.qty||0)*(item.price||0)).toFixed(2)}</div><div class="item-unit">${item.unit}</div><div style="font-size:10px;color:var(--text3);margin-top:2px">$${Number(item.price||0).toFixed(2)}</div></div>
     </div>`;
   }).join('');
 }
@@ -2864,7 +2880,7 @@ async function deleteItem(id){
 /* ── ADD/EDIT MODAL ── */
 function openAddModal(){
   S.editingId=null; document.getElementById('item-modal-title').textContent=t('add_product');
-  ['im-barcode','im-sku','im-name','im-qty','im-min','im-price','im-loc','im-supp','im-date'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  ['im-barcode','im-sku','im-name','im-qty','im-min','im-price','im-total','im-loc','im-supp','im-date'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   document.getElementById('im-cat').value='Ropa de Cama'; document.getElementById('im-unit').value='Piezas'; document.getElementById('item-edit-id').value='';
   document.getElementById('item-modal').classList.add('open');
   setTodayDefault('im-date'); setTimeout(()=>document.getElementById('im-name').focus(),200);
@@ -2895,7 +2911,7 @@ async function saveItem(){
   const imDateVal = imDateEl ? imDateEl.value : '';
   const entryDate = imDateVal ? new Date(imDateVal + 'T00:00:00') : new Date();
   const entryTimestamp = S.fbReady ? (imDateVal ? firebase.firestore.Timestamp.fromDate(entryDate) : firebase.firestore.FieldValue.serverTimestamp()) : entryDate.toISOString();
-  const data={barcode:document.getElementById('im-barcode').value.trim()||'BC'+Date.now(),sku:document.getElementById('im-sku').value.trim()||'SKU-'+Date.now(),name,cat:document.getElementById('im-cat').value,unit:document.getElementById('im-unit').value,qty:parseInt(document.getElementById('im-qty').value)||0,minQty:parseInt(document.getElementById('im-min').value)||10,price:parseFloat(document.getElementById('im-price').value)||0,loc:document.getElementById('im-loc').value.trim()||'Sin ubicación',supplier:document.getElementById('im-supp').value.trim()||'',updatedAt:S.fbReady?firebase.firestore.FieldValue.serverTimestamp():new Date().toISOString(),updatedBy:S.user?.email||'demo',entryDate:entryTimestamp};
+  const _qty=parseInt(document.getElementById('im-qty').value)||0; const _price=parseFloat(document.getElementById('im-price').value)||0; const _total=parseFloat(document.getElementById('im-total')?.value)||(_qty*_price); const data={barcode:document.getElementById('im-barcode').value.trim()||'BC'+Date.now(),sku:document.getElementById('im-sku').value.trim()||'SKU-'+Date.now(),name,cat:document.getElementById('im-cat').value,unit:document.getElementById('im-unit').value,qty:_qty,minQty:parseInt(document.getElementById('im-min').value)||10,price:_price,totalValue:_total,loc:document.getElementById('im-loc').value.trim()||'Sin ubicación',supplier:document.getElementById('im-supp').value.trim()||'',updatedAt:S.fbReady?firebase.firestore.FieldValue.serverTimestamp():new Date().toISOString(),updatedBy:S.user?.email||'demo',entryDate:entryTimestamp};
   const _saveLocal = () => {
     if(editId){const idx=S.items.findIndex(i=>i.id===editId);if(idx>=0)S.items[idx]={...S.items[idx],...data};}
     else{data.id='itm'+Date.now();S.items.unshift(data);}
@@ -7105,6 +7121,9 @@ function generarReporteInventario(periodo, fechaInicio, fechaFin){
     var qty       = parseFloat(item.qty) || 0;
     var minQty    = parseFloat(item.minQty) || 5;
     var price     = parseFloat(item.price) || 0;
+      var totalVal  = qty * (parseFloat(item.price)||0);
+      var exitVal   = exits * (parseFloat(item.price)||0);
+      var entryVal  = entries * (parseFloat(item.price)||0);
     var initQty   = qty - entries + exits - adjusts; // derived initial
     var finalQty  = qty;
     var status    = finalQty <= 0 ? 'Agotado' : finalQty <= minQty ? 'Bajo Stock' : 'Disponible';
@@ -7204,19 +7223,25 @@ function exportarExcelInventario(){
                     "Unit Cost","Total Value","Status","Notes"];
   var invRows = report.rows.map(function(r){
     return [r.name, r.sku, r.cat, r.unit, r.brand, r.supplier, r.location,
-            r.initQty, r.entries, r.exits, r.adjusts, r.finalQty, r.minQty,
-            r.price, r.total, r.status, r.notes];
+            r.initQty,
+            r.entries, '$'+r.entryValue.toFixed(2),
+            r.exits,   '$'+r.exitValue.toFixed(2),
+            r.adjusts,
+            r.finalQty, r.minQty,
+            '$'+r.price.toFixed(2), '$'+r.total.toFixed(2),
+            r.status, r.notes];
   });
   // Total row
+  var totEntryVal = report.rows.reduce(function(s,r){ return s+r.entryValue; },0);
+  var totExitVal  = report.rows.reduce(function(s,r){ return s+r.exitValue; },0);
   invRows.push(["TOTALS","","","","","","",
     "",
-    report.totals.entries,
-    report.totals.exits,
+    report.totals.entries, '$'+totEntryVal.toFixed(2),
+    report.totals.exits,   '$'+totExitVal.toFixed(2),
+    "","",
     "",
     "",
-    "",
-    "",
-    report.totals.value,
+    '$'+report.totals.value.toFixed(2),
     "","" ]);
 
   var wsInv = XLSX.utils.aoa_to_sheet([invHeaders].concat(invRows));
@@ -7731,6 +7756,19 @@ function setTodayDefault(dateInputId){
   var m = String(today.getMonth()+1).padStart(2,'0');
   var d = String(today.getDate()).padStart(2,'0');
   el.value = y+'-'+m+'-'+d;
+}
+
+
+/* ── Auto-calculate Total Price in add/edit product form ── */
+function calcItemTotal(){
+  var qty   = parseFloat(document.getElementById('im-qty')  ? document.getElementById('im-qty').value   : 0) || 0;
+  var price = parseFloat(document.getElementById('im-price') ? document.getElementById('im-price').value : 0) || 0;
+  var total = qty * price;
+  var el = document.getElementById('im-total');
+  if(el){
+    el.value = total > 0 ? total.toFixed(2) : '';
+    el.style.color = total > 0 ? 'var(--blue)' : 'var(--text3)';
+  }
 }
 
 </script>
