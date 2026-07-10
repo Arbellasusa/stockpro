@@ -4178,7 +4178,7 @@ function shareWhatsApp(){
 function exportCSV(){
   const headers=['ID','Código','SKU','Nombre','Categoría','Cantidad','Unidad','Ubicación','Precio','Valor Total','Stock Min','Proveedor','Estado'];
   const rows=S.items.map(i=>{const s=!i.qty||i.qty<=0?t('out_of_stock'):i.qty<(i.minQty||10)?t('low_stock'):'OK';return[i.id,i.barcode,i.sku,`"${i.name}"`,i.cat,i.qty||0,i.unit,i.loc,Number(i.price||0).toFixed(2),((i.qty||0)*(i.price||0)).toFixed(2),i.minQty||10,i.supplier||'',s];});
-  const csv=[headers.join(','),...rows.map(r=>r.join(','))].join('\n');
+  const csv=[headers.join(','),...rows.map(r=>r.join(','))].join('\\n');
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`StockPro_HotelArbellas_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
   showAlert('✅ CSV exportado','success');
@@ -8144,69 +8144,58 @@ async function invDocRender(){
   }
 }
 
-/* ── Download / view a document ── */
-async function invDocDownload(id){
-  try {
-    var db  = await invDocOpenDB();
-    var doc = await new Promise(function(res,rej){
-      var tx  = db.transaction(['invoices'],'readonly');
-      var req = tx.objectStore('invoices').get(id);
-      req.onsuccess = function(e){ res(e.target.result); };
-      req.onerror   = function(e){ rej(e.target.error); };
-    });
-    if(!doc){ showAlert('Documento no encontrado','warn'); return; }
-
-    // If we have a Firebase Storage URL, open it
-    if(doc.storageUrl){
-      window.open(doc.storageUrl,'_blank');
-      return;
-    }
-
-    // Create Blob from base64 data URL
-    var blob;
-    if(doc.data && doc.data.startsWith('data:')){
-      // Base64 data URL
-      var arr = doc.data.split(',');
-      var mime = arr[0].match(/:(.*?);/)[1];
-      var bstr = atob(arr[1]);
-      var n = bstr.length;
-      var u8arr = new Uint8Array(n);
-      while(n--){ u8arr[n] = bstr.charCodeAt(n); }
-      blob = new Blob([u8arr], {type: mime});
-    } else {
-      blob = new Blob([doc.data], {type: doc.type});
-    }
-    var url   = URL.createObjectURL(blob);
-    var a     = document.createElement('a');
-    a.href    = url;
-    a.download = doc.name;
-    a.target  = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(function(){ URL.revokeObjectURL(url); }, 3000);
-  } catch(e) {
-    if(typeof showAlert==='function') showAlert('Error: '+e.message,'warn');
-  }
+/* ── Download / view a document ── handles base64 AND ArrayBuffer ── */
+function invDocDownload(id){
+  invDocOpenDB().then(function(db){
+    var tx=db.transaction(['invoices'],'readonly');
+    var req=tx.objectStore('invoices').get(id);
+    req.onsuccess=function(e){
+      var doc=e.target.result;
+      if(!doc){ if(typeof showAlert==='function') showAlert('Documento no encontrado','warn'); return; }
+      if(doc.storageUrl){ window.open(doc.storageUrl,'_blank'); return; }
+      try{
+        var mimeType=doc.type||'application/octet-stream';
+        var blob;
+        if(doc.data && typeof doc.data==='string' && doc.data.indexOf('data:')===0){
+          var parts=doc.data.split(',');
+          var mm=parts[0].match(/:(.*?);/); if(mm) mimeType=mm[1];
+          var bstr=atob(parts[1]); var n=bstr.length; var u8=new Uint8Array(n);
+          while(n--){ u8[n]=bstr.charCodeAt(n); }
+          blob=new Blob([u8],{type:mimeType});
+        } else if(doc.data instanceof ArrayBuffer){
+          blob=new Blob([doc.data],{type:mimeType});
+        } else if(doc.data && doc.data.byteLength!==undefined){
+          blob=new Blob([new Uint8Array(doc.data)],{type:mimeType});
+        } else { if(typeof showAlert==='function') showAlert('Formato no reconocible. Sube el archivo nuevamente.','warn'); return; }
+        var url=URL.createObjectURL(blob);
+        var a=document.createElement('a');
+        a.href=url; a.download=doc.name;
+        if(['pdf','jpg','jpeg','png'].indexOf(doc.ext)>=0) a.target='_blank';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function(){ URL.revokeObjectURL(url); },5000);
+      }catch(be){ if(typeof showAlert==='function') showAlert('Error al abrir: '+be.message,'warn'); }
+    };
+    req.onerror=function(e){ if(typeof showAlert==='function') showAlert('Error BD: '+((e.target.error||{}).message||''),'warn'); };
+  });
 }
 
-/* ── Delete a document ── */
-async function invDocDelete(id){
+/* ── Delete a document ── callback-based, iOS safe ── */
+function invDocDelete(id){
   if(!confirm('¿Eliminar este documento? Esta acción no se puede deshacer.')) return;
-  try {
-    var db = await invDocOpenDB();
-    await new Promise(function(res,rej){
-      var tx  = db.transaction(['invoices'],'readwrite');
-      var req = tx.objectStore('invoices').delete(id);
-      req.onsuccess = res;
-      req.onerror   = function(e){ rej(e.target.error); };
-    });
-    invDocRender();
-    invDocPopulateFilters();
-    if(typeof showAlert==='function') showAlert('Documento eliminado','info');
-  } catch(e) {
-    if(typeof showAlert==='function') showAlert('Error al eliminar: '+e.message,'warn');
-  }
+  invDocOpenDB().then(function(db){
+    var tx  = db.transaction(['invoices'],'readwrite');
+    var req = tx.objectStore('invoices').delete(id);
+    req.onsuccess = function(){
+      invDocRender();
+      invDocPopulateFilters();
+      if(typeof showAlert==='function') showAlert('Documento eliminado','info');
+    };
+    req.onerror = function(e){
+      if(typeof showAlert==='function') showAlert('Error al eliminar: '+(e.target.error||{}).message,'warn');
+    };
+  }).catch(function(e){
+    if(typeof showAlert==='function') showAlert('Error de base de datos: '+e.message,'warn');
+  });
 }
 
 /* ── File type icon ── */
@@ -8234,6 +8223,75 @@ function invDocShowUploadStatus(msg, type){
 function openPropOrEdit(e){
   // Always open selector sheet — user can tap ✏️ Editar inside
   openPropertySheet();
+}
+
+
+/* ── Copy document info / text to clipboard ── */
+function invDocCopyText(id){
+  invDocOpenDB().then(function(db){
+    var tx  = db.transaction(['invoices'],'readonly');
+    var req = tx.objectStore('invoices').get(id);
+    req.onsuccess = function(e){
+      var doc = e.target.result;
+      if(!doc){ if(typeof showAlert==='function') showAlert('Documento no encontrado','warn'); return; }
+
+      // For text-based files (CSV, TXT, XML) extract the text content
+      // For binary files (PDF, Excel, images) copy the metadata
+      var ext = (doc.ext||'').toLowerCase();
+      var textExts = ['csv','txt','xml','json'];
+
+      if(textExts.indexOf(ext) >= 0 && doc.data){
+        // Extract text from base64
+        try {
+          var text;
+          if(typeof doc.data === 'string' && doc.data.startsWith('data:')){
+            text = atob(doc.data.split(',')[1]);
+          } else {
+            // ArrayBuffer to text
+            text = new TextDecoder().decode(new Uint8Array(doc.data));
+          }
+          navigator.clipboard.writeText(text).then(function(){
+            if(typeof showAlert==='function') showAlert('✅ Contenido copiado al portapapeles','success');
+          }).catch(function(){
+            // Fallback for iOS
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select(); document.execCommand('copy');
+            document.body.removeChild(ta);
+            if(typeof showAlert==='function') showAlert('✅ Contenido copiado','success');
+          });
+        } catch(e){
+          if(typeof showAlert==='function') showAlert('No se pudo leer el texto: '+e.message,'warn');
+        }
+      } else {
+        // For PDF/Excel/images — copy document metadata
+        var info = [
+          'Documento: ' + doc.name,
+          'Descripción: ' + (doc.desc||''),
+          'Supplier: ' + (doc.supplier||''),
+          'Fecha: ' + (doc.date||''),
+          'Tipo: ' + (doc.ext||'').toUpperCase(),
+          'Tamaño: ' + (doc.size > 1048576 ? (doc.size/1048576).toFixed(1)+' MB' : Math.round(doc.size/1024)+' KB'),
+          'Empresa: ' + (doc.companyName||''),
+          'Subido por: ' + (doc.uploadedBy||''),
+          'Fecha subida: ' + (doc.uploadedAt||'').substring(0,10),
+        ].join('\n');
+
+        navigator.clipboard.writeText(info).then(function(){
+          if(typeof showAlert==='function') showAlert('✅ Información del documento copiada','success');
+        }).catch(function(){
+          var ta = document.createElement('textarea');
+          ta.value = info;
+          ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+          document.body.removeChild(ta);
+          if(typeof showAlert==='function') showAlert('✅ Información copiada','success');
+        });
+      }
+    };
+  });
 }
 
 </script>
