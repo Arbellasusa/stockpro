@@ -7975,37 +7975,51 @@ function invDocHandleFile(e){
   }
 }
 
-/* ── Save invoice(s) to IndexedDB ── */
-async function invDocSave(){
+/* ── Save invoice(s) to IndexedDB using FileReader (iOS Safari safe) ── */
+function invDocSave(){
   if(!_invPendingFile){
     invDocShowUploadStatus('⚠️ Primero selecciona un archivo.','warn');
     return;
   }
+  var supplier  = (document.getElementById('inv-doc-supplier')  || {}).value || '';
+  var dateVal   = (document.getElementById('inv-doc-date')       || {}).value || new Date().toISOString().slice(0,10);
+  var desc      = ((document.getElementById('inv-doc-desc')      || {}).value || '').trim();
+  var companyId = PROP.active ? PROP.active.id : 'default';
+  var d         = new Date(dateVal + 'T12:00:00');
+  var files     = Array.isArray(_invPendingFile) ? _invPendingFile : [_invPendingFile];
 
-  var supplier = document.getElementById('inv-doc-supplier')?.value || '';
-  var dateVal  = document.getElementById('inv-doc-date')?.value || new Date().toISOString().slice(0,10);
-  var desc     = document.getElementById('inv-doc-desc')?.value.trim() || '';
-  var companyId= PROP.active ? PROP.active.id : 'default';
-  var d        = new Date(dateVal+'T12:00:00');
+  invDocShowUploadStatus('⏳ Guardando ' + files.length + ' archivo(s)…', 'info');
 
-  var files = Array.isArray(_invPendingFile) ? _invPendingFile : [_invPendingFile];
   var saved = 0;
+  var total = files.length;
 
-  invDocShowUploadStatus('⏳ Guardando '+files.length+' archivo(s)…','info');
+  // Process files one by one using FileReader (callback-based, no async/await issues)
+  function processNext(idx){
+    if(idx >= total){
+      // All done
+      _invPendingFile = null;
+      var fi = document.getElementById('inv-doc-file'); if(fi) fi.value = '';
+      var de = document.getElementById('inv-doc-desc'); if(de) de.value = '';
+      invDocShowUploadStatus('✅ ' + saved + ' documento(s) guardado(s)', 'ok');
+      if(typeof showAlert === 'function') showAlert('✅ ' + saved + ' invoice(s) guardados', 'success');
+      try{ invDocPopulateFilters(); invDocRender(); } catch(e){}
+      return;
+    }
 
-  for(var fi=0; fi<files.length; fi++){
-    var file = files[fi];
-    try {
-      // Read file as ArrayBuffer for storage
-      var buffer = await file.arrayBuffer();
+    var file   = files[idx];
+    var reader = new FileReader();
+
+    reader.onload = function(ev){
+      var base64data = ev.target.result; // data:type;base64,....
+
       var doc = {
-        id:          'inv_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+        id:          'inv_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
         name:        file.name,
         desc:        desc || file.name,
         supplier:    supplier,
         date:        dateVal,
         year:        String(d.getFullYear()),
-        month:       String(d.getMonth()+1).padStart(2,'0'),
+        month:       String(d.getMonth() + 1).padStart(2,'0'),
         day:         String(d.getDate()).padStart(2,'0'),
         size:        file.size,
         type:        file.type || 'application/octet-stream',
@@ -8014,49 +8028,42 @@ async function invDocSave(){
         companyName: PROP.active ? PROP.active.name : '',
         uploadedAt:  new Date().toISOString(),
         uploadedBy:  S.user ? S.user.name : 'Admin',
-        data:        buffer,
+        data:        base64data, // stored as base64 string — works on all browsers
       };
 
       // Save to IndexedDB
-      var db  = await invDocOpenDB();
-      await new Promise(function(res,rej){
-        var tx    = db.transaction(['invoices'],'readwrite');
+      invDocOpenDB().then(function(db){
+        var tx    = db.transaction(['invoices'], 'readwrite');
         var store = tx.objectStore('invoices');
         var req   = store.put(doc);
-        req.onsuccess = res;
-        req.onerror   = function(e){ rej(e.target.error); };
+
+        req.onsuccess = function(){
+          saved++;
+          invDocShowUploadStatus('⏳ ' + saved + '/' + total + ' guardados…', 'info');
+          processNext(idx + 1);
+        };
+        req.onerror = function(e){
+          console.error('IndexedDB put error:', e.target.error);
+          invDocShowUploadStatus('❌ Error guardando ' + file.name + ': ' + (e.target.error||{}).message, 'warn');
+          processNext(idx + 1);
+        };
+      }).catch(function(dbErr){
+        invDocShowUploadStatus('❌ Error IndexedDB: ' + dbErr.message, 'warn');
+        processNext(idx + 1);
       });
+    };
 
-      // Try Firebase Storage if configured
-      try{
-        if(typeof firebase !== 'undefined' && firebase.storage){
-          var storRef = firebase.storage().ref('invoices/'+companyId+'/'+dateVal+'/'+doc.id+'_'+file.name);
-          await storRef.put(file);
-          doc.storageUrl = await storRef.getDownloadURL();
-          // Update in IndexedDB with URL
-          await new Promise(function(res,rej){
-            var tx2 = db.transaction(['invoices'],'readwrite');
-            tx2.objectStore('invoices').put(doc).onsuccess = res;
-          });
-        }
-      } catch(storErr){ /* Firebase Storage not configured — IndexedDB only */ }
+    reader.onerror = function(e){
+      console.error('FileReader error:', e);
+      invDocShowUploadStatus('❌ Error leyendo ' + file.name, 'warn');
+      processNext(idx + 1);
+    };
 
-      saved++;
-    } catch(e) {
-      console.error('Error saving invoice:', file.name, e);
-    }
+    // Use readAsDataURL — works on ALL browsers including iOS Safari
+    reader.readAsDataURL(file);
   }
 
-  // Reset form
-  _invPendingFile = null;
-  var fi2 = document.getElementById('inv-doc-file'); if(fi2) fi2.value='';
-  var de  = document.getElementById('inv-doc-desc'); if(de) de.value='';
-
-  invDocShowUploadStatus('✅ '+saved+' documento(s) guardado(s) correctamente','ok');
-  if(typeof showAlert==='function') showAlert('✅ '+saved+' invoice(s) guardados','success');
-
-  invDocPopulateFilters();
-  invDocRender();
+  processNext(0);
 }
 
 /* ── Render document list with filters ── */
@@ -8155,8 +8162,20 @@ async function invDocDownload(id){
       return;
     }
 
-    // Otherwise, create a Blob from stored ArrayBuffer and download
-    var blob  = new Blob([doc.data], {type: doc.type});
+    // Create Blob from base64 data URL
+    var blob;
+    if(doc.data && doc.data.startsWith('data:')){
+      // Base64 data URL
+      var arr = doc.data.split(',');
+      var mime = arr[0].match(/:(.*?);/)[1];
+      var bstr = atob(arr[1]);
+      var n = bstr.length;
+      var u8arr = new Uint8Array(n);
+      while(n--){ u8arr[n] = bstr.charCodeAt(n); }
+      blob = new Blob([u8arr], {type: mime});
+    } else {
+      blob = new Blob([doc.data], {type: doc.type});
+    }
     var url   = URL.createObjectURL(blob);
     var a     = document.createElement('a');
     a.href    = url;
