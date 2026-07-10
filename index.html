@@ -1117,7 +1117,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
         <span class="ent-time" id="hdr-time"></span>
       </div>
       <!-- CLICKABLE HOTEL/PROPERTY NAME -->
-      <button class="ent-property-btn" onclick="openPropertySheet()" title="Cambiar institución / hotel">
+      <button class="ent-property-btn" onclick="openPropOrEdit(event)" title="Toca nombre=cambiar · Toca ✏️=editar">
         <div class="ent-hotel-block">
           <span class="ent-property-name" id="hdr-property-name">Hotel Arbellas</span>
           <span class="ent-property-type" id="hdr-property-type">🏨 Hotel · Plantation, FL</span>
@@ -8229,6 +8229,13 @@ function invDocShowUploadStatus(msg, type){
   el.style.background = t.bg; el.style.border='1.5px solid '+t.b; el.style.color=t.c;
 }
 
+
+/* ── Header property button: tap name=selector, tap pencil icon=edit ── */
+function openPropOrEdit(e){
+  // Always open selector sheet — user can tap ✏️ Editar inside
+  openPropertySheet();
+}
+
 </script>
 
 <!-- ═══════════════════════════════════════
@@ -8382,7 +8389,13 @@ function invDocShowUploadStatus(msg, type){
         <div class="prop-current-type" id="prop-current-type">Hotel · Plantation, FL</div>
         <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:2px">📦 Inventario independiente activo</div>
       </div>
-      <div class="prop-current-badge">ACTIVO</div>
+      <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+        <div class="prop-current-badge">ACTIVO</div>
+        <button id="prop-current-edit-btn" onclick="openAddPropModal(PROP.active?PROP.active.id:'')"
+          style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.35);border-radius:8px;color:#fff;font-size:12px;padding:4px 10px;cursor:pointer;font-weight:700">
+          ✏️ Editar
+        </button>
+      </div>
     </div>
 
     <!-- Saved list — scrollable -->
