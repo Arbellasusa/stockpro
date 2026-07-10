@@ -13,6 +13,7 @@
 <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-app-compat.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-auth-compat.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-firestore-compat.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-storage-compat.min.js"></script>
 <!-- ZXing barcode -->
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.18.6/umd/index.min.js"></script>
 <!-- XLSX for import -->
@@ -1455,6 +1456,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
           <div class="sup-tab active" onclick="supSwitchTab('sup-tab-list',this)">📋 Suppliers</div>
           <div class="sup-tab" onclick="supSwitchTab('sup-tab-dhs',this)">🏨 DHS Catalog</div>
           <div class="sup-tab" onclick="supSwitchTab('sup-tab-import',this)">📥 Importar</div>
+          <div class="sup-tab" onclick="supSwitchTab('sup-tab-invoices',this)">🧾 Invoices</div>
           <div class="sup-tab" onclick="supSwitchTab('sup-tab-orders',this)">🛒 Compras</div>
         </div>
       </div>
@@ -1657,6 +1659,85 @@ input,select,textarea{font-family:inherit;font-size:inherit}
     </div><!-- /pg-dhs -->
 
       </div><!-- /sup-tab-dhs -->
+
+      <!-- TAB: INVOICES / DOCUMENTOS DE PROVEEDORES -->
+      <div id="sup-tab-invoices" style="display:none;flex:1;overflow-y:auto">
+
+        <!-- Upload bar -->
+        <div style="padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:10">
+
+          <!-- Upload zone -->
+          <div id="inv-doc-dropzone"
+            style="border:2px dashed var(--border);border-radius:12px;padding:14px;text-align:center;cursor:pointer;background:var(--surface2);margin-bottom:8px"
+            onclick="document.getElementById('inv-doc-file').click()"
+            ondragover="event.preventDefault();this.style.borderColor='var(--blue)';this.style.background='#EFF6FF'"
+            ondragleave="this.style.borderColor='var(--border)';this.style.background='var(--surface2)'"
+            ondrop="invDocHandleDrop(event)">
+            <div style="font-size:28px;margin-bottom:4px">📎</div>
+            <div style="font-size:13px;font-weight:700;color:var(--text)">Subir Invoice / Documento</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:3px">PDF · Excel · CSV · JPG · PNG · Word · ZIP</div>
+          </div>
+          <input type="file" id="inv-doc-file"
+            accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.docx,.doc,.zip,.txt,.xml"
+            style="display:none" onchange="invDocHandleFile(event)" multiple>
+
+          <!-- Supplier + date fields -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div>
+              <label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:3px">Supplier</label>
+              <select id="inv-doc-supplier"
+                style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;background:#fff">
+                <option value="">— Seleccionar —</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:3px">Fecha del Invoice</label>
+              <input type="date" id="inv-doc-date"
+                style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;background:#fff">
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
+            <input type="text" id="inv-doc-desc" placeholder="Descripción / No. de Invoice"
+              style="padding:8px 10px;border:1.5px solid var(--border);border-radius:9px;font-size:13px">
+            <button onclick="invDocSave()"
+              style="padding:8px 16px;background:var(--blue);color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;white-space:nowrap">
+              📎 Guardar
+            </button>
+          </div>
+          <div id="inv-doc-upload-status" style="display:none;margin-top:6px;padding:7px 10px;border-radius:8px;font-size:12px;font-weight:600"></div>
+        </div>
+
+        <!-- Filters bar -->
+        <div style="padding:8px 12px;display:flex;gap:6px;background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap">
+          <select id="inv-doc-filter-supplier"
+            style="flex:1;min-width:100px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;background:#fff"
+            onchange="invDocRender()">
+            <option value="">Todos los Suppliers</option>
+          </select>
+          <select id="inv-doc-filter-year"
+            style="width:80px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;background:#fff"
+            onchange="invDocRender()">
+            <option value="">Año</option>
+          </select>
+          <select id="inv-doc-filter-month"
+            style="width:90px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;background:#fff"
+            onchange="invDocRender()">
+            <option value="">Mes</option>
+            <option value="01">Enero</option><option value="02">Febrero</option>
+            <option value="03">Marzo</option><option value="04">Abril</option>
+            <option value="05">Mayo</option><option value="06">Junio</option>
+            <option value="07">Julio</option><option value="08">Agosto</option>
+            <option value="09">Septiembre</option><option value="10">Octubre</option>
+            <option value="11">Noviembre</option><option value="12">Diciembre</option>
+          </select>
+          <button onclick="invDocRender()" style="padding:6px 10px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;font-size:12px;cursor:pointer">🔍</button>
+        </div>
+
+        <!-- Document list -->
+        <div id="inv-doc-list" style="padding:10px 12px"></div>
+
+      </div>
+
       <div id="sup-tab-orders" style="display:none;flex:1;overflow-y:auto;padding:10px 12px"><div id="sup-orders-content"><div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Sin compras registradas aún.</div></div></div>
   </div><!-- /main -->
 
@@ -6704,13 +6785,14 @@ function initDefaultSuppliers(){
 
 /* ── Tab switcher ── */
 function supSwitchTab(tabId, btn){
-  ['sup-tab-list','sup-tab-dhs','sup-tab-import','sup-tab-orders'].forEach(function(id){
+  ['sup-tab-list','sup-tab-dhs','sup-tab-import','sup-tab-invoices','sup-tab-orders'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.style.display = id===tabId ? '' : 'none';
   });
   document.querySelectorAll('.sup-tab').forEach(function(t){ t.classList.remove('active'); });
   if(btn) btn.classList.add('active');
   if(tabId === 'sup-tab-list') renderSupplierList();
+  if(tabId === 'sup-tab-invoices') invDocInit();
   if(tabId === 'sup-tab-dhs')  renderDHSPage();
 }
 
@@ -7769,6 +7851,363 @@ function calcItemTotal(){
     el.value = total > 0 ? total.toFixed(2) : '';
     el.style.color = total > 0 ? 'var(--blue)' : 'var(--text3)';
   }
+}
+
+
+/* === INVOICES MODULE === */
+/* ════════════════════════════════════════════════════════════
+   SUPPLIER INVOICES / DOCUMENTS MODULE
+   Storage: IndexedDB (supports large files up to ~500MB)
+   + Firebase Storage (if configured)
+   Organizado por: Supplier, Año, Mes, Día
+   ════════════════════════════════════════════════════════════ */
+
+var _invDB = null;
+var _invPendingFile = null;
+
+/* ── Open / init IndexedDB ── */
+function invDocOpenDB(){
+  return new Promise(function(resolve, reject){
+    if(_invDB){ resolve(_invDB); return; }
+    var req = indexedDB.open('ArbellaStockInvoices', 2);
+    req.onupgradeneeded = function(e){
+      var db = e.target.result;
+      if(!db.objectStoreNames.contains('invoices')){
+        var store = db.createObjectStore('invoices', {keyPath:'id'});
+        store.createIndex('supplier', 'supplier', {unique:false});
+        store.createIndex('date',     'date',     {unique:false});
+        store.createIndex('year',     'year',     {unique:false});
+        store.createIndex('month',    'month',    {unique:false});
+        store.createIndex('companyId','companyId',{unique:false});
+      }
+    };
+    req.onsuccess  = function(e){ _invDB = e.target.result; resolve(_invDB); };
+    req.onerror    = function(e){ reject(e.target.error); };
+  });
+}
+
+/* ── Initialize invoice tab ── */
+async function invDocInit(){
+  try {
+    await invDocOpenDB();
+    invDocPopulateFilters();
+    invDocRender();
+    invDocPopulateSupplierSelect();
+    // Set today as default date
+    var dEl = document.getElementById('inv-doc-date');
+    if(dEl && !dEl.value){
+      var t = new Date();
+      dEl.value = t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+    }
+  } catch(e) {
+    console.error('invDocInit error:', e);
+  }
+}
+
+/* ── Populate supplier dropdown ── */
+function invDocPopulateSupplierSelect(){
+  var sups = loadSuppliers ? loadSuppliers() : [];
+  ['inv-doc-supplier','inv-doc-filter-supplier'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(!el) return;
+    var first = el.options[0].text;
+    el.innerHTML = '<option value="">' + first + '</option>' +
+      sups.map(function(s){
+        return '<option value="'+s.name+'">'+s.name+'</option>';
+      }).join('');
+  });
+}
+
+/* ── Populate year filter ── */
+async function invDocPopulateFilters(){
+  try {
+    var db = await invDocOpenDB();
+    var docs = await invDocGetAll(db);
+    var years = [...new Set(docs.map(function(d){ return d.year; }))].sort().reverse();
+    var el = document.getElementById('inv-doc-filter-year');
+    if(el){
+      el.innerHTML = '<option value="">Año</option>' +
+        years.map(function(y){ return '<option value="'+y+'">'+y+'</option>'; }).join('');
+    }
+  } catch(e) {}
+}
+
+/* ── Get all invoices for current company ── */
+function invDocGetAll(db){
+  return new Promise(function(resolve, reject){
+    var companyId = PROP.active ? PROP.active.id : 'default';
+    var tx    = db.transaction(['invoices'],'readonly');
+    var store = tx.objectStore('invoices');
+    var req   = store.getAll();
+    req.onsuccess = function(e){
+      var all = e.target.result || [];
+      resolve(all.filter(function(d){ return !d.companyId || d.companyId===companyId; }));
+    };
+    req.onerror = function(e){ reject(e.target.error); };
+  });
+}
+
+/* ── Drop / File handlers ── */
+function invDocHandleDrop(e){
+  e.preventDefault();
+  var dz = document.getElementById('inv-doc-dropzone');
+  if(dz){ dz.style.borderColor='var(--border)'; dz.style.background='var(--surface2)'; }
+  var files = Array.from(e.dataTransfer.files);
+  if(files.length > 1){
+    // Queue multiple files
+    _invPendingFile = files[0];
+    invDocShowUploadStatus('📎 '+files.length+' archivos seleccionados. Procesando el primero: '+files[0].name,'info');
+  } else {
+    _invPendingFile = files[0];
+    invDocShowUploadStatus('📎 '+files[0].name+' listo. Completa los datos y toca Guardar.','info');
+  }
+}
+
+function invDocHandleFile(e){
+  var files = Array.from(e.target.files);
+  if(files.length === 1){
+    _invPendingFile = files[0];
+    invDocShowUploadStatus('📎 '+files[0].name+' listo. Completa los datos y toca Guardar.','info');
+  } else {
+    // Multiple files — save all with same supplier/date
+    _invPendingFile = files;
+    invDocShowUploadStatus('📎 '+files.length+' archivos listos. Completa los datos y toca Guardar.','info');
+  }
+}
+
+/* ── Save invoice(s) to IndexedDB ── */
+async function invDocSave(){
+  if(!_invPendingFile){
+    invDocShowUploadStatus('⚠️ Primero selecciona un archivo.','warn');
+    return;
+  }
+
+  var supplier = document.getElementById('inv-doc-supplier')?.value || '';
+  var dateVal  = document.getElementById('inv-doc-date')?.value || new Date().toISOString().slice(0,10);
+  var desc     = document.getElementById('inv-doc-desc')?.value.trim() || '';
+  var companyId= PROP.active ? PROP.active.id : 'default';
+  var d        = new Date(dateVal+'T12:00:00');
+
+  var files = Array.isArray(_invPendingFile) ? _invPendingFile : [_invPendingFile];
+  var saved = 0;
+
+  invDocShowUploadStatus('⏳ Guardando '+files.length+' archivo(s)…','info');
+
+  for(var fi=0; fi<files.length; fi++){
+    var file = files[fi];
+    try {
+      // Read file as ArrayBuffer for storage
+      var buffer = await file.arrayBuffer();
+      var doc = {
+        id:          'inv_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+        name:        file.name,
+        desc:        desc || file.name,
+        supplier:    supplier,
+        date:        dateVal,
+        year:        String(d.getFullYear()),
+        month:       String(d.getMonth()+1).padStart(2,'0'),
+        day:         String(d.getDate()).padStart(2,'0'),
+        size:        file.size,
+        type:        file.type || 'application/octet-stream',
+        ext:         file.name.split('.').pop().toLowerCase(),
+        companyId:   companyId,
+        companyName: PROP.active ? PROP.active.name : '',
+        uploadedAt:  new Date().toISOString(),
+        uploadedBy:  S.user ? S.user.name : 'Admin',
+        data:        buffer,
+      };
+
+      // Save to IndexedDB
+      var db  = await invDocOpenDB();
+      await new Promise(function(res,rej){
+        var tx    = db.transaction(['invoices'],'readwrite');
+        var store = tx.objectStore('invoices');
+        var req   = store.put(doc);
+        req.onsuccess = res;
+        req.onerror   = function(e){ rej(e.target.error); };
+      });
+
+      // Try Firebase Storage if configured
+      try{
+        if(typeof firebase !== 'undefined' && firebase.storage){
+          var storRef = firebase.storage().ref('invoices/'+companyId+'/'+dateVal+'/'+doc.id+'_'+file.name);
+          await storRef.put(file);
+          doc.storageUrl = await storRef.getDownloadURL();
+          // Update in IndexedDB with URL
+          await new Promise(function(res,rej){
+            var tx2 = db.transaction(['invoices'],'readwrite');
+            tx2.objectStore('invoices').put(doc).onsuccess = res;
+          });
+        }
+      } catch(storErr){ /* Firebase Storage not configured — IndexedDB only */ }
+
+      saved++;
+    } catch(e) {
+      console.error('Error saving invoice:', file.name, e);
+    }
+  }
+
+  // Reset form
+  _invPendingFile = null;
+  var fi2 = document.getElementById('inv-doc-file'); if(fi2) fi2.value='';
+  var de  = document.getElementById('inv-doc-desc'); if(de) de.value='';
+
+  invDocShowUploadStatus('✅ '+saved+' documento(s) guardado(s) correctamente','ok');
+  if(typeof showAlert==='function') showAlert('✅ '+saved+' invoice(s) guardados','success');
+
+  invDocPopulateFilters();
+  invDocRender();
+}
+
+/* ── Render document list with filters ── */
+async function invDocRender(){
+  var list = document.getElementById('inv-doc-list');
+  if(!list) return;
+  list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Cargando…</div>';
+
+  try {
+    var db   = await invDocOpenDB();
+    var docs = await invDocGetAll(db);
+
+    // Apply filters
+    var fSup   = document.getElementById('inv-doc-filter-supplier')?.value || '';
+    var fYear  = document.getElementById('inv-doc-filter-year')?.value || '';
+    var fMonth = document.getElementById('inv-doc-filter-month')?.value || '';
+
+    if(fSup)   docs = docs.filter(function(d){ return d.supplier===fSup; });
+    if(fYear)  docs = docs.filter(function(d){ return d.year===fYear; });
+    if(fMonth) docs = docs.filter(function(d){ return d.month===fMonth; });
+
+    // Sort newest first
+    docs.sort(function(a,b){ return b.date.localeCompare(a.date); });
+
+    if(!docs.length){
+      list.innerHTML = '<div style="text-align:center;padding:32px 16px;color:var(--text3)">'
+        +'<div style="font-size:36px;margin-bottom:8px">📂</div>'
+        +'<div style="font-size:14px;font-weight:700">Sin documentos</div>'
+        +'<div style="font-size:12px;margin-top:4px">Sube tu primer invoice usando el panel de arriba</div>'
+        +'</div>';
+      return;
+    }
+
+    // Group by Year → Month
+    var groups = {};
+    docs.forEach(function(d){
+      var key = d.year+'-'+d.month;
+      if(!groups[key]) groups[key] = {year:d.year, month:d.month, docs:[]};
+      groups[key].docs.push(d);
+    });
+
+    var MONTHS = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+    var html = '';
+    Object.keys(groups).sort().reverse().forEach(function(key){
+      var g = groups[key];
+      html += '<div style="margin-bottom:16px">'
+        +'<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding:4px 0 8px">'
+        +MONTHS[parseInt(g.month)]+' '+g.year+' ('+g.docs.length+' doc'+( g.docs.length!==1?'s':'')+')</div>';
+
+      g.docs.forEach(function(doc){
+        var icon = invDocIcon(doc.ext);
+        var size = doc.size > 1048576 ? (doc.size/1048576).toFixed(1)+' MB' : Math.round(doc.size/1024)+' KB';
+        html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;margin-bottom:6px">'
+          +'<div style="font-size:26px;flex-shrink:0">'+icon+'</div>'
+          +'<div style="flex:1;min-width:0">'
+          +'<div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+doc.desc+'</div>'
+          +'<div style="font-size:11px;color:var(--text3);margin-top:2px">'
+          +(doc.supplier?'🏢 '+doc.supplier+' · ':'')+doc.date+' · '+doc.ext.toUpperCase()+' · '+size
+          +'</div>'
+          +(doc.uploadedBy?'<div style="font-size:10px;color:var(--text3)">Subido por '+doc.uploadedBy+'</div>':'')
+          +'</div>'
+          +'<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">'
+          +'<button onclick="invDocDownload(\''+doc.id+'\')" '
+          +'style="background:var(--blue);color:#fff;border:none;border-radius:7px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer">⬇ Ver</button>'
+          +'<button onclick="invDocDelete(\''+doc.id+'\')" '
+          +'style="background:#FDE8E8;color:#C1121F;border:none;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">✕ Del</button>'
+          +'</div>'
+          +'</div>';
+      });
+      html += '</div>';
+    });
+
+    list.innerHTML = html;
+  } catch(e) {
+    list.innerHTML = '<div style="padding:16px;color:#C1121F;font-size:13px">Error al cargar: '+e.message+'</div>';
+  }
+}
+
+/* ── Download / view a document ── */
+async function invDocDownload(id){
+  try {
+    var db  = await invDocOpenDB();
+    var doc = await new Promise(function(res,rej){
+      var tx  = db.transaction(['invoices'],'readonly');
+      var req = tx.objectStore('invoices').get(id);
+      req.onsuccess = function(e){ res(e.target.result); };
+      req.onerror   = function(e){ rej(e.target.error); };
+    });
+    if(!doc){ showAlert('Documento no encontrado','warn'); return; }
+
+    // If we have a Firebase Storage URL, open it
+    if(doc.storageUrl){
+      window.open(doc.storageUrl,'_blank');
+      return;
+    }
+
+    // Otherwise, create a Blob from stored ArrayBuffer and download
+    var blob  = new Blob([doc.data], {type: doc.type});
+    var url   = URL.createObjectURL(blob);
+    var a     = document.createElement('a');
+    a.href    = url;
+    a.download = doc.name;
+    a.target  = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 3000);
+  } catch(e) {
+    if(typeof showAlert==='function') showAlert('Error: '+e.message,'warn');
+  }
+}
+
+/* ── Delete a document ── */
+async function invDocDelete(id){
+  if(!confirm('¿Eliminar este documento? Esta acción no se puede deshacer.')) return;
+  try {
+    var db = await invDocOpenDB();
+    await new Promise(function(res,rej){
+      var tx  = db.transaction(['invoices'],'readwrite');
+      var req = tx.objectStore('invoices').delete(id);
+      req.onsuccess = res;
+      req.onerror   = function(e){ rej(e.target.error); };
+    });
+    invDocRender();
+    invDocPopulateFilters();
+    if(typeof showAlert==='function') showAlert('Documento eliminado','info');
+  } catch(e) {
+    if(typeof showAlert==='function') showAlert('Error al eliminar: '+e.message,'warn');
+  }
+}
+
+/* ── File type icon ── */
+function invDocIcon(ext){
+  var icons = {
+    pdf:'📄', xlsx:'📊', xls:'📊', csv:'📋', docx:'📝', doc:'📝',
+    jpg:'🖼️', jpeg:'🖼️', png:'🖼️', zip:'🗜️', xml:'📑', txt:'📃',
+  };
+  return icons[ext] || '📎';
+}
+
+/* ── Show upload status ── */
+function invDocShowUploadStatus(msg, type){
+  var el = document.getElementById('inv-doc-upload-status');
+  if(!el) return;
+  el.style.display = 'block';
+  el.textContent   = msg;
+  var s = {ok:{bg:'#F0FDF4',b:'#86EFAC',c:'#166534'}, warn:{bg:'#FFFBEB',b:'#FCD34D',c:'#92400E'}, info:{bg:'#EFF6FF',b:'#93C5FD',c:'#1E40AF'}};
+  var t = s[type] || s.info;
+  el.style.background = t.bg; el.style.border='1.5px solid '+t.b; el.style.color=t.c;
 }
 
 </script>
