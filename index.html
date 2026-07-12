@@ -5691,11 +5691,14 @@ function navigateDHS(page){
   toggleMenu(true);
   renderDHSPage();
   dhsAttachListeners();
-  // Init suppliers module
-  try{
-    initDefaultSuppliers();
-    renderSupplierList();
-  }catch(e){}
+  // Init suppliers module after DOM is ready
+  setTimeout(function(){
+    try{
+      initDefaultSuppliers();
+      renderSupplierList();
+      restoreSuppliersFromFirestore();
+    }catch(e){ console.warn('navigateDHS supplier init:',e); }
+  }, 50);
   return true;
 }
 
@@ -6770,16 +6773,35 @@ function loadSuppliers(){
   catch(e){ return []; }
 }
 function saveSuppliers(list){
+  // Always save to localStorage first (instant, no network needed)
   localStorage.setItem('sp_suppliers', JSON.stringify(list));
-  // Also push to Firestore if available
+  // Backup to Firestore if available
   if(S.fbReady){
     var batch = firebase.firestore().batch();
     list.forEach(function(sup){
       var ref = firebase.firestore().collection('stockpro_suppliers').doc(sup.id);
-      batch.set(ref, sup, {merge:true});
+      batch.set(ref, Object.assign({}, sup, {data: undefined}), {merge:true});
     });
-    batch.commit().catch(function(e){ console.warn('Suppliers Firestore sync:', e.message); });
+    batch.commit().catch(function(e){ console.warn('Suppliers sync:', e.message); });
   }
+}
+
+/* Restore suppliers from Firestore if localStorage is empty */
+function restoreSuppliersFromFirestore(){
+  var existing = JSON.parse(localStorage.getItem('sp_suppliers')||'[]');
+  if(existing.length > 1) return; /* already have data */
+  if(!S.fbReady) return;
+  firebase.firestore().collection('stockpro_suppliers').get()
+    .then(function(snap){
+      if(snap.empty) return;
+      var list = [];
+      snap.forEach(function(doc){ list.push(doc.data()); });
+      if(list.length > 0){
+        localStorage.setItem('sp_suppliers', JSON.stringify(list));
+        renderSupplierList();
+        console.log('[Suppliers] Restored '+list.length+' from Firestore');
+      }
+    }).catch(function(e){ console.warn('restoreSuppliers:', e.message); });
 }
 
 // Init built-in suppliers (DHS always present)
@@ -6811,13 +6833,19 @@ function initDefaultSuppliers(){
 function supSwitchTab(tabId, btn){
   ['sup-tab-list','sup-tab-dhs','sup-tab-import','sup-tab-invoices','sup-tab-orders'].forEach(function(id){
     var el = document.getElementById(id);
-    if(el) el.style.display = id===tabId ? '' : 'none';
+    if(!el) return;
+    if(id === tabId){
+      /* invoices needs flex, others need block */
+      el.style.display = (id === 'sup-tab-invoices') ? 'flex' : 'block';
+    } else {
+      el.style.display = 'none';
+    }
   });
   document.querySelectorAll('.sup-tab').forEach(function(t){ t.classList.remove('active'); });
   if(btn) btn.classList.add('active');
-  if(tabId === 'sup-tab-list') renderSupplierList();
-  if(tabId === 'sup-tab-invoices'){ var inv=document.getElementById('sup-tab-invoices'); if(inv) inv.style.display='flex'; invDocInit(); }
-  if(tabId === 'sup-tab-dhs')  renderDHSPage();
+  if(tabId === 'sup-tab-list')     renderSupplierList();
+  if(tabId === 'sup-tab-invoices') setTimeout(function(){ invDocInit(); }, 50);
+  if(tabId === 'sup-tab-dhs')      renderDHSPage();
 }
 
 /* ── Render suppliers list ── */
@@ -6954,8 +6982,8 @@ function saveSupplier(){
 
   saveSuppliers(list);
   closeSupplierModal();
-  renderSupplierList();
-  showAlert('✅ ' + name + ' guardado', 'success');
+  setTimeout(renderSupplierList, 50);
+  if(typeof showAlert==='function') showAlert('✅ ' + name + ' guardado', 'success');
 }
 
 /* ── Edit supplier ── */
@@ -7928,6 +7956,17 @@ function invDocInit(){
   invDocOpenDB().then(function(db){
     invDocPopulateFilters(db);
     invDocRender(db);
+    /* Show total count across all companies */
+    var tx=db.transaction(['invoices'],'readonly');
+    var req=tx.objectStore('invoices').count();
+    req.onsuccess=function(e){
+      var cnt=e.target.result||0;
+      if(cnt>0){
+        var st=document.getElementById('inv-doc-upload-status');
+        if(st){ st.style.display='block'; st.textContent='📂 '+cnt+' documento(s) en total en IndexedDB';
+          st.style.background='#EFF6FF'; st.style.border='1.5px solid #93C5FD'; st.style.color='#1E40AF'; }
+      }
+    };
   }).catch(function(e){console.warn('invDocInit:',e);});
   var dEl=document.getElementById('inv-doc-date');
   if(dEl&&!dEl.value){
@@ -7969,7 +8008,13 @@ function invDocGetAllCb(db,cb){
   var tx=db.transaction(['invoices'],'readonly');
   var req=tx.objectStore('invoices').getAll();
   req.onsuccess=function(e){
-    cb((e.target.result||[]).filter(function(d){return !d.companyId||d.companyId===cid;}));
+    var all=e.target.result||[];
+    /* Show docs matching current company OR docs with no company (legacy) */
+    var filtered=all.filter(function(d){
+      return !d.companyId || d.companyId===cid || d.companyId==='default';
+    });
+    /* If nothing matches, show all (company mismatch across sessions) */
+    cb(filtered.length>0 ? filtered : all);
   };
   req.onerror=function(){cb([]);};
 }
