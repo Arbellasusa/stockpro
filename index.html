@@ -1034,9 +1034,37 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 }
 
 
-/* ── Invoice upload bar compact ── */
-.inv-upload-bar { flex-shrink:0 !important; }
-#inv-doc-list { flex:1 1 0% !important; overflow-y:auto !important; -webkit-overflow-scrolling:touch !important; min-height:0 !important; padding:8px 12px 40px !important; }
+/* ── Suppliers page: all tabs fill the page ── */
+/* pg-dhs uses position:absolute;inset:0 via .page class */
+/* All child tabs must also use absolute to fill correctly */
+#sup-tab-list,
+#sup-tab-dhs,
+#sup-tab-import,
+#sup-tab-orders {
+  position: absolute !important;
+  left: 0 !important; right: 0 !important; bottom: 0 !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  display: none;
+}
+#sup-tab-invoices {
+  position: absolute !important;
+  left: 0 !important; right: 0 !important; bottom: 0 !important;
+  display: none;
+  flex-direction: column;
+  overflow: hidden !important;
+}
+.inv-upload-bar { flex-shrink: 0 !important; }
+#inv-doc-list {
+  flex: 1 1 0% !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  min-height: 0 !important;
+  padding: 8px 12px 40px !important;
+}
+/* Scrollbar always visible for list */
+#inv-doc-list::-webkit-scrollbar { width: 4px; }
+#inv-doc-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
 </style>
 </head>
@@ -1724,13 +1752,13 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 
         <!-- Filters bar — compact -->
         <div style="padding:5px 12px;display:flex;gap:5px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0">
-          <select id="inv-doc-filter-supplier" style="flex:1;min-width:80px;padding:5px 6px;border:1.5px solid var(--border);border-radius:7px;font-size:11px;background:#fff" onchange="invDocOpenDB().then(invDocRender)">
+          <select id="inv-doc-filter-supplier" style="flex:1;min-width:80px;padding:5px 6px;border:1.5px solid var(--border);border-radius:7px;font-size:11px;background:#fff" onchange="invDocOpenDB().then(function(db){invDocRender(db);})">
             <option value="">Todos</option>
           </select>
-          <select id="inv-doc-filter-year" style="width:70px;padding:5px 4px;border:1.5px solid var(--border);border-radius:7px;font-size:11px;background:#fff" onchange="invDocOpenDB().then(invDocRender)">
+          <select id="inv-doc-filter-year" style="width:70px;padding:5px 4px;border:1.5px solid var(--border);border-radius:7px;font-size:11px;background:#fff" onchange="invDocOpenDB().then(function(db){invDocRender(db);})">
             <option value="">Año</option>
           </select>
-          <select id="inv-doc-filter-month" style="width:80px;padding:5px 4px;border:1.5px solid var(--border);border-radius:7px;font-size:11px;background:#fff" onchange="invDocOpenDB().then(invDocRender)">
+          <select id="inv-doc-filter-month" style="width:80px;padding:5px 4px;border:1.5px solid var(--border);border-radius:7px;font-size:11px;background:#fff" onchange="invDocOpenDB().then(function(db){invDocRender(db);})">
             <option value="">Mes</option>
             <option value="01">Enero</option><option value="02">Febrero</option>
             <option value="03">Marzo</option><option value="04">Abril</option>
@@ -5679,11 +5707,12 @@ function navigateDHS(page){
   // Init suppliers module after DOM is ready
   setTimeout(function(){
     try{
+      supSetTabTop();
       initDefaultSuppliers();
       renderSupplierList();
       restoreSuppliersFromFirestore();
     }catch(e){ console.warn('navigateDHS supplier init:',e); }
-  }, 50);
+  }, 80);
   return true;
 }
 
@@ -6816,21 +6845,19 @@ function initDefaultSuppliers(){
 
 /* ── Tab switcher ── */
 function supSwitchTab(tabId, btn){
+  supSetTabTop(); /* measure and set top before showing any tab */
   ['sup-tab-list','sup-tab-dhs','sup-tab-import','sup-tab-invoices','sup-tab-orders'].forEach(function(id){
     var el = document.getElementById(id);
     if(!el) return;
-    if(id === tabId){
-      /* invoices needs flex, others need block */
-      el.style.display = (id === 'sup-tab-invoices') ? 'flex' : 'block';
-    } else {
-      el.style.display = 'none';
-    }
+    el.style.display = (id === tabId)
+      ? (id === 'sup-tab-invoices' ? 'flex' : 'block')
+      : 'none';
   });
   document.querySelectorAll('.sup-tab').forEach(function(t){ t.classList.remove('active'); });
   if(btn) btn.classList.add('active');
-  if(tabId === 'sup-tab-list')     renderSupplierList();
-  if(tabId === 'sup-tab-invoices') setTimeout(function(){ invDocInit(); }, 50);
-  if(tabId === 'sup-tab-dhs')      renderDHSPage();
+  if(tabId === 'sup-tab-list')     setTimeout(renderSupplierList, 30);
+  if(tabId === 'sup-tab-invoices') setTimeout(function(){ supSetTabTop(); invDocInit(); }, 50);
+  if(tabId === 'sup-tab-dhs')      setTimeout(renderDHSPage, 30);
 }
 
 /* ── Render suppliers list ── */
@@ -7937,21 +7964,17 @@ function invDocOpenDB(){
 
 /* init tab */
 function invDocInit(){
+  supSetTabTop(); /* ensure correct top before showing content */
   invDocPopulateSupplierSelect();
+  /* Set today as default date */
+  var dEl=document.getElementById('inv-doc-date');
+  if(dEl&&!dEl.value){
+    var t=new Date();
+    dEl.value=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+  }
   invDocOpenDB().then(function(db){
     invDocPopulateFilters(db);
     invDocRender(db);
-    /* Show total count across all companies */
-    var tx=db.transaction(['invoices'],'readonly');
-    var req=tx.objectStore('invoices').count();
-    req.onsuccess=function(e){
-      var cnt=e.target.result||0;
-      if(cnt>0){
-        var st=document.getElementById('inv-doc-upload-status');
-        if(st){ st.style.display='block'; st.textContent='📂 '+cnt+' documento(s) en total en IndexedDB';
-          st.style.background='#EFF6FF'; st.style.border='1.5px solid #93C5FD'; st.style.color='#1E40AF'; }
-      }
-    };
   }).catch(function(e){console.warn('invDocInit:',e);});
   var dEl=document.getElementById('inv-doc-date');
   if(dEl&&!dEl.value){
@@ -8325,6 +8348,19 @@ function invDocShowStatus(msg,type){
 var invDocShowUploadStatus=invDocShowStatus;
 /* alias */
 var invDocGetAll=function(db){return new Promise(function(res){invDocGetAllCb(db,res);});};
+
+/* ── Set sup-tab top based on actual hero+tabs height ── */
+function supSetTabTop(){
+  var hero  = document.querySelector('.sup-hero');
+  var tabs  = document.querySelector('.sup-tabs');
+  var topOff = (hero ? hero.offsetHeight : 207) + (tabs ? tabs.offsetHeight : 42);
+  ['sup-tab-list','sup-tab-dhs','sup-tab-import','sup-tab-invoices','sup-tab-orders'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.style.top = topOff + 'px';
+  });
+  return topOff;
+}
+
 </script>
 
 <!-- ═══════════════════════════════════════
