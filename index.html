@@ -1009,6 +1009,30 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 .export-title   { font-size:11px; font-weight:800; color:#1E4DB7; text-transform:uppercase; letter-spacing:.05em; margin-bottom:8px; }
 .export-btn-row { display:flex; gap:6px; flex-wrap:wrap; }
 
+
+/* ── Invoice tab scrolling fix ── */
+#sup-tab-invoices {
+  display: none;
+  position: absolute !important;
+  inset: 0 !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+#inv-doc-list {
+  flex: 1 1 auto !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  min-height: 0 !important;
+  padding-bottom: 32px !important;
+}
+.inv-upload-bar {
+  flex-shrink: 0 !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 10 !important;
+  background: var(--surface, #fff) !important;
+}
+
 </style>
 </head>
 <body>
@@ -1437,7 +1461,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
     <div class="page" id="pg-dhs">
 
       <!-- Suppliers Hero Banner -->
-      <div class="sup-hero">
+      <div class="sup-hero" style="flex-shrink:0">
         <div class="sup-hero-row">
           <div class="sup-hero-icon">🏢</div>
           <div class="sup-hero-title">
@@ -1462,7 +1486,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
       </div>
 
       <!-- TAB: SUPPLIERS LIST -->
-      <div id="sup-tab-list" style="flex:1;overflow-y:auto;padding:10px 12px">
+      <div id="sup-tab-list" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0;padding:10px 12px">
         <div id="sup-list-content"></div>
         <button onclick="openSupplierModal()" style="width:100%;padding:12px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;margin-top:4px;display:flex;align-items:center;justify-content:center;gap:7px">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -1517,7 +1541,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
       </div>
 
       <!-- TAB: DHS CATALOG (original DHS content) -->
-      <div id="sup-tab-dhs" style="display:none;flex:1;overflow-y:auto">
+      <div id="sup-tab-dhs" style="display:none;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0">
         <!-- DHS hero info moved here -->
         <div class="dhs-hero" style="margin:0">
         <div class="dhs-logo-chip">
@@ -1661,10 +1685,10 @@ input,select,textarea{font-family:inherit;font-size:inherit}
       </div><!-- /sup-tab-dhs -->
 
       <!-- TAB: INVOICES / DOCUMENTOS DE PROVEEDORES -->
-      <div id="sup-tab-invoices" style="display:none;flex:1;overflow-y:auto">
+      <div id="sup-tab-invoices" style="display:none;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden">
 
         <!-- Upload bar -->
-        <div style="padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:10">
+        <div class="inv-upload-bar" style="padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface)">
 
           <!-- Upload zone -->
           <div id="inv-doc-dropzone"
@@ -1733,7 +1757,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
           <button onclick="invDocRender()" style="padding:6px 10px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;font-size:12px;cursor:pointer">🔍</button>
         </div>
 
-        <!-- Document list -->
+        <!-- Document list - scrollable -->
         <div id="inv-doc-list" style="padding:10px 12px"></div>
 
       </div>
@@ -6792,7 +6816,7 @@ function supSwitchTab(tabId, btn){
   document.querySelectorAll('.sup-tab').forEach(function(t){ t.classList.remove('active'); });
   if(btn) btn.classList.add('active');
   if(tabId === 'sup-tab-list') renderSupplierList();
-  if(tabId === 'sup-tab-invoices') invDocInit();
+  if(tabId === 'sup-tab-invoices'){ var inv=document.getElementById('sup-tab-invoices'); if(inv) inv.style.display='flex'; invDocInit(); }
   if(tabId === 'sup-tab-dhs')  renderDHSPage();
 }
 
