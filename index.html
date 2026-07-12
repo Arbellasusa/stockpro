@@ -1066,6 +1066,30 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 #inv-doc-list::-webkit-scrollbar { width: 4px; }
 #inv-doc-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
+
+/* ── Invoice Entry Row ── */
+.inv-entry-row {
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  position: relative;
+}
+.inv-entry-row-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.inv-entry-row-num {
+  font-size: 11px;
+  font-weight: 800;
+  color: #7C3AED;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
 </style>
 </head>
 <body>
@@ -8361,6 +8385,348 @@ function supSetTabTop(){
   return topOff;
 }
 
+
+/* ════════════════════════════════════════════════════════════
+   INVOICE → INVENTORY ENTRY SYSTEM
+   Reads invoice data → pre-fills entry form → saves to inventory
+   ════════════════════════════════════════════════════════════ */
+
+var _invEntryDoc  = null;  /* current invoice doc */
+var _invEntryRows = 0;     /* row counter */
+
+/* ── Open entry modal from an invoice ── */
+function invDocCreateEntry(docId){
+  invDocOpenDB().then(function(db){
+    var tx  = db.transaction(['invoices'],'readonly');
+    var req = tx.objectStore('invoices').get(docId);
+    req.onsuccess = function(e){
+      var doc = e.target.result;
+      if(!doc){ if(typeof showAlert==='function') showAlert('Invoice no encontrado','warn'); return; }
+      _invEntryDoc  = doc;
+      _invEntryRows = 0;
+
+      /* Fill invoice info banner */
+      var info = document.getElementById('inv-entry-invoice-desc');
+      if(info){
+        info.innerHTML = '<strong>'+doc.desc+'</strong> · '
+          +(doc.supplier ? '🏢 '+doc.supplier+' · ' : '')
+          +doc.date+' · '+(doc.ext||'').toUpperCase();
+      }
+
+      /* Set entry date = invoice date */
+      var dateEl = document.getElementById('inv-entry-date');
+      if(dateEl) dateEl.value = doc.date || new Date().toISOString().slice(0,10);
+
+      /* Set responsible = current user */
+      var respEl = document.getElementById('inv-entry-resp');
+      if(respEl) respEl.value = (S.user ? S.user.name : '') || 'Admin';
+
+      /* Set notes */
+      var notesEl = document.getElementById('inv-entry-notes');
+      if(notesEl) notesEl.value = 'Entrada según invoice: ' + doc.desc
+        + (doc.supplier ? ' — ' + doc.supplier : '');
+
+      /* Clear rows and add first one pre-filled with supplier */
+      var rowsEl = document.getElementById('inv-entry-rows');
+      if(rowsEl) rowsEl.innerHTML = '';
+      invEntryAddRow(); /* add first product row */
+
+      /* Pre-fill supplier in first row from invoice */
+      setTimeout(function(){
+        var firstSupp = document.getElementById('inv-entry-supp-0');
+        if(firstSupp && doc.supplier) firstSupp.value = doc.supplier;
+      }, 50);
+
+      /* Status clear */
+      var st = document.getElementById('inv-entry-status');
+      if(st) st.style.display = 'none';
+
+      /* Open modal */
+      var m = document.getElementById('inv-entry-modal');
+      if(m) m.classList.add('open');
+    };
+    req.onerror = function(){
+      if(typeof showAlert==='function') showAlert('Error leyendo invoice','warn');
+    };
+  });
+}
+
+/* ── Add a product row to the entry form ── */
+function invEntryAddRow(){
+  var rowsEl = document.getElementById('inv-entry-rows');
+  if(!rowsEl) return;
+  var idx = _invEntryRows++;
+
+  /* Build autocomplete options from existing inventory */
+  var prodOpts = '';
+  if(S.items && S.items.length){
+    prodOpts = S.items.map(function(item){
+      return '<option value="'+item.name+'" data-sku="'+(item.sku||'')+'" data-cat="'+(item.cat||'')+'" data-unit="'+(item.unit||'')+'" data-price="'+(item.price||0)+'">';
+    }).join('');
+  }
+  var catOpts = ['General','Amenidades','Limpieza','Lencería','Cocina','Médico','Oficina','Alimentos','Equipos','Otro']
+    .map(function(c){ return '<option>'+c+'</option>'; }).join('');
+  var unitOpts = ['Each','Piezas','Unidades','DZ — Docena','Rollos','Cajas','Paquetes','Galones','Litros','Kilos','Libras','Metros']
+    .map(function(u){ return '<option>'+u+'</option>'; }).join('');
+
+  var rowHTML = '<div class="inv-entry-row" id="inv-entry-row-'+idx+'">'
+    +'<div class="inv-entry-row-hdr">'
+    +'<span class="inv-entry-row-num">Producto '+(idx+1)+'</span>'
+    +(idx>0?'<button onclick="invEntryRemoveRow('+idx+')" style="background:#FDE8E8;border:none;border-radius:6px;padding:3px 8px;font-size:11px;color:#C1121F;cursor:pointer">✕ Quitar</button>':'')
+    +'</div>'
+    /* Product name with datalist autocomplete */
+    +'<div style="margin-bottom:6px">'
+    +'<label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:3px">Nombre del producto *</label>'
+    +'<input type="text" id="inv-entry-name-'+idx+'" list="inv-entry-datalist-'+idx+'" placeholder="Ej: Toilet Paper, Shampoo..." autocomplete="off"'
+    +' oninput="invEntryAutofill('+idx+')"'
+    +' style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;box-sizing:border-box">'
+    +'<datalist id="inv-entry-datalist-'+idx+'">'+prodOpts+'</datalist>'
+    +'</div>'
+    /* Row 2: Category + Unit */
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">'
+    +'<div><label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:3px">Categoría</label>'
+    +'<select id="inv-entry-cat-'+idx+'" style="width:100%;padding:7px 8px;border:1.5px solid var(--border);border-radius:9px;font-size:12px">'+catOpts+'</select></div>'
+    +'<div><label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:3px">Unidad</label>'
+    +'<select id="inv-entry-unit-'+idx+'" style="width:100%;padding:7px 8px;border:1.5px solid var(--border);border-radius:9px;font-size:12px">'+unitOpts+'</select></div>'
+    +'</div>'
+    /* Row 3: Qty + Unit Price + Total */
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:6px">'
+    +'<div><label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:3px">Cantidad *</label>'
+    +'<input type="number" id="inv-entry-qty-'+idx+'" placeholder="0" min="1" value="1"'
+    +' oninput="invEntryCalcTotal('+idx+')"'
+    +' style="width:100%;padding:7px 8px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-weight:700;box-sizing:border-box"></div>'
+    +'<div><label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:3px">Unit Price ($)</label>'
+    +'<input type="number" id="inv-entry-price-'+idx+'" placeholder="0.00" step="0.01" value="0"'
+    +' oninput="invEntryCalcTotal('+idx+')"'
+    +' style="width:100%;padding:7px 8px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;box-sizing:border-box"></div>'
+    +'<div><label style="font-size:11px;font-weight:700;color:#2563EB;display:block;margin-bottom:3px">Total ($)</label>'
+    +'<input type="number" id="inv-entry-total-'+idx+'" placeholder="0.00" readonly'
+    +' style="width:100%;padding:7px 8px;border:2px solid #93C5FD;border-radius:9px;font-size:13px;font-weight:800;color:#1D4ED8;background:#EFF6FF;box-sizing:border-box"></div>'
+    +'</div>'
+    /* Row 4: Supplier + SKU */
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
+    +'<div><label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:3px">Proveedor</label>'
+    +'<input type="text" id="inv-entry-supp-'+idx+'" placeholder="Supplier"'
+    +' style="width:100%;padding:7px 8px;border:1.5px solid var(--border);border-radius:9px;font-size:12px;box-sizing:border-box"></div>'
+    +'<div><label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:3px">SKU</label>'
+    +'<input type="text" id="inv-entry-sku-'+idx+'" placeholder="Opcional"'
+    +' style="width:100%;padding:7px 8px;border:1.5px solid var(--border);border-radius:9px;font-size:12px;box-sizing:border-box"></div>'
+    +'</div>'
+    +'</div>';
+
+  rowsEl.insertAdjacentHTML('beforeend', rowHTML);
+}
+
+/* ── Auto-fill row from existing inventory item ── */
+function invEntryAutofill(idx){
+  var nameEl = document.getElementById('inv-entry-name-'+idx);
+  if(!nameEl) return;
+  var val = nameEl.value.toLowerCase().trim();
+  if(val.length < 2) return;
+
+  /* Find in existing inventory */
+  var match = S.items ? S.items.find(function(item){
+    return item.name && item.name.toLowerCase() === val;
+  }) : null;
+
+  if(match){
+    var set = function(id, v){ var el=document.getElementById(id); if(el&&v!==undefined&&v!=='') el.value=v; };
+    set('inv-entry-cat-'+idx,  match.cat);
+    set('inv-entry-unit-'+idx, match.unit);
+    set('inv-entry-price-'+idx, match.price||0);
+    set('inv-entry-supp-'+idx, match.supplier);
+    set('inv-entry-sku-'+idx,  match.sku);
+    invEntryCalcTotal(idx);
+  }
+}
+
+/* ── Auto-calc total for a row ── */
+function invEntryCalcTotal(idx){
+  var qty   = parseFloat(document.getElementById('inv-entry-qty-'+idx)?.value)   || 0;
+  var price = parseFloat(document.getElementById('inv-entry-price-'+idx)?.value) || 0;
+  var totalEl = document.getElementById('inv-entry-total-'+idx);
+  if(totalEl) totalEl.value = (qty * price).toFixed(2);
+}
+
+/* ── Remove a product row ── */
+function invEntryRemoveRow(idx){
+  var row = document.getElementById('inv-entry-row-'+idx);
+  if(row) row.remove();
+}
+
+/* ── Execute: save all rows to inventory ── */
+function invEntryExecute(){
+  var dateVal = document.getElementById('inv-entry-date')?.value || new Date().toISOString().slice(0,10);
+  var resp    = document.getElementById('inv-entry-resp')?.value.trim() || (S.user?S.user.name:'Admin');
+  var notes   = document.getElementById('inv-entry-notes')?.value.trim() || '';
+
+  /* Collect all row data */
+  var rows = [];
+  var rowEls = document.querySelectorAll('.inv-entry-row');
+  rowEls.forEach(function(rowEl){
+    var idx = rowEl.id.replace('inv-entry-row-','');
+    var name = (document.getElementById('inv-entry-name-'+idx)||{}).value?.trim();
+    if(!name) return; /* skip empty rows */
+    rows.push({
+      name:  name,
+      cat:   (document.getElementById('inv-entry-cat-'+idx)||{}).value  || 'General',
+      unit:  (document.getElementById('inv-entry-unit-'+idx)||{}).value || 'Each',
+      qty:   parseInt((document.getElementById('inv-entry-qty-'+idx)||{}).value)   || 1,
+      price: parseFloat((document.getElementById('inv-entry-price-'+idx)||{}).value)|| 0,
+      supp:  (document.getElementById('inv-entry-supp-'+idx)||{}).value?.trim() || '',
+      sku:   (document.getElementById('inv-entry-sku-'+idx)||{}).value?.trim()  || '',
+    });
+  });
+
+  if(!rows.length){
+    invEntryShowStatus('⚠️ Agrega al menos un producto con nombre.','warn');
+    return;
+  }
+
+  invEntryShowStatus('⏳ Creando '+rows.length+' entrada(s)…','info');
+  var saved=0, errors=0;
+
+  function saveNext(idx){
+    if(idx >= rows.length){
+      invEntryShowStatus('✅ '+saved+' entrada(s) creadas en inventario'+(errors?' · '+errors+' errores':''),'ok');
+      if(typeof showAlert==='function') showAlert('✅ '+saved+' productos agregados al inventario','success');
+      if(typeof renderInventory==='function') renderInventory();
+      if(typeof renderDashboard==='function') renderDashboard();
+      if(typeof renderDashPropWidget==='function') renderDashPropWidget();
+      setTimeout(closeInvEntryModal, 1500);
+      return;
+    }
+
+    var row = rows[idx];
+    /* Check if product already exists in inventory */
+    var existing = S.items ? S.items.find(function(item){
+      return item.name && item.name.toLowerCase() === row.name.toLowerCase();
+    }) : null;
+
+    var refNote = 'Invoice: ' + (_invEntryDoc ? _invEntryDoc.desc : '') + (notes ? ' · ' + notes : '');
+
+    if(existing){
+      /* Update existing product: increase qty + register movement */
+      var newQty = (parseInt(existing.qty)||0) + row.qty;
+      existing.qty = newQty;
+      existing.updatedAt = new Date().toISOString();
+
+      /* Save to Firestore + local */
+      var updateData = { qty: newQty, updatedAt: firebase.firestore ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString() };
+      if(row.price > 0) { updateData.price = row.price; existing.price = row.price; }
+
+      var saveMovement_local = function(){
+        S.movements = S.movements || [];
+        S.movements.unshift({
+          id: 'mov_inv_'+Date.now()+'_'+idx,
+          productId: existing.id,
+          productName: existing.name,
+          type: 'ENTRADA',
+          qty: row.qty,
+          newQty: newQty,
+          responsible: resp,
+          reason: refNote,
+          date: dateVal,
+          companyId: PROP.active ? PROP.active.id : 'default',
+          fromInvoice: _invEntryDoc ? _invEntryDoc.id : null,
+        });
+        if(typeof saveLocal==='function') saveLocal();
+        saved++;
+        saveNext(idx+1);
+      };
+
+      if(S.fbReady){
+        var db2 = firebase.firestore();
+        var batch = db2.batch();
+        batch.update(db2.collection(getPropInvCol()).doc(existing.id), updateData);
+        batch.set(db2.collection(COLS.MOV).doc(), {
+          productId: existing.id, productName: existing.name,
+          type:'ENTRADA', qty:row.qty, newQty:newQty,
+          responsible:resp, reason:refNote, date:dateVal,
+          companyId: PROP.active?PROP.active.id:'default',
+          fromInvoice: _invEntryDoc?_invEntryDoc.id:null,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+        batch.commit().then(saveMovement_local).catch(function(e){
+          console.warn('Firestore entry error:',e.message);
+          saveMovement_local(); /* save local even if FB fails */
+        });
+      } else { saveMovement_local(); }
+
+    } else {
+      /* Create NEW product */
+      var newId = 'inv_entry_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
+      var newItem = {
+        id: newId, name: row.name, cat: row.cat, unit: row.unit,
+        qty: row.qty, minQty: Math.max(1, Math.floor(row.qty * 0.2)),
+        price: row.price, sku: row.sku || '', barcode: '', brand: '',
+        supplier: row.supp, location: '', notes: refNote,
+        fromInvoice: _invEntryDoc ? _invEntryDoc.id : null,
+        entryDate: dateVal, createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      var createLocal = function(){
+        if(!S.items) S.items = [];
+        S.items.unshift(newItem);
+        S.movements = S.movements || [];
+        S.movements.unshift({
+          id: 'mov_'+newId, productId: newId, productName: row.name,
+          type:'ENTRADA', qty: row.qty, newQty: row.qty,
+          responsible: resp, reason: refNote, date: dateVal,
+          companyId: PROP.active?PROP.active.id:'default',
+          fromInvoice: _invEntryDoc?_invEntryDoc.id:null,
+        });
+        if(typeof saveLocal==='function') saveLocal();
+        saved++;
+        saveNext(idx+1);
+      };
+
+      if(S.fbReady){
+        var itemData = Object.assign({}, newItem, {
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+        firebase.firestore().collection(getPropInvCol()).doc(newId).set(itemData)
+          .then(function(){
+            firebase.firestore().collection(COLS.MOV).add({
+              productId:newId, productName:row.name,
+              type:'ENTRADA', qty:row.qty, newQty:row.qty,
+              responsible:resp, reason:refNote, date:dateVal,
+              companyId:PROP.active?PROP.active.id:'default',
+              fromInvoice:_invEntryDoc?_invEntryDoc.id:null,
+              createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+            });
+            createLocal();
+          }).catch(function(e){
+            console.warn('Firestore create error:',e.message);
+            createLocal();
+          });
+      } else { createLocal(); }
+    }
+  }
+
+  saveNext(0);
+}
+
+/* ── Close entry modal ── */
+function closeInvEntryModal(){
+  var m = document.getElementById('inv-entry-modal');
+  if(m) m.classList.remove('open');
+  _invEntryDoc = null;
+  _invEntryRows = 0;
+}
+
+/* ── Status message ── */
+function invEntryShowStatus(msg, type){
+  var el = document.getElementById('inv-entry-status');
+  if(!el) return;
+  el.style.display='block'; el.textContent=msg;
+  var s={ok:{bg:'#F0FDF4',b:'#86EFAC',c:'#166534'},warn:{bg:'#FFFBEB',b:'#FCD34D',c:'#92400E'},info:{bg:'#EFF6FF',b:'#93C5FD',c:'#1E40AF'}};
+  var t=s[type]||s.info;
+  el.style.background=t.bg; el.style.border='1.5px solid '+t.b; el.style.color=t.c;
+}
+
 </script>
 
 <!-- ═══════════════════════════════════════
@@ -8746,6 +9112,61 @@ function supSetTabTop(){
     <div class="modal-foot">
       <button class="btn-secondary" onclick="closeSupplierModal()">Cancelar</button>
       <button class="btn-primary" onclick="saveSupplier()" style="background:#1FAD6E">💾 Guardar Supplier</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     INVOICE → INVENTORY ENTRY MODAL
+════════════════════════════════════════ -->
+<div class="modal-bg" id="inv-entry-modal" onclick="if(event.target===this)closeInvEntryModal()">
+  <div class="modal" style="max-height:90vh;overflow-y:auto">
+    <div class="modal-hdr">
+      <h3>📥 Crear Entrada de Inventario</h3>
+      <button class="modal-close" onclick="closeInvEntryModal()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Invoice info banner -->
+      <div id="inv-entry-invoice-info" style="background:#F5F3FF;border:1.5px solid #C4B5FD;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#5B21B6">
+        <div style="font-weight:700;margin-bottom:3px">📎 Invoice de referencia</div>
+        <div id="inv-entry-invoice-desc" style="color:#6D28D9"></div>
+      </div>
+
+      <!-- Product rows — one per product in invoice -->
+      <div id="inv-entry-rows"></div>
+
+      <!-- Add product row button -->
+      <button onclick="invEntryAddRow()" style="width:100%;padding:9px;border:2px dashed var(--border);border-radius:10px;background:transparent;color:var(--text2);font-size:13px;cursor:pointer;margin-bottom:8px">
+        ＋ Agregar otro producto de este invoice
+      </button>
+
+      <!-- Global fields -->
+      <div class="frow2">
+        <div class="fgrp">
+          <label style="font-size:12px;font-weight:700;color:var(--text2)">Responsable</label>
+          <input type="text" id="inv-entry-resp" placeholder="Quién recibió"
+            style="padding:8px 10px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;width:100%;box-sizing:border-box">
+        </div>
+        <div class="fgrp">
+          <label style="font-size:12px;font-weight:700;color:var(--text2)">Fecha de entrada</label>
+          <input type="date" id="inv-entry-date"
+            style="padding:8px 10px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;width:100%;box-sizing:border-box">
+        </div>
+      </div>
+      <div class="fgrp">
+        <label style="font-size:12px;font-weight:700;color:var(--text2)">Notas generales</label>
+        <input type="text" id="inv-entry-notes" placeholder="Ej: Recibido completo, sin daños"
+          style="padding:8px 10px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;width:100%;box-sizing:border-box">
+      </div>
+
+      <div id="inv-entry-status" style="display:none;padding:8px 10px;border-radius:8px;font-size:12px;font-weight:600;margin-top:6px"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary" onclick="closeInvEntryModal()">Cancelar</button>
+      <button class="btn-primary" onclick="invEntryExecute()" style="background:#7C3AED">
+        📥 Crear entradas al inventario
+      </button>
     </div>
   </div>
 </div>
