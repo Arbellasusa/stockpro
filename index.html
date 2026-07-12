@@ -1033,6 +1033,11 @@ input,select,textarea{font-family:inherit;font-size:inherit}
   background: var(--surface, #fff) !important;
 }
 
+
+/* ── Invoice upload bar compact ── */
+.inv-upload-bar { flex-shrink:0 !important; }
+#inv-doc-list { flex:1 1 0% !important; overflow-y:auto !important; -webkit-overflow-scrolling:touch !important; min-height:0 !important; padding:8px 12px 40px !important; }
+
 </style>
 </head>
 <body>
@@ -1687,65 +1692,45 @@ input,select,textarea{font-family:inherit;font-size:inherit}
       <!-- TAB: INVOICES / DOCUMENTOS DE PROVEEDORES -->
       <div id="sup-tab-invoices" style="display:none;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden">
 
-        <!-- Upload bar -->
-        <div class="inv-upload-bar" style="padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface)">
-
-          <!-- Upload zone -->
-          <div id="inv-doc-dropzone"
-            style="border:2px dashed var(--border);border-radius:12px;padding:14px;text-align:center;cursor:pointer;background:var(--surface2);margin-bottom:8px"
-            onclick="document.getElementById('inv-doc-file').click()"
-            ondragover="event.preventDefault();this.style.borderColor='var(--blue)';this.style.background='#EFF6FF'"
-            ondragleave="this.style.borderColor='var(--border)';this.style.background='var(--surface2)'"
-            ondrop="invDocHandleDrop(event)">
-            <div style="font-size:28px;margin-bottom:4px">📎</div>
-            <div style="font-size:13px;font-weight:700;color:var(--text)">Subir Invoice / Documento</div>
-            <div style="font-size:11px;color:var(--text3);margin-top:3px">PDF · Excel · CSV · JPG · PNG · Word · ZIP</div>
-          </div>
-          <input type="file" id="inv-doc-file"
-            accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.docx,.doc,.zip,.txt,.xml"
-            style="display:none" onchange="invDocHandleFile(event)" multiple>
-
-          <!-- Supplier + date fields -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-            <div>
-              <label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:3px">Supplier</label>
-              <select id="inv-doc-supplier"
-                style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;background:#fff">
-                <option value="">— Seleccionar —</option>
-              </select>
+        <!-- Upload bar — compact -->
+        <div class="inv-upload-bar" style="padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0">
+          <!-- Row 1: File picker button -->
+          <div style="display:flex;gap:6px;margin-bottom:6px">
+            <div id="inv-doc-dropzone"
+              onclick="document.getElementById('inv-doc-file').click()"
+              ondragover="event.preventDefault();this.style.background='#EFF6FF'"
+              ondragleave="this.style.background='var(--surface2)'"
+              ondrop="invDocHandleDrop(event)"
+              style="flex:1;border:2px dashed var(--border);border-radius:10px;padding:8px 10px;cursor:pointer;background:var(--surface2);display:flex;align-items:center;gap:8px;min-width:0">
+              <span style="font-size:20px">📎</span>
+              <div style="min-width:0">
+                <div style="font-size:12px;font-weight:700;color:var(--text)">Seleccionar archivo</div>
+                <div id="inv-doc-filename" style="font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">PDF · Excel · CSV · JPG · Word · ZIP</div>
+              </div>
             </div>
-            <div>
-              <label style="font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:3px">Fecha del Invoice</label>
-              <input type="date" id="inv-doc-date"
-                style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;background:#fff">
-            </div>
+            <button onclick="invDocSave()" style="padding:8px 14px;background:var(--blue);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;flex-shrink:0">💾</button>
           </div>
-          <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
-            <input type="text" id="inv-doc-desc" placeholder="Descripción / No. de Invoice"
-              style="padding:8px 10px;border:1.5px solid var(--border);border-radius:9px;font-size:13px">
-            <button onclick="invDocSave()"
-              style="padding:8px 16px;background:var(--blue);color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;white-space:nowrap">
-              📎 Guardar
-            </button>
+          <input type="file" id="inv-doc-file" accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.docx,.doc,.zip,.txt,.xml" style="display:none" onchange="invDocHandleFile(event)" multiple>
+          <!-- Row 2: Supplier + Date + Desc -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+            <select id="inv-doc-supplier" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;background:#fff">
+              <option value="">— Supplier —</option>
+            </select>
+            <input type="date" id="inv-doc-date" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;background:#fff">
           </div>
-          <div id="inv-doc-upload-status" style="display:none;margin-top:6px;padding:7px 10px;border-radius:8px;font-size:12px;font-weight:600"></div>
+          <input type="text" id="inv-doc-desc" placeholder="No. de Invoice / Descripción" style="width:100%;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;box-sizing:border-box;margin-bottom:4px">
+          <div id="inv-doc-upload-status" style="display:none;padding:5px 8px;border-radius:7px;font-size:11px;font-weight:600"></div>
         </div>
 
-        <!-- Filters bar -->
-        <div style="padding:8px 12px;display:flex;gap:6px;background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap">
-          <select id="inv-doc-filter-supplier"
-            style="flex:1;min-width:100px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;background:#fff"
-            onchange="invDocRender()">
-            <option value="">Todos los Suppliers</option>
+        <!-- Filters bar — compact -->
+        <div style="padding:5px 12px;display:flex;gap:5px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0">
+          <select id="inv-doc-filter-supplier" style="flex:1;min-width:80px;padding:5px 6px;border:1.5px solid var(--border);border-radius:7px;font-size:11px;background:#fff" onchange="invDocOpenDB().then(invDocRender)">
+            <option value="">Todos</option>
           </select>
-          <select id="inv-doc-filter-year"
-            style="width:80px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;background:#fff"
-            onchange="invDocRender()">
+          <select id="inv-doc-filter-year" style="width:70px;padding:5px 4px;border:1.5px solid var(--border);border-radius:7px;font-size:11px;background:#fff" onchange="invDocOpenDB().then(invDocRender)">
             <option value="">Año</option>
           </select>
-          <select id="inv-doc-filter-month"
-            style="width:90px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;background:#fff"
-            onchange="invDocRender()">
+          <select id="inv-doc-filter-month" style="width:80px;padding:5px 4px;border:1.5px solid var(--border);border-radius:7px;font-size:11px;background:#fff" onchange="invDocOpenDB().then(invDocRender)">
             <option value="">Mes</option>
             <option value="01">Enero</option><option value="02">Febrero</option>
             <option value="03">Marzo</option><option value="04">Abril</option>
@@ -1754,7 +1739,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
             <option value="09">Septiembre</option><option value="10">Octubre</option>
             <option value="11">Noviembre</option><option value="12">Diciembre</option>
           </select>
-          <button onclick="invDocRender()" style="padding:6px 10px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;font-size:12px;cursor:pointer">🔍</button>
+          <button onclick="invDocOpenDB().then(invDocRender)" style="padding:5px 8px;background:var(--surface2);border:1.5px solid var(--border);border-radius:7px;font-size:11px;cursor:pointer">🔍</button>
         </div>
 
         <!-- Document list - scrollable -->
@@ -8023,11 +8008,14 @@ function invDocGetAllCb(db,cb){
 function invDocHandleDrop(e){
   e.preventDefault();
   var dz=document.getElementById('inv-doc-dropzone');
-  if(dz){dz.style.borderColor='var(--border)';dz.style.background='var(--surface2)';}
+  if(dz){dz.style.background='var(--surface2)';}
   var files=e.dataTransfer.files;
   if(!files||!files.length)return;
   _invPendingFile=files.length===1?files[0]:Array.from(files);
-  invDocShowStatus('📎 '+Array.from(files).map(function(f){return f.name;}).join(', ')+' — Completa los datos y toca Guardar','info');
+  var names=Array.from(files).map(function(f){return f.name;}).join(', ');
+  var fn=document.getElementById('inv-doc-filename');
+  if(fn) fn.textContent='✅ '+names;
+  invDocShowStatus('📎 '+names+' listo — toca 💾','info');
 }
 
 /* file input */
@@ -8035,7 +8023,10 @@ function invDocHandleFile(e){
   var files=e.target.files;
   if(!files||!files.length)return;
   _invPendingFile=files.length===1?files[0]:Array.from(files);
-  invDocShowStatus('📎 '+Array.from(files).map(function(f){return f.name;}).join(', ')+' — Completa los datos y toca Guardar','info');
+  var names=Array.from(files).map(function(f){return f.name;}).join(', ');
+  var fn=document.getElementById('inv-doc-filename');
+  if(fn) fn.textContent='✅ '+names;
+  invDocShowStatus('📎 '+names+' listo — toca 💾','info');
 }
 
 /* SAVE — FileReader + callbacks, no async/await */
