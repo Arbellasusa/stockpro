@@ -8197,6 +8197,9 @@ function invDocRender(dbArg){
             +'<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">'
             +'<button onclick="invDocDownload(\''+doc.id+'\')" '
             +'style="background:var(--blue);color:#fff;border:none;border-radius:7px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer">⬇ Ver</button>'
+            +'<button onclick="invDocCreateEntry(\''+doc.id+'\')" '
+            +'style="background:#7C3AED;color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">📥 Entrada</button>'
+
             +'<button onclick="invDocCopyMeta(\''+doc.id+'\')" '
             +'style="background:#1FAD6E;color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">📋 Info</button>'
             +'<button onclick="invDocDelete(\''+doc.id+'\')" '
