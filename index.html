@@ -6118,6 +6118,7 @@ function navigateDHS(page){
     try{
       supSetTabTop();
       initDefaultSuppliers();
+      supSwitchTab('sup-tab-list', document.querySelector('.sup-tab'));
       renderSupplierList();
       restoreSuppliersFromFirestore();
     }catch(e){ console.warn('navigateDHS supplier init:',e); }
@@ -6178,6 +6179,9 @@ function propCloudLoad(){
     if(added){ try{ renderPropList(); renderDashPropWidget(); }catch(e){} showAlert('\u2705 '+added+' instituci\u00f3n(es) sincronizada(s)','success'); }
     // follow the company this user last selected on any device
     var wanted=cdata.activePropId;
+    var _cTs=(cdata.propsUpdatedAt&&cdata.propsUpdatedAt.toMillis)?cdata.propsUpdatedAt.toMillis():0;
+    var _lTs=0; try{ _lTs=+localStorage.getItem('sp_active_ts')||0; }catch(e){}
+    if(_lTs>_cTs) wanted=''; /* manual local choice is newer than cloud: keep it */
     if(wanted && PROP.active && PROP.active.id!==wanted && PROP.list.some(function(p){ return p.id===wanted; })){
       PROP.list.forEach(function(p){ p.active=(p.id===wanted); });
       PROP.active=PROP.list.find(function(p){ return p.id===wanted; });
@@ -6311,6 +6315,7 @@ function renderPropCurrentCard(){
 /* ── RENDER SAVED LIST ── */
 
 function propSwitchAndClose(id){
+  try{ localStorage.setItem('sp_active_ts', String(Date.now())); }catch(e){}
   // Switch property and reload inventory
   PROP.list.forEach(function(p){ p.active = (p.id === id); });
   PROP.active = PROP.list.find(function(p){ return p.id === id; }) || PROP.list[0];
@@ -6378,6 +6383,7 @@ function renderPropList(){
 
 /* ── SWITCH ACTIVE PROPERTY ── */
 function switchToProperty(id){
+  try{ localStorage.setItem('sp_active_ts', String(Date.now())); }catch(e){}
   PROP.list.forEach(p => p.active = (p.id === id));
   PROP.active = PROP.list.find(p=>p.id===id) || PROP.list[0];
   propSave();
