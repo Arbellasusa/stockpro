@@ -6161,6 +6161,14 @@ function propCloudLoad(){
     var cdata=snap.exists?snap.data():{};
     var cloud=cdata.properties||[];
     var tomb=cdata.deletedPropIds||[];
+    /* Admin: also gather companies saved under other accounts (same company, different login) */
+    var _others=firebase.firestore().collection(COLS.USR).get().then(function(qs){
+      var extra=[],seen={},tm={};
+      (cdata.properties||[]).forEach(function(c){ if(c&&c.id) seen[c.id]=1; });
+      qs.forEach(function(d){ var x=d.data()||{}; (x.deletedPropIds||[]).forEach(function(i){ tm[i]=1; });
+        (x.properties||[]).forEach(function(c){ if(c&&c.id&&c.name&&!seen[c.id]){ seen[c.id]=1; extra.push(c); } }); });
+      return extra.filter(function(c){ return !tm[c.id]; });
+    }).catch(function(){ return []; });
     if(tomb.length && PROP.list.some(function(p){ return tomb.indexOf(p.id)>=0 && p.id!=='prop_default'; })){
       PROP.list=PROP.list.filter(function(p){ return tomb.indexOf(p.id)<0 || p.id==='prop_default'; });
       if(!PROP.list.some(function(p){ return p.active; }) && PROP.list.length){ PROP.list[0].active=true; }
@@ -6168,6 +6176,8 @@ function propCloudLoad(){
       try{ localStorage.setItem('sp_properties', JSON.stringify(PROP.list)); }catch(e){}
       try{ applyActiveProperty(); renderPropList(); renderDashPropWidget(); }catch(e){}
     }
+    return _others.then(function(extra){
+    cloud=cloud.concat(extra);
     cloud=cloud.filter(function(c){ return tomb.indexOf(c.id)<0; });
     var byId={}; (PROP.list||[]).forEach(function(p){ byId[p.id]=p; });
     var added=0;
@@ -6192,6 +6202,7 @@ function propCloudLoad(){
     // push local-only companies up so other devices can get them
     var cloudIds={}; cloud.forEach(function(c){ if(c&&c.id) cloudIds[c.id]=1; });
     if(PROP.list.some(function(p){ return !cloudIds[p.id]; })) propCloudSave();
+    });
   }).catch(function(e){ console.warn('[props] cloud load skipped:',e.code||e.message); });
 }
 function propLoad(){
