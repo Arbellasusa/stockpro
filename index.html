@@ -6159,6 +6159,15 @@ function propCloudLoad(){
   firebase.firestore().collection(COLS.USR).doc(S.user.uid).get().then(function(snap){
     var cdata=snap.exists?snap.data():{};
     var cloud=cdata.properties||[];
+    var tomb=cdata.deletedPropIds||[];
+    if(tomb.length && PROP.list.some(function(p){ return tomb.indexOf(p.id)>=0 && p.id!=='prop_default'; })){
+      PROP.list=PROP.list.filter(function(p){ return tomb.indexOf(p.id)<0 || p.id==='prop_default'; });
+      if(!PROP.list.some(function(p){ return p.active; }) && PROP.list.length){ PROP.list[0].active=true; }
+      PROP.active=PROP.list.find(function(p){ return p.active; })||PROP.list[0];
+      try{ localStorage.setItem('sp_properties', JSON.stringify(PROP.list)); }catch(e){}
+      try{ applyActiveProperty(); renderPropList(); renderDashPropWidget(); }catch(e){}
+    }
+    cloud=cloud.filter(function(c){ return tomb.indexOf(c.id)<0; });
     var byId={}; (PROP.list||[]).forEach(function(p){ byId[p.id]=p; });
     var added=0;
     cloud.forEach(function(c){
@@ -6390,6 +6399,7 @@ function deletePropItem(id){
   if(!confirm('¿Eliminar esta institución del registro?')) return;
   PROP.list = PROP.list.filter(p=>p.id!==id);
   propSave(); renderPropList();
+  try{ if(S.fbReady&&S.user&&S.user.uid) firebase.firestore().collection(COLS.USR).doc(S.user.uid).set({deletedPropIds:firebase.firestore.FieldValue.arrayUnion(id)},{merge:true}).catch(function(){}); }catch(e){}
   showAlert('Institución eliminada','info');
 }
 
