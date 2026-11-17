@@ -1554,6 +1554,13 @@ input,select,textarea{font-family:inherit;font-size:inherit}
     <div class="page" id="pg-export">
       <div style="padding:14px;display:flex;flex-direction:column;gap:10px">
         <div class="section-lbl" data-i="export_data">Exportar datos</div>
+        <div class="card" style="margin:0;cursor:pointer" onclick="printInventory()">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="width:44px;height:44px;border-radius:var(--r2);background:#FFF4E5;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🖨️</div>
+            <div style="flex:1"><strong style="font-size:14px">Imprimir / Guardar PDF</strong><div style="font-size:12px;color:var(--text3)">Elige impresora o &laquo;Guardar como PDF&raquo;</div></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+        </div>
         <div class="card" style="margin:0;cursor:pointer" onclick="exportQuickBooks()">
           <div style="display:flex;align-items:center;gap:14px">
             <div style="width:44px;height:44px;border-radius:var(--r2);background:#E6F9F1;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🧾</div>
@@ -2342,7 +2349,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
 
       <!-- TAB: PRINT -->
       <div id="rpt-tab-print" style="display:none;padding:4px 0">
-        <button onclick="window.print()" style="width:100%;padding:12px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px">
+        <button onclick="printReport()" style="width:100%;padding:12px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
           Imprimir / Print
         </button>
@@ -2911,11 +2918,13 @@ function showProfile(){ showAlert(S.user?.name+' · '+S.user?.email, 'info'); }
 /* ── FIREBASE LISTENERS ── */
 function attachListeners(){
   if(!S.fbReady) return;
+  try{ detachListeners(); }catch(e){}   // never stack listeners from a previous company/login
   const db = firebase.firestore();
   const u1 = db.collection(getPropInvCol()).orderBy('name').onSnapshot(snap=>{
     S.items = snap.docs.map(d=>({id:d.id,...d.data()}));
       try{ onInventoryLoaded(); }catch(e){}
-    if(!S.items.length) seedFirestore();
+    // auto-seed ONLY the default hotel, ONLY from a real server snapshot (never from empty cache / other companies)
+    if(!S.items.length && !snap.metadata.fromCache && PROP.active && PROP.active.id==='prop_default') seedFirestore();
     renderInventory(); renderDashboard(); checkAlerts(); setSyncOnline();
   }, ()=>setSyncOffline());
   const u2 = db.collection(COLS.MOV).orderBy('date','desc').limit(80).onSnapshot(snap=>{
@@ -4162,13 +4171,17 @@ function generateReport(period, fromDate, toDate){
 }
 
 function closeRptModal(){ document.getElementById('rpt-modal').classList.remove('open'); }
-function printReport(){ window.print(); }
+function printReport(){
+  var pv=document.getElementById('rpt-preview');
+  if(!pv||!pv.innerHTML.trim()){ showAlert('Genera un reporte primero','warn'); return; }
+  printHtmlDoc(document.getElementById('rpt-modal-title').textContent||'Reporte','<div style="font-size:11px">'+pv.innerHTML+'</div>');
+}
 
 /* ── PROFESSIONAL jsPDF ACCOUNTING REPORT ── */
 function downloadPDF(){
   if(!S.currentRptData){showAlert('Genera un reporte primero','warn');return;}
   const {periodLabel, reportNum, now, productData, totals, periodDels, health} = S.currentRptData;
-  if(!window.jspdf){showAlert('Generando PDF...','info');window.print();return;}
+  if(!window.jspdf){showAlert('Abriendo impresi\u00f3n...','info');printReport();return;}
   try{
     const {jsPDF}=window.jspdf;
     const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
@@ -4440,7 +4453,7 @@ function downloadPDF(){
   }catch(e){
     console.error('PDF error:',e);
     showAlert('Error generando PDF — abriendo impresión','warn');
-    window.print();
+    printReport();
   }
 }
 
@@ -4572,7 +4585,57 @@ function exportJSON(){
   const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`ArbellaStock_WMS_${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(url);
   showAlert('✅ JSON exportado','success');
 }
-function printInventory(){ window.print(); }
+/* ===== PRINT ENGINE: opens a clean document so the browser shows the printer / "Save as PDF" dialog ===== */
+function _esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function printHtmlDoc(title,bodyHtml){
+  var css='@page{size:letter;margin:14mm}*{box-sizing:border-box}body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#0A1628;font-size:11px;margin:0;padding:14px}'
+   +'h1{font-size:18px;margin:0 0 2px}h2{font-size:12px;margin:0 0 4px;color:#334}.meta{color:#555;margin-bottom:10px}'
+   +'table{width:100%;border-collapse:collapse;margin-top:8px}th{background:#0A1628;color:#fff;text-align:left;padding:5px 6px;font-size:10px}'
+   +'td{padding:4px 6px;border-bottom:1px solid #ccd}tr.cat td{background:#DCE6F2;font-weight:700}td.n,th.n{text-align:right}'
+   +'tfoot td{font-weight:800;border-top:2px solid #0A1628}thead{display:table-header-group}tr{page-break-inside:avoid}'
+   +'.sig{display:flex;justify-content:space-between;margin-top:46px;page-break-inside:avoid}.sig div{width:30%;border-top:1px solid #000;padding-top:4px;font-weight:700;text-align:left}'
+   +'.low{color:#B45309}.out{color:#B91C1C}.ok{color:#15803D}.bar{margin:10px 0;padding:8px;background:#f2f5fa;border-radius:6px}'
+   +'@media print{.noprint{display:none}}';
+  var html='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+_esc(title)+'</title><style>'+css+'</style></head><body>'
+   +'<div class="noprint bar"><button onclick="window.print()" style="padding:10px 16px;font-size:15px;font-weight:700;border:0;border-radius:8px;background:#1E4DB7;color:#fff">&#128424; Imprimir / Guardar PDF</button> <span style="color:#555">Elige tu impresora o &laquo;Guardar como PDF&raquo;</span></div>'
+   +bodyHtml+'</body></html>';
+  var w=null;
+  try{ w=window.open('','_blank'); }catch(e){}
+  if(w && w.document){
+    w.document.open(); w.document.write(html); w.document.close();
+    try{ w.focus(); }catch(e){}
+    setTimeout(function(){ try{ w.print(); }catch(e){} },600);
+    return true;
+  }
+  // popup blocked -> hidden iframe fallback
+  try{
+    var f=document.createElement('iframe'); f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    document.body.appendChild(f); var d=f.contentWindow.document; d.open(); d.write(html); d.close();
+    setTimeout(function(){ try{ f.contentWindow.focus(); f.contentWindow.print(); }catch(e){ showAlert('No se pudo abrir la impresión. Permite ventanas emergentes para este sitio.','warn'); } setTimeout(function(){ try{document.body.removeChild(f);}catch(e){} },60000); },500);
+    return true;
+  }catch(e){ showAlert('No se pudo abrir la impresión. Permite ventanas emergentes para este sitio.','warn'); return false; }
+}
+function printInventory(){
+  var items=S.items||[]; if(!items.length){ showAlert('No hay productos para imprimir','warn'); return; }
+  var co=getPropName(), now=new Date();
+  var fmt=function(n){ return Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  var cats={}; items.forEach(function(i){ var c=i.cat||'General'; (cats[c]=cats[c]||[]).push(i); });
+  var rows='', totQ=0, totV=0;
+  Object.keys(cats).sort().forEach(function(c){
+    rows+='<tr class="cat"><td colspan="7">'+_esc(c)+'</td></tr>';
+    cats[c].sort(function(a,b){ return String(a.name).localeCompare(String(b.name)); }).forEach(function(i){
+      var q=i.qty||0, v=q*Number(i.price||0); totQ+=q; totV+=v;
+      var st=q<=0?'<span class="out">Agotado</span>':q<(i.minQty||10)?'<span class="low">Stock bajo</span>':'<span class="ok">Disponible</span>';
+      rows+='<tr><td>'+_esc(i.sku||i.barcode||'')+'</td><td>'+_esc(i.name)+'</td><td>'+_esc(i.unit||'')+'</td><td class="n">'+q+'</td><td class="n">$'+fmt(i.price||0)+'</td><td class="n">$'+fmt(v)+'</td><td>'+st+'</td></tr>';
+    });
+  });
+  var body='<h1>'+_esc(co)+'</h1><h2>Arbella\'s StockPro WMS &mdash; Inventory / Inventario</h2>'
+   +'<div class="meta">'+now.toLocaleDateString('en-US')+' '+now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})+' &middot; '+_esc((S.user&&S.user.name)||'')+' &middot; '+items.length+' productos</div>'
+   +'<table><thead><tr><th>SKU</th><th>Product / Producto</th><th>U/M</th><th class="n">Qty</th><th class="n">Unit cost</th><th class="n">Total</th><th>Status</th></tr></thead><tbody>'+rows+'</tbody>'
+   +'<tfoot><tr><td colspan="3">TOTAL</td><td class="n">'+totQ+'</td><td></td><td class="n">$'+fmt(totV)+'</td><td></td></tr></tfoot></table>'
+   +'<div class="sig"><div>Elaborado por<br>Houseman Roldan A.</div><div>Revisado<br>Supervisor</div><div>Aprobado<br>Manager Jorge Sanchez</div></div>';
+  printHtmlDoc('Inventario '+co+' '+now.toISOString().slice(0,10),body);
+}
 
 function updateFbStats(){
   const el=document.getElementById('fb-live-stats'); if(!el) return;
@@ -6088,13 +6151,14 @@ function _propClean(l){
 function propCloudSave(){
   if(!window.firebase || !S.fbReady || !S.user || !S.user.uid) return;
   firebase.firestore().collection(COLS.USR).doc(S.user.uid)
-    .set({properties:_propClean(PROP.list),propsUpdatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true})
+    .set({properties:_propClean(PROP.list),activePropId:(PROP.active&&PROP.active.id)||'',propsUpdatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true})
     .catch(function(e){ console.warn('[props] cloud save skipped:',e.code||e.message); });
 }
 function propCloudLoad(){
   if(!window.firebase || !S.fbReady || !S.user || !S.user.uid) return;
   firebase.firestore().collection(COLS.USR).doc(S.user.uid).get().then(function(snap){
-    var cloud=(snap.exists&&snap.data().properties)||[];
+    var cdata=snap.exists?snap.data():{};
+    var cloud=cdata.properties||[];
     var byId={}; (PROP.list||[]).forEach(function(p){ byId[p.id]=p; });
     var added=0;
     cloud.forEach(function(c){
@@ -6103,6 +6167,15 @@ function propCloudLoad(){
     });
     try{ localStorage.setItem('sp_properties', JSON.stringify(PROP.list)); }catch(e){}
     if(added){ try{ renderPropList(); renderDashPropWidget(); }catch(e){} showAlert('\u2705 '+added+' instituci\u00f3n(es) sincronizada(s)','success'); }
+    // follow the company this user last selected on any device
+    var wanted=cdata.activePropId;
+    if(wanted && PROP.active && PROP.active.id!==wanted && PROP.list.some(function(p){ return p.id===wanted; })){
+      PROP.list.forEach(function(p){ p.active=(p.id===wanted); });
+      PROP.active=PROP.list.find(function(p){ return p.id===wanted; });
+      try{ localStorage.setItem('sp_properties', JSON.stringify(PROP.list)); }catch(e){}
+      try{ applyActiveProperty(); S.items=[]; renderInventory(); renderDashboard(); renderDashPropWidget(); attachListeners(); }catch(e){ console.warn('[props] switch:',e); }
+      showAlert('\u2705 '+PROP.active.name+' \u2014 datos sincronizados','success');
+    }
     // push local-only companies up so other devices can get them
     var cloudIds={}; cloud.forEach(function(c){ if(c&&c.id) cloudIds[c.id]=1; });
     if(PROP.list.some(function(p){ return !cloudIds[p.id]; })) propCloudSave();
