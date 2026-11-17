@@ -1554,6 +1554,20 @@ input,select,textarea{font-family:inherit;font-size:inherit}
     <div class="page" id="pg-export">
       <div style="padding:14px;display:flex;flex-direction:column;gap:10px">
         <div class="section-lbl" data-i="export_data">Exportar datos</div>
+        <div class="card" style="margin:0;cursor:pointer" onclick="exportQuickBooks()">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="width:44px;height:44px;border-radius:var(--r2);background:#E6F9F1;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🧾</div>
+            <div style="flex:1"><strong style="font-size:14px">QuickBooks (CSV)</strong><div style="font-size:12px;color:var(--text3)">Importar en QuickBooks Online: Productos y servicios</div></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+        </div>
+        <div class="card" style="margin:0;cursor:pointer" onclick="exportExcel()">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="width:44px;height:44px;border-radius:var(--r2);background:#EAF7EA;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">📗</div>
+            <div style="flex:1"><strong style="font-size:14px">Excel (.xlsx)</strong><div style="font-size:12px;color:var(--text3)">Inventario con totales por f&oacute;rmula y resumen por categor&iacute;a</div></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+        </div>
         <div class="card" style="margin:0;cursor:pointer" onclick="exportCSV()">
           <div style="display:flex;align-items:center;gap:14px">
             <div style="width:44px;height:44px;border-radius:var(--r2);background:#E6F9F1;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">📊</div>
@@ -4470,13 +4484,73 @@ function shareWhatsApp(){
 }
 
 /* ── EXPORT ── */
+/* ===== ACCOUNTING EXPORTS (CSV / QuickBooks / Excel) ===== */
+function _csvCell(v){
+  var s=(v===null||v===undefined)?'':String(v);
+  return /[",\r\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
+}
+function _csvBuild(headers,rows){
+  var out=[headers.map(_csvCell).join(',')];
+  rows.forEach(function(r){ out.push(r.map(_csvCell).join(',')); });
+  return out.join('\r\n')+'\r\n';
+}
+function _safeFile(s){ return String(s||'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_+|_+$/g,''); }
+function _downloadText(text,name,mime){
+  var blob=new Blob(['﻿'+text],{type:mime||'text/csv;charset=utf-8'});
+  var url=URL.createObjectURL(blob); var a=document.createElement('a');
+  a.href=url; a.download=name; document.body.appendChild(a); a.click();
+  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); },500);
+}
+function _mdy(d){ d=d||new Date(); return ('0'+(d.getMonth()+1)).slice(-2)+'/'+('0'+d.getDate()).slice(-2)+'/'+d.getFullYear(); }
+function _itemStatus(i){ var q=i.qty||0; return q<=0?'Agotado':q<(i.minQty||10)?'Stock bajo':'Disponible'; }
+function _qbName(i,used){
+  var n=String(i.name||i.sku||'Item').replace(/:/g,'-').replace(/\s+/g,' ').trim().slice(0,100);
+  var key=n.toLowerCase();
+  if(used[key]){ n=(n.slice(0,100-String(i.sku||'').length-3)+' ['+(i.sku||used[key])+']').slice(0,100); key=n.toLowerCase(); }
+  used[key]=(used[key]||0)+1; return n;
+}
+/* Generic CSV: one clean table, UTF-8, proper quoting, CRLF */
 function exportCSV(){
-  const headers=['ID','Código','SKU','Nombre','Categoría','Cantidad','Unidad','Ubicación','Precio','Valor Total','Stock Min','Proveedor','Estado'];
-  const rows=S.items.map(i=>{const s=!i.qty||i.qty<=0?t('out_of_stock'):i.qty<(i.minQty||10)?t('low_stock'):'OK';return[i.id,i.barcode,i.sku,`"${i.name}"`,i.cat,i.qty||0,i.unit,i.loc,Number(i.price||0).toFixed(2),((i.qty||0)*(i.price||0)).toFixed(2),i.minQty||10,i.supplier||'',s];});
-  const csv=[headers.join(','),...rows.map(r=>r.join(','))].join('\\n');
-  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
-  const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`StockPro_HotelArbellas_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
-  showAlert('✅ CSV exportado','success');
+  var items=S.items||[]; if(!items.length){ showAlert('No hay productos para exportar','warn'); return; }
+  var headers=['SKU','Barcode','Product','Category','U/M','Qty On Hand','Unit Cost','Total Value','Reorder Point','Supplier','Location','Status'];
+  var rows=items.map(function(i){ var q=i.qty||0,c=Number(i.price||0);
+    return [i.sku||'',i.barcode||'',i.name||'',i.cat||'',i.unit||'',q,c.toFixed(2),(q*c).toFixed(2),i.minQty||0,i.supplier||'',i.loc||'',_itemStatus(i)]; });
+  _downloadText(_csvBuild(headers,rows),'Inventario_'+_safeFile(getPropName())+'_'+new Date().toISOString().slice(0,10)+'.csv');
+  showAlert('✅ CSV exportado ('+items.length+' productos)','success');
+}
+/* QuickBooks Online: Products & Services import (Settings > Import data > Products and services) */
+function exportQuickBooks(){
+  var items=S.items||[]; if(!items.length){ showAlert('No hay productos para exportar','warn'); return; }
+  var asOf=_mdy(), used={};
+  var headers=['Product/Service Name','SKU','Type','Description','Sales Price/Rate','Income Account','Purchase Description','Purchase Cost','Expense Account','Quantity On Hand','Reorder Point','Inventory Asset Account','Inventory Start Date','Taxable','Category'];
+  var rows=items.map(function(i){
+    var cost=Number(i.price||0).toFixed(2), desc=(i.name||'')+(i.unit?' ('+i.unit+')':'');
+    return [_qbName(i,used),i.sku||i.barcode||'','Inventory',desc,cost,'Sales of Product Income',desc,cost,'Cost of Goods Sold',Math.max(0,i.qty||0),i.minQty||0,'Inventory Asset',asOf,'No',(i.cat||'').replace(/:/g,'-')];
+  });
+  _downloadText(_csvBuild(headers,rows),'QuickBooks_Inventario_'+_safeFile(getPropName())+'_'+new Date().toISOString().slice(0,10)+'.csv');
+  showAlert('✅ Archivo QuickBooks listo ('+items.length+' productos)','success');
+}
+/* Excel workbook: Inventory + Summary by category, with live formulas */
+function exportExcel(){
+  var items=S.items||[]; if(!items.length){ showAlert('No hay productos para exportar','warn'); return; }
+  if(!window.XLSX){ showAlert('Excel no disponible sin conexión','warn'); return; }
+  var co=getPropName(), today=new Date().toISOString().slice(0,10);
+  var aoa=[[co+' — Inventario / Inventory'],['Fecha / Date: '+today+'   ·   Generado por: '+((S.user&&S.user.email)||'')],[],
+    ['SKU','Barcode','Product','Category','U/M','Qty On Hand','Unit Cost','Total Value','Reorder Point','Supplier','Location','Status']];
+  items.forEach(function(i,k){ var r=aoa.length+1;
+    aoa.push([i.sku||'',i.barcode||'',i.name||'',i.cat||'',i.unit||'',i.qty||0,Number(i.price||0),{f:'F'+r+'*G'+r},i.minQty||0,i.supplier||'',i.loc||'',_itemStatus(i)]); });
+  var last=aoa.length, tr=last+1;
+  aoa.push([]); aoa.push(['','','TOTAL','','',{f:'SUM(F5:F'+last+')'},'',{f:'SUM(H5:H'+last+')'}]);
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:20},{wch:18},{wch:44},{wch:16},{wch:12},{wch:12},{wch:11},{wch:13},{wch:12},{wch:22},{wch:12},{wch:12}];
+  ws['!freeze']={xSplit:0,ySplit:4}; ws['!autofilter']={ref:'A4:L'+last};
+  for(var r=5;r<=last+2;r++){ ['G','H'].forEach(function(c){ var cell=ws[c+r]; if(cell) cell.z='#,##0.00'; }); }
+  var cats={}; items.forEach(function(i){ var c=i.cat||'General'; cats[c]=cats[c]||{n:0,q:0,v:0}; cats[c].n++; cats[c].q+=(i.qty||0); cats[c].v+=(i.qty||0)*Number(i.price||0); });
+  var s2=[['Category','Products','Qty On Hand','Total Value']]; Object.keys(cats).sort().forEach(function(c){ s2.push([c,cats[c].n,cats[c].q,Math.round(cats[c].v*100)/100]); });
+  var ws2=XLSX.utils.aoa_to_sheet(s2); ws2['!cols']=[{wch:24},{wch:10},{wch:12},{wch:14}];
+  var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Inventory'); XLSX.utils.book_append_sheet(wb,ws2,'Summary');
+  XLSX.writeFile(wb,'Inventario_'+_safeFile(co)+'_'+today+'.xlsx');
+  showAlert('✅ Excel exportado ('+items.length+' productos)','success');
 }
 function exportJSON(){
   const data={exportedAt:new Date().toISOString(),hotel:getPropName(),location:getPropCity(),project:'hk-pro-housekeeping',exportedBy:S.user?.email,totalItems:S.items.length,totalValue:S.items.reduce((s,i)=>s+(i.qty||0)*(i.price||0),0).toFixed(2),items:S.items,movements:S.movements.slice(0,50)};
