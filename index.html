@@ -4152,6 +4152,7 @@ function generateReport(period, fromDate, toDate){
         <table style="width:100%;border-collapse:collapse;font-size:10px;min-width:600px">
           <thead>
             <tr style="background:#0F1F3D;color:#fff">
+              <th style="padding:6px 4px;text-align:center">Foto</th>
               <th style="padding:6px 6px;text-align:left;white-space:nowrap">Code</th>
               <th style="padding:6px 6px;text-align:left">Product</th>
               <th style="padding:6px 4px;text-align:center">Unit</th>
@@ -4168,6 +4169,7 @@ function generateReport(period, fromDate, toDate){
           <tbody>
             ${productData.map((p,i)=>`
             <tr style="background:${i%2===0?'#fff':'#F9FAFB'};border-bottom:1px solid #E5E7EB">
+              <td style="padding:3px 4px;text-align:center">${(S.items.find(x=>x.id===p.id)||{}).photo?'<img src="'+(S.items.find(x=>x.id===p.id)).photo+'" style="width:30px;height:30px;object-fit:cover;border-radius:4px">':''}</td>
               <td style="padding:5px 6px;font-family:monospace;font-size:9px;color:#374151">${p.sku}</td>
               <td style="padding:5px 6px;font-weight:600;color:#111827">${p.name}</td>
               <td style="padding:5px 4px;text-align:center;color:#6B7280">${p.unit}</td>
@@ -4183,7 +4185,7 @@ function generateReport(period, fromDate, toDate){
           </tbody>
           <tfoot>
             <tr style="background:#0F1F3D;color:#fff;font-weight:800">
-              <td colspan="3" style="padding:7px 6px;font-size:11px">TOTAL GENERAL</td>
+              <td colspan="4" style="padding:7px 6px;font-size:11px">TOTAL GENERAL</td>
               <td style="padding:7px 4px;text-align:right;font-size:11px">—</td>
               <td style="padding:7px 4px;text-align:right;color:#86EFAC;font-size:11px">+${totals.totalEntries}</td>
               <td style="padding:7px 4px;text-align:right;color:#FCA5A5;font-size:11px">-${totals.totalExits}</td>
@@ -4725,17 +4727,18 @@ function printInventory(){
   var cats={}; items.forEach(function(i){ var c=i.cat||'General'; (cats[c]=cats[c]||[]).push(i); });
   var rows='', totQ=0, totV=0;
   Object.keys(cats).sort().forEach(function(c){
-    rows+='<tr class="cat"><td colspan="7">'+_esc(c)+'</td></tr>';
+    rows+='<tr class="cat"><td colspan="8">'+_esc(c)+'</td></tr>';
     cats[c].sort(function(a,b){ return String(a.name).localeCompare(String(b.name)); }).forEach(function(i){
       var q=i.qty||0, v=q*Number(i.price||0); totQ+=q; totV+=v;
       var st=q<=0?'<span class="out">Agotado</span>':q<(i.minQty||10)?'<span class="low">Stock bajo</span>':'<span class="ok">Disponible</span>';
-      rows+='<tr><td>'+_esc(i.sku||i.barcode||'')+'</td><td>'+_esc(i.name)+'</td><td>'+_esc(i.unit||'')+'</td><td class="n">'+q+'</td><td class="n">$'+fmt(i.price||0)+'</td><td class="n">$'+fmt(v)+'</td><td>'+st+'</td></tr>';
+      var ph=i.photo?'<img src="'+i.photo+'" style="width:34px;height:34px;object-fit:cover;border-radius:4px;display:block">':'';
+      rows+='<tr><td style="width:40px">'+ph+'</td><td>'+_esc(i.sku||i.barcode||'')+'</td><td>'+_esc(i.name)+'</td><td>'+_esc(i.unit||'')+'</td><td class="n">'+q+'</td><td class="n">$'+fmt(i.price||0)+'</td><td class="n">$'+fmt(v)+'</td><td>'+st+'</td></tr>';
     });
   });
   var body='<h1>'+_esc(co)+'</h1><h2>Arbella\'s StockPro WMS &mdash; Inventory / Inventario</h2>'
    +'<div class="meta">'+now.toLocaleDateString('en-US')+' '+now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})+' &middot; '+_esc((S.user&&S.user.name)||'')+' &middot; '+items.length+' productos</div>'
-   +'<table><thead><tr><th>SKU</th><th>Product / Producto</th><th>U/M</th><th class="n">Qty</th><th class="n">Unit cost</th><th class="n">Total</th><th>Status</th></tr></thead><tbody>'+rows+'</tbody>'
-   +'<tfoot><tr><td colspan="3">TOTAL</td><td class="n">'+totQ+'</td><td></td><td class="n">$'+fmt(totV)+'</td><td></td></tr></tfoot></table>'
+   +'<table><thead><tr><th>Foto</th><th>SKU</th><th>Product / Producto</th><th>U/M</th><th class="n">Qty</th><th class="n">Unit cost</th><th class="n">Total</th><th>Status</th></tr></thead><tbody>'+rows+'</tbody>'
+   +'<tfoot><tr><td colspan="4">TOTAL</td><td class="n">'+totQ+'</td><td></td><td class="n">$'+fmt(totV)+'</td><td></td></tr></tfoot></table>'
    +'<div class="sig"><div>Elaborado por<br>Houseman Roldan A.</div><div>Revisado<br>Supervisor</div><div>Aprobado<br>Manager Jorge Sanchez</div></div>';
   printHtmlDoc('Inventario '+co+' '+now.toISOString().slice(0,10),body);
 }
