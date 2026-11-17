@@ -1451,6 +1451,9 @@ input,select,textarea{font-family:inherit;font-size:inherit}
           <div style="display:flex;gap:8px;justify-content:center">
             <button class="btn-primary btn-sm" id="scan-start-btn" onclick="startScanner()">▶ Activar cámara</button>
             <button class="btn-danger btn-sm hidden" id="scan-stop-btn" onclick="stopScanner()">■ Detener</button>
+            <a class="btn-secondary btn-sm" href="scan.html" style="text-decoration:none;display:inline-flex;align-items:center">🔍 Scanner + Foto</a>
+            <button class="btn-secondary btn-sm" onclick="openGreenScanner()">🟢 Green Scanner</button>
+            <button class="btn-secondary btn-sm" onclick="pasteScanCode()">📋 Pegar código</button>
             <label class="btn-secondary btn-sm" style="cursor:pointer;display:inline-flex;align-items:center">📷 Foto del código<input type="file" accept="image/*" capture="environment" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden" onchange="scanFromPhoto(this)"></label>
           </div>
           <div id="scan-result" style="margin-top:10px"></div>
@@ -3401,6 +3404,54 @@ function scanFromPhoto(inp){
   im.onerror=function(){ showAlert('No se pudo leer la foto','warn'); };
   im.src=url; inp.value='';
 }
+
+/* ── External scanner app: Green QR & Barcode Scanner (id1231926852) ──
+   The app has no public callback, so the flow is: scan there -> Copy -> back here -> "Pegar código".
+   Also supports ?scan=CODE in the URL (e.g. a QR/"Smart Action" that opens StockPro with the code). */
+function openGreenScanner(){
+  showAlert('Escanea en Green Scanner, toca Copiar y vuelve aquí → "Pegar código"','info');
+  setTimeout(function(){ window.location.href='https://apps.apple.com/app/id1231926852'; },900);
+}
+async function pasteScanCode(){
+  try{
+    var txt=(await navigator.clipboard.readText()||'').trim();
+    if(!txt){ showAlert('No hay nada copiado','warn'); return; }
+    document.getElementById('scan-manual').value=txt; doManualScan(txt);
+  }catch(e){
+    showAlert('Mantén pulsado en el campo de código y elige Pegar','warn');
+    var m=document.getElementById('scan-manual'); if(m) m.focus();
+  }
+}
+(function(){
+  try{
+    var c=new URLSearchParams(location.search).get('scan');
+    if(c){ window.addEventListener('load',function(){ setTimeout(function(){
+      try{ navigate('scanner'); document.getElementById('scan-manual').value=c; doManualScan(c); }catch(e){}
+    },2500); }); }
+  }catch(e){}
+})();
+
+/* ── Inbox from the companion scanner (scan.html, same origin) ── */
+function checkScanInbox(){
+  try{
+    var raw=localStorage.getItem('sp_scan_inbox'); if(!raw) return;
+    if(!S.user || !document.getElementById('item-modal')) return;
+    var d=JSON.parse(raw); localStorage.removeItem('sp_scan_inbox');
+    if(!d||!d.code) return;
+    var ex=(S.items||[]).find(function(i){ return i.barcode===d.code||i.sku===d.code; });
+    navigate('inventory');
+    setTimeout(function(){
+      if(ex){ openEditModal && openEditModal(ex.id); if(d.photo){ _itemPhoto=d.photo; itemPhotoShow(d.photo); } showAlert('Producto ya existe: '+ex.name+' — foto lista para guardar','info'); return; }
+      openAddModal();
+      document.getElementById('im-barcode').value=d.code;
+      if(d.name) document.getElementById('im-name').value=d.name;
+      if(d.photo){ _itemPhoto=d.photo; itemPhotoShow(d.photo); }
+      showAlert('Código '+d.code+' recibido del escáner','success');
+    },300);
+  }catch(e){ console.warn('scan inbox',e); }
+}
+document.addEventListener('visibilitychange',function(){ if(!document.hidden) setTimeout(checkScanInbox,500); });
+window.addEventListener('load',function(){ var n=0,iv=setInterval(function(){ n++; if(S&&S.user){ clearInterval(iv); checkScanInbox(); } else if(n>30) clearInterval(iv); },1000); });
 function stopScanner(){
   if(S._scanTimer){clearInterval(S._scanTimer);S._scanTimer=null;}
   if(S.codeReader){try{S.codeReader.reset();}catch(e){} S.codeReader=null;}

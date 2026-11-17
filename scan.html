@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="StockScan"><meta name="theme-color" content="#0b1530">
+<title>StockScan</title>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.18.6/umd/index.min.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,system-ui,sans-serif;background:#0b1530;color:#fff;padding:14px;padding-top:max(14px,env(safe-area-inset-top))}
+h1{font-size:20px;margin:0 0 10px}.vp{position:relative;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:4/3}
+video{width:100%;height:100%;object-fit:cover}.frame{position:absolute;inset:22% 10%;border:2px solid #f5a623;border-radius:10px}
+button,label.b{border:0;border-radius:12px;padding:13px 16px;font-size:15px;font-weight:700;background:#1e4db7;color:#fff;cursor:pointer;display:inline-block}
+button.g{background:#1f2d52}button.ok{background:#1a9d5a}button:disabled{opacity:.4}.row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+input[type=text]{width:100%;padding:13px;border-radius:12px;border:1px solid #33457a;background:#142048;color:#fff;font-size:16px;margin-bottom:8px}
+.card{background:#142048;border-radius:14px;padding:12px;margin-top:12px}.th{width:96px;height:96px;border-radius:12px;object-fit:cover;background:#0b1530;display:flex;align-items:center;justify-content:center;font-size:30px}
+.hist div{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #243566}.hist img{width:44px;height:44px;border-radius:8px;object-fit:cover}
+.msg{color:#f5a623;font-size:13px;min-height:18px}
+</style></head><body>
+<h1>📷 StockScan</h1>
+<div class="vp"><video id="v" autoplay playsinline muted></video><div class="frame"></div></div>
+<div class="row"><button id="go" onclick="start()">▶ Activar cámara</button><button class="g" onclick="stop()">■ Detener</button>
+<label class="b g">🖼️ Foto del código<input type="file" accept="image/*" capture="environment" hidden onchange="fromPhoto(this)"></label></div>
+<div class="msg" id="msg"></div>
+<div class="card">
+<input type="text" id="code" placeholder="Código (se llena al escanear o escríbelo)" inputmode="numeric">
+<input type="text" id="name" placeholder="Nombre del producto (opcional)">
+<div style="display:flex;gap:12px;align-items:center"><div id="prev" class="th">📦</div>
+<div class="row" style="margin:0"><button class="g" onclick="snap()">📸 Foto del producto</button>
+<label class="b g">🖼️ Galería<input type="file" accept="image/*" hidden onchange="pick(this)"></label></div></div>
+<div class="row"><button class="ok" onclick="send()">✅ Enviar a StockPro</button></div></div>
+<div class="card hist"><b>Historial</b><div id="hist"></div></div>
+<script>
+var photo='',timer=null,stream=null,H=[];try{H=JSON.parse(localStorage.getItem('sp_scan_hist')||'[]')}catch(e){}
+var $=function(i){return document.getElementById(i)};function msg(t){$('msg').textContent=t}
+function thumb(src,cb){var im=new Image();im.onload=function(){var m=360,k=Math.min(1,m/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',.72))};im.src=src}
+function setPhoto(d){photo=d;$('prev').innerHTML='<img class="th" src="'+d+'">'}
+function snap(){var v=$('v');if(!v.videoWidth){msg('Activa la cámara primero (o usa Galería)');return}var c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);thumb(c.toDataURL('image/jpeg',.85),setPhoto)}
+function pick(i){var f=i.files[0];if(!f)return;var u=URL.createObjectURL(f);thumb(u,function(d){setPhoto(d);URL.revokeObjectURL(u)});i.value=''}
+function found(c){$('code').value=c;if(navigator.vibrate)navigator.vibrate([80,40,80]);msg('✅ Código: '+c+' — toma la foto del producto');stop()}
+async function start(){try{
+ try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false})}catch(e){stream=await navigator.mediaDevices.getUserMedia({video:true,audio:false})}
+ var v=$('v');v.srcObject=stream;try{await v.play()}catch(e){}
+ var det=null;try{if('BarcodeDetector' in window)det=new BarcodeDetector()}catch(e){}
+ var zr=null;if(!det&&window.ZXing){var h=new Map();h.set(ZXing.DecodeHintType.TRY_HARDER,true);zr=new ZXing.MultiFormatReader();zr.setHints(h)}
+ var cv=document.createElement('canvas'),busy=false;msg('Apunta al código…');
+ timer=setInterval(async function(){if(busy||!v.videoWidth)return;busy=true;try{
+  if(det){var r=await det.detect(v);if(r.length)found(r[0].rawValue)}
+  else if(zr){cv.width=v.videoWidth;cv.height=v.videoHeight;cv.getContext('2d').drawImage(v,0,0);
+   try{found(zr.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(cv)))).getText())}catch(e){}}
+ }catch(e){}busy=false},250)
+}catch(e){msg(e.name==='NotAllowedError'?'Permite la cámara en Ajustes > Safari':'Error: '+e.message)}}
+function stop(){clearInterval(timer);timer=null;if(stream){stream.getTracks().forEach(function(t){t.stop()});stream=null}$('v').srcObject=null}
+function fromPhoto(i){var f=i.files[0];if(!f)return;var u=URL.createObjectURL(f),im=new Image();im.onload=async function(){var code=null;try{
+ if('BarcodeDetector' in window){var r=await new BarcodeDetector().detect(im);if(r.length)code=r[0].rawValue}
+ if(!code&&window.ZXing){var k=Math.min(1,1600/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+  var h=new Map();h.set(ZXing.DecodeHintType.TRY_HARDER,true);var zr=new ZXing.MultiFormatReader();zr.setHints(h);code=zr.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(c)))).getText()}
+ }catch(e){}URL.revokeObjectURL(u);i.value='';code?found(code):msg('No se detectó el código; escríbelo')};im.src=u}
+function render(){$('hist').innerHTML=H.slice(0,8).map(function(h){return '<div>'+(h.photo?'<img src="'+h.photo+'">':'<span>📦</span>')+'<span>'+h.code+(h.name?' · '+h.name:'')+'</span></div>'}).join('')||'<small>Sin envíos aún</small>'}
+function send(){var c=$('code').value.trim();if(!c){msg('Falta el código');return}
+ var d={code:c,name:$('name').value.trim(),photo:photo,ts:Date.now()};
+ try{localStorage.setItem('sp_scan_inbox',JSON.stringify(d));H.unshift(d);H=H.slice(0,20);localStorage.setItem('sp_scan_hist',JSON.stringify(H))}catch(e){msg('No se pudo guardar');return}
+ location.href='./'}
+render();
+</script></body></html>
