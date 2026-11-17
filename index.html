@@ -1226,7 +1226,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
         <span class="ent-time" id="hdr-time"></span>
       </div>
       <!-- CLICKABLE HOTEL/PROPERTY NAME -->
-      <button class="ent-property-btn" onclick="openPropOrEdit(event)" title="Toca nombre=cambiar · Toca ✏️=editar">
+      <button type="button" class="ent-property-btn" onclick="openPropOrEdit(event)" title="Toca nombre=cambiar · Toca ✏️=editar">
         <div class="ent-hotel-block">
           <span class="ent-property-name" id="hdr-property-name">Hotel Arbellas</span>
           <span class="ent-property-type" id="hdr-property-type">🏨 Hotel · Plantation, FL</span>
@@ -2888,6 +2888,7 @@ function showApp(){
   saveDailySnapshot(); // Save initial daily snapshot
   // Apply active property branding on every login
   try{ propLoad(); applyActiveProperty(); }catch(e){}
+  try{ propCloudLoad(); }catch(e){}
   // Apply role-based UI visibility
   setTimeout(applyRoleUI, 200);
 }
@@ -5984,6 +5985,40 @@ function navigateDHS(page){
 /* ── PERSIST ── */
 function propSave(){
   try{ localStorage.setItem('sp_properties', JSON.stringify(PROP.list)); }catch(e){}
+  try{ propCloudSave(); }catch(e){}
+}
+/* Header button: open the institution picker (works on PC and iPhone) */
+function openPropOrEdit(ev){
+  try{ if(ev){ ev.preventDefault(); ev.stopPropagation(); } }catch(e){}
+  openPropertySheet();
+}
+/* Cloud sync of the institution list (so every device sees the same companies).
+   Stored in the user's own profile doc; if the rules deny it we silently stay local. */
+function _propClean(l){
+  return (l||[]).map(function(p){ return {id:p.id,name:p.name,city:p.city||'',type:p.type||'',emoji:p.emoji||'',color:p.color||'',notes:p.notes||''}; });
+}
+function propCloudSave(){
+  if(!window.firebase || !S.fbReady || !S.user || !S.user.uid) return;
+  firebase.firestore().collection(COLS.USR).doc(S.user.uid)
+    .set({properties:_propClean(PROP.list),propsUpdatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true})
+    .catch(function(e){ console.warn('[props] cloud save skipped:',e.code||e.message); });
+}
+function propCloudLoad(){
+  if(!window.firebase || !S.fbReady || !S.user || !S.user.uid) return;
+  firebase.firestore().collection(COLS.USR).doc(S.user.uid).get().then(function(snap){
+    var cloud=(snap.exists&&snap.data().properties)||[];
+    var byId={}; (PROP.list||[]).forEach(function(p){ byId[p.id]=p; });
+    var added=0;
+    cloud.forEach(function(c){
+      if(!c||!c.id||!c.name) return;
+      if(!byId[c.id]){ PROP.list.push({id:c.id,name:c.name,city:c.city||'',type:c.type||'Hotel',emoji:c.emoji||'\u{1F3E8}',color:c.color||'#374151',notes:c.notes||'',active:false}); added++; }
+    });
+    try{ localStorage.setItem('sp_properties', JSON.stringify(PROP.list)); }catch(e){}
+    if(added){ try{ renderPropList(); renderDashPropWidget(); }catch(e){} showAlert('\u2705 '+added+' instituci\u00f3n(es) sincronizada(s)','success'); }
+    // push local-only companies up so other devices can get them
+    var cloudIds={}; cloud.forEach(function(c){ if(c&&c.id) cloudIds[c.id]=1; });
+    if(PROP.list.some(function(p){ return !cloudIds[p.id]; })) propCloudSave();
+  }).catch(function(e){ console.warn('[props] cloud load skipped:',e.code||e.message); });
 }
 function propLoad(){
   try{
