@@ -2759,8 +2759,8 @@ async function startApp(){
           console.warn('Role fetch failed, defaulting to warehouse_manager:', roleErr.message);
         }
         console.log('✅ User:', S.user.email, '| Role:', S.user.role);
-        showApp(); attachListeners();
-      } else { showLogin(); }
+        showApp(); attachListeners(); try{ watchMyRole(); }catch(e){}
+      } else { try{ if(_roleUnsub){ _roleUnsub(); _roleUnsub=null; } }catch(e){} showLogin(); }
     });
   } catch(e) { console.error(e); fallbackOffline(); }
 }
@@ -6530,35 +6530,52 @@ function savePropForm(){
 
 
 /* ── USER MANAGER (admin only) ── */
+var _roleUnsub=null;
+function watchMyRole(){
+  if(!S.fbReady||!S.user||!S.user.uid) return;
+  try{ if(_roleUnsub) _roleUnsub(); }catch(e){}
+  var col=firebase.firestore().collection('stockpro_usuarios');
+  var apply=function(role,name){
+    if(!role||role===S.user.role) return;
+    S.user.role=role; if(name) S.user.name=name;
+    try{ applyRoleUI(); renderInventory(); renderDashboard(); }catch(e){}
+    showAlert('\u2705 Tu rol cambi\u00f3 a: '+role,'info');
+  };
+  _roleUnsub=col.doc(S.user.uid).onSnapshot(function(d){ if(d.exists) apply(d.data().role,d.data().name); },function(){});
+}
 async function openUserManager(){
   if(!requireAdmin('gestionar usuarios')) return;
   document.getElementById('user-mgr-modal').classList.add('open');
   loadUserList();
 }
 
-async function loadUserList(){
+var _umgrUnsub=null;
+function closeUserManager(){
+  try{ if(_umgrUnsub){ _umgrUnsub(); _umgrUnsub=null; } }catch(e){}
+  document.getElementById('user-mgr-modal').classList.remove('open');
+}
+function loadUserList(){
   const el = document.getElementById('umgr-list');
   if(!S.fbReady){ el.innerHTML='<p style="color:var(--text3);font-size:12px">Firebase no disponible en modo offline.</p>'; return; }
   el.innerHTML='<p style="color:var(--text3);font-size:12px">Cargando...</p>';
-  try{
-    const snap = await firebase.firestore().collection('stockpro_usuarios').get();
+  try{ if(_umgrUnsub){ _umgrUnsub(); _umgrUnsub=null; } }catch(e){}
+  const roleLabels = {administrator:'\u{1F451} Admin', warehouse_manager:'\u{1F4E6} Almacenero', supervisor:'\u{1F454} Supervisor', housekeeping:'\u{1F9F9} Housekeeping'};
+  const roleColors = {administrator:'#E5383B', warehouse_manager:'#1E4DB7', supervisor:'#1FAD6E', housekeeping:'#6B7280'};
+  _umgrUnsub = firebase.firestore().collection('stockpro_usuarios').onSnapshot(function(snap){
     if(snap.empty){ el.innerHTML='<p style="color:var(--text3);font-size:12px">Sin usuarios registrados.</p>'; return; }
-    const roleLabels = {administrator:'👑 Admin', warehouse_manager:'📦 Almacenero', supervisor:'👔 Supervisor', housekeeping:'🧹 Housekeeping'};
-    const roleColors = {administrator:'#E5383B', warehouse_manager:'#1E4DB7', supervisor:'#1FAD6E', housekeeping:'#6B7280'};
-    el.innerHTML = snap.docs.map(d=>{
-      const u = d.data();
-      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--surface2);border-radius:var(--r2);margin-bottom:6px;font-size:12px">
-        <div>
-          <div style="font-weight:700">${u.name||u.email}</div>
-          <div style="color:var(--text3);font-size:11px">${u.email}</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="background:${roleColors[u.role]||'#999'}22;color:${roleColors[u.role]||'#999'};border:1px solid ${roleColors[u.role]||'#999'}44;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700">${roleLabels[u.role]||u.role}</span>
-          <button onclick="deleteUserRole('${d.id}')" style="background:#FDE8E8;color:#E5383B;border:none;border-radius:6px;padding:4px 8px;font-size:11px">🗑</button>
-        </div>
-      </div>`;
+    // one row per email (an account can have a uid doc and an email doc)
+    var byEmail={};
+    snap.docs.forEach(function(d){ var u=d.data(); var k=(u.email||d.id).toLowerCase(); (byEmail[k]=byEmail[k]||[]).push({id:d.id,u:u}); });
+    el.innerHTML = Object.keys(byEmail).sort().map(function(k){
+      var grp=byEmail[k], main=grp.find(function(g){ return g.u.role; })||grp[0], u=main.u;
+      var ids=grp.map(function(g){ return g.id; }).join(',');
+      var rc=roleColors[u.role]||'#999';
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--surface2);border-radius:var(--r2);margin-bottom:6px;font-size:12px">'
+        +'<div><div style="font-weight:700">'+_esc(u.name||u.email||k)+(u.online?' <span style="color:#1FAD6E">&#9679;</span>':'')+'</div><div style="color:var(--text3);font-size:11px">'+_esc(u.email||k)+'</div></div>'
+        +'<div style="display:flex;align-items:center;gap:8px"><span style="background:'+rc+'22;color:'+rc+';border:1px solid '+rc+'44;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700">'+(roleLabels[u.role]||u.role||'sin rol')+'</span>'
+        +'<button data-ids="'+_esc(ids)+'" onclick="deleteUserRole(this.dataset.ids)" style="background:#FDE8E8;color:#E5383B;border:none;border-radius:6px;padding:4px 8px;font-size:11px">\u{1F5D1}</button></div></div>';
     }).join('');
-  }catch(e){ el.innerHTML='<p style="color:var(--red2);font-size:12px">Error: '+e.message+'</p>'; }
+  }, function(e){ el.innerHTML='<p style="color:var(--red2);font-size:12px">Error: '+e.message+'</p>'; });
 }
 
 async function saveUserRole(){
@@ -6570,16 +6587,19 @@ async function saveUserRole(){
   if(!S.fbReady){ showAlert('Firebase no disponible','warn'); return; }
   try{
     // Use email as doc ID for easy lookup
-    const docId = email.replace(/[^a-z0-9]/g,'_');
-    await firebase.firestore().collection('stockpro_usuarios').doc(docId).set({
-      email, name: name||email.split('@')[0], role,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      updatedBy: S.user.email
-    }, {merge:true});
+    const col = firebase.firestore().collection('stockpro_usuarios');
+    const payload = { email, role, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: S.user.email };
+    if(name) payload.name = name;
+    const found = await col.where('email','==',email).get();
+    if(found.empty){
+      payload.name = name||email.split('@')[0];
+      await col.doc(email.replace(/[^a-z0-9]/g,'_')).set(payload,{merge:true});
+    } else {
+      await Promise.all(found.docs.map(function(d){ return d.ref.set(payload,{merge:true}); }));
+    }
     showAlert('✅ Usuario guardado: '+email+' → '+(role),'success');
     document.getElementById('umgr-email').value='';
     document.getElementById('umgr-name').value='';
-    loadUserList();
   }catch(e){ showAlert('Error: '+e.message,'danger'); }
 }
 
@@ -6587,9 +6607,8 @@ async function deleteUserRole(docId){
   if(!requireAdmin('eliminar usuarios')) return;
   if(!confirm('¿Eliminar este usuario del registro?')) return;
   try{
-    await firebase.firestore().collection('stockpro_usuarios').doc(docId).delete();
+    await Promise.all(String(docId).split(',').filter(Boolean).map(function(id){ return firebase.firestore().collection('stockpro_usuarios').doc(id).delete(); }));
     showAlert('Usuario eliminado','info');
-    loadUserList();
   }catch(e){ showAlert('Error: '+e.message,'danger'); }
 }
 
@@ -10122,7 +10141,7 @@ function scannerInit(){
   <div class="modal">
     <div class="modal-hdr">
       <h3>👑 Gestionar Usuarios</h3>
-      <button class="modal-close" onclick="document.getElementById('user-mgr-modal').classList.remove('open')">
+      <button class="modal-close" onclick="closeUserManager()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
