@@ -1451,6 +1451,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
           <div style="display:flex;gap:8px;justify-content:center">
             <button class="btn-primary btn-sm" id="scan-start-btn" onclick="startScanner()">▶ Activar cámara</button>
             <button class="btn-danger btn-sm hidden" id="scan-stop-btn" onclick="stopScanner()">■ Detener</button>
+            <label class="btn-secondary btn-sm" style="cursor:pointer;display:inline-flex;align-items:center">📷 Foto del código<input type="file" accept="image/*" capture="environment" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden" onchange="scanFromPhoto(this)"></label>
           </div>
           <div id="scan-result" style="margin-top:10px"></div>
         </div>
@@ -2122,7 +2123,7 @@ input,select,textarea{font-family:inherit;font-size:inherit}
         <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
           <div id="im-photo-prev" style="width:72px;height:72px;border-radius:12px;background:var(--surface2);border:1.5px dashed var(--border);display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:26px">📦</div>
           <div style="display:flex;flex-direction:column;gap:6px">
-            <button type="button" class="btn-secondary" onclick="document.getElementById('im-photo-file').click()">📷 Tomar / elegir foto</button>
+            <label class="btn-secondary" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px">📷 Tomar foto<input type="file" accept="image/*" capture="environment" style="position:absolute;width:1px;height:1px;opacity:0" onchange="itemPhotoPick(this)"></label> <label class="btn-secondary" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px">🖼️ Galería<input type="file" accept="image/*" style="position:absolute;width:1px;height:1px;opacity:0" onchange="itemPhotoPick(this)"></label>
             <button type="button" class="btn-secondary" id="im-photo-del" style="display:none" onclick="itemPhotoClear()">✕ Quitar foto</button>
           </div>
           <input type="file" id="im-photo-file" accept="image/*" capture="environment" style="display:none" onchange="itemPhotoPick(this)">
@@ -3337,20 +3338,71 @@ async function saveItem(){
 /* ── SCANNER ── */
 async function startScanner(){
   try{
-    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}});
-    document.getElementById('scan-video').srcObject=stream; S.scanActive=true;
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ showAlert('Cámara no disponible aquí (se requiere https). Usa "Foto del código".','warn'); return; }
+    var stream;
+    try{ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false}); }
+    catch(e1){ stream=await navigator.mediaDevices.getUserMedia({video:true,audio:false}); }
+    var v=document.getElementById('scan-video');
+    v.setAttribute('playsinline',''); v.setAttribute('webkit-playsinline',''); v.muted=true;
+    v.srcObject=stream; S.scanActive=true;
+    try{ await v.play(); }catch(e){}
     document.getElementById('scan-start-btn').classList.add('hidden');
     document.getElementById('scan-stop-btn').classList.remove('hidden');
-    if(window.ZXing){
-      const hints=new Map();
-      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[ZXing.BarcodeFormat.EAN_13,ZXing.BarcodeFormat.EAN_8,ZXing.BarcodeFormat.CODE_128,ZXing.BarcodeFormat.CODE_39,ZXing.BarcodeFormat.UPC_A,ZXing.BarcodeFormat.UPC_E,ZXing.BarcodeFormat.QR_CODE]);
+    var det=null;
+    try{ if('BarcodeDetector' in window) det=new BarcodeDetector(); }catch(e){}
+    var zr=null;
+    if(!det && window.ZXing){
+      var hints=new Map();
       hints.set(ZXing.DecodeHintType.TRY_HARDER,true);
-      S.codeReader=new ZXing.BrowserMultiFormatReader(hints);
-      S.codeReader.decodeFromVideoDevice(null,'scan-video',result=>{if(result)handleScan(result.getText());});
+      zr=new ZXing.MultiFormatReader(); zr.setHints(hints);
     }
-  }catch(err){showAlert(err.name==='NotAllowedError'?'Permite acceso a la cámara':'Error: '+err.message,'warn');}
+    if(!det && !zr){ showAlert('Lector no cargado; usa "Foto del código".','warn'); }
+    var cv=document.createElement('canvas'), busy=false;
+    S._scanTimer=setInterval(async function(){
+      if(!S.scanActive||busy||!v.videoWidth) return; busy=true;
+      try{
+        if(det){
+          var r=await det.detect(v); if(r&&r.length){ handleScan(r[0].rawValue); }
+        } else if(zr){
+          var w=v.videoWidth,h=v.videoHeight; cv.width=w; cv.height=h;
+          cv.getContext('2d').drawImage(v,0,0,w,h);
+          var src=new ZXing.HTMLCanvasElementLuminanceSource(cv);
+          var bmp=new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(src));
+          try{ var res=zr.decode(bmp); if(res) handleScan(res.getText()); }catch(e){ /* not found */ }
+        }
+      }catch(e){}
+      busy=false;
+    },250);
+  }catch(err){
+    var m=err&&err.name==='NotAllowedError'?'Permite el acceso a la cámara (Ajustes > Safari > Cámara)':'Error de cámara: '+(err&&err.message);
+    showAlert(m,'warn');
+  }
+}
+/* Fallback: take/choose a photo of the barcode and decode it */
+function scanFromPhoto(inp){
+  var f=inp.files&&inp.files[0]; if(!f) return;
+  var url=URL.createObjectURL(f), im=new Image();
+  im.onload=async function(){
+    var code=null;
+    try{
+      if('BarcodeDetector' in window){ var r=await new BarcodeDetector().detect(im); if(r&&r.length) code=r[0].rawValue; }
+      if(!code && window.ZXing){
+        var max=1600,k=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement('canvas');
+        c.width=Math.round(im.width*k); c.height=Math.round(im.height*k); c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+        var hints=new Map(); hints.set(ZXing.DecodeHintType.TRY_HARDER,true);
+        var zr=new ZXing.MultiFormatReader(); zr.setHints(hints);
+        code=zr.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(c)))).getText();
+      }
+    }catch(e){}
+    URL.revokeObjectURL(url); inp.value='';
+    if(code){ document.getElementById('scan-manual').value=code; S.scanActive=true; handleScan(code); }
+    else showAlert('No se detectó el código. Acércalo y con buena luz, o escríbelo.','warn');
+  };
+  im.onerror=function(){ showAlert('No se pudo leer la foto','warn'); };
+  im.src=url; inp.value='';
 }
 function stopScanner(){
+  if(S._scanTimer){clearInterval(S._scanTimer);S._scanTimer=null;}
   if(S.codeReader){try{S.codeReader.reset();}catch(e){} S.codeReader=null;}
   const v=document.getElementById('scan-video');
   if(v?.srcObject){v.srcObject.getTracks().forEach(t=>t.stop());v.srcObject=null;}
