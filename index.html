@@ -3316,7 +3316,7 @@ async function saveItem(){
       console.warn('[saveItem] Firestore error, saving locally:', fbErr.message);
       _saveLocal();
       closeItemModal();
-      showAlert('✅ Guardado localmente (sin conexión a base de datos)', 'success');
+      showAlert('⚠️ NO se guardó en la nube ('+(fbErr.code||fbErr.message)+'). Quedó solo en este aparato y no se verá en la PC.', 'warn');
       return;
     }
   } else {
@@ -4472,14 +4472,28 @@ function generateCustomReport(){
 }
 
 function shareWhatsApp(){
-  const now=new Date();
-  const total=S.items.length;
-  const out=S.items.filter(i=>!i.qty||i.qty<=0).length;
-  const low=S.items.filter(i=>i.qty>0&&i.qty<(i.minQty||10)).length;
-  const val=S.items.reduce((s,i)=>s+(i.qty||0)*(i.price||0),0);
-  const msg=`🏨 *Arbella'sStock WMS — ${getPropName()}*\n📍 ${getPropCity()}\n\n📊 *Inventory Report*\n📅 ${now.toLocaleString(LANG==='en'?'en-US':'es-MX')}\n👤 ${S.user?.name||'—'}\n\n📦 Total Productos: *${total}*\n💰 Valor Total: *$${val.toFixed(2)}*\n🚨 Sin Stock: *${out}*\n⚠️ Stock Bajo: *${low}*\n\n_StockPro Inventory Report_\n_Generated: ${now.toISOString()}_`;
-  const encoded=encodeURIComponent(msg);
-  const url=`https://wa.me/?text=${encoded}`;
+  var now=new Date(), L=S.items||[];
+  var total=L.length;
+  var outL=L.filter(function(i){ return !i.qty||i.qty<=0; });
+  var lowL=L.filter(function(i){ return i.qty>0&&i.qty<(i.minQty||10); });
+  var val=L.reduce(function(s,i){ return s+(i.qty||0)*(i.price||0); },0);
+  var fmt=function(n){ return '$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  var line=function(i){ return '- '+i.name+': '+(i.qty||0)+' '+(i.unit||''); };
+  var m=[];
+  m.push('*'+getPropName()+'*');
+  m.push("Arbella's StockPro WMS - Inventory Report / Reporte de Inventario");
+  var city=getPropCity(); if(city) m.push(city);
+  m.push('Fecha / Date: '+now.toLocaleDateString('en-US')+' '+now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}));
+  m.push('Por / By: '+((S.user&&S.user.name)||'-'));
+  m.push('');
+  m.push('*RESUMEN / SUMMARY*');
+  m.push('Total productos / Products: *'+total+'*');
+  m.push('Valor total / Total value: *'+fmt(val)+'*');
+  m.push('Sin stock / Out of stock: *'+outL.length+'*');
+  m.push('Stock bajo / Low stock: *'+lowL.length+'*');
+  if(outL.length){ m.push(''); m.push('*SIN STOCK / OUT OF STOCK*'); outL.slice(0,25).forEach(function(i){ m.push('- '+i.name); }); if(outL.length>25) m.push('... +'+(outL.length-25)+' mas'); }
+  if(lowL.length){ m.push(''); m.push('*STOCK BAJO / LOW STOCK*'); lowL.slice(0,25).forEach(function(i){ m.push(line(i)); }); if(lowL.length>25) m.push('... +'+(lowL.length-25)+' mas'); }
+  var url='https://wa.me/?text='+encodeURIComponent(m.join('\n'));
   window.open(url,'_blank');
 }
 
