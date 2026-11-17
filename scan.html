@@ -32,7 +32,7 @@ input[type=text]{width:100%;padding:13px;border-radius:12px;border:1px solid #33
 <script>
 var photo='',timer=null,stream=null,H=[];try{H=JSON.parse(localStorage.getItem('sp_scan_hist')||'[]')}catch(e){}
 var $=function(i){return document.getElementById(i)};function msg(t){$('msg').textContent=t}
-function thumb(src,cb){var im=new Image();im.onload=function(){var m=360,k=Math.min(1,m/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',.72))};im.src=src}
+function thumb(src,cb){var im=new Image();im.onload=function(){var m=640,k=Math.min(1,m/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);var x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',.9))};im.src=src}
 function setPhoto(d){photo=d;$('prev').innerHTML='<img class="th" src="'+d+'">'}
 function snap(){var v=$('v');if(!v.videoWidth){msg('Activa la cámara primero (o usa Galería)');return}var c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);thumb(c.toDataURL('image/jpeg',.85),setPhoto)}
 function pick(i){var f=i.files[0];if(!f)return;var u=URL.createObjectURL(f);thumb(u,function(d){setPhoto(d);URL.revokeObjectURL(u)});i.value=''}
